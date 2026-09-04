@@ -33,7 +33,6 @@ pub fn open(path: &Path) -> anyhow::Result<OpenedSource> {
 }
 
 /// A volume selected for filesystem work.
-#[allow(dead_code)] // used by the NTFS commands (M3)
 pub struct SelectedVolume {
     /// Reader restricted to the volume.
     pub reader: Arc<dyn BlockReader>,
@@ -49,7 +48,6 @@ pub struct SelectedVolume {
 /// bare volume source is used as is, and a partitioned source yields the
 /// first partition whose probe matches `wanted` (or the first volume when
 /// `wanted` is `None`).
-#[allow(dead_code)] // used by the NTFS commands (M3)
 pub fn select_volume(
     opened: &OpenedSource,
     partition: Option<u32>,

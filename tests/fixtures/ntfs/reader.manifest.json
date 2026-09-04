@@ -1,0 +1,50 @@
+{
+  "image": "reader.img.gz",
+  "label": "PHXREADER",
+  "files": [
+    {
+      "path": "\\resident.txt",
+      "size": 200,
+      "sha256": "419e237449bcaeea1fafb079425e46dc9ae4ab60be358543b9671cf3a9aed716"
+    },
+    {
+      "path": "\\empty.txt",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "\\docs\\contiguous_1mib.bin",
+      "size": 1048576,
+      "sha256": "ce2eb777114aee5909d30d3bfdb59263e0031116b2d86685b31b453d141a888f"
+    },
+    {
+      "path": "\\docs\\nested\\partial_cluster.bin",
+      "size": 5000,
+      "sha256": "e12b74a86f72c6c4a7f9a02a8bc799101bd23a8ba95377074e0050a2cd78fb2f"
+    },
+    {
+      "path": "\\docs\\nested\\deeper\\ünïcödé 文件 🚀.txt",
+      "size": 3000,
+      "sha256": "9fc0042e03e53479bfc162dad3baafd3c21608e907a00548d281906937eada9a"
+    },
+    {
+      "path": "\\docs\\exact_two_clusters.bin",
+      "size": 8192,
+      "sha256": "0845785aa51b319c7c16ed2f277279b10846d74ed70fee1351d38e027394bece"
+    },
+    {
+      "path": "\\sparse.bin",
+      "size": 2097152,
+      "sha256": "c21453f29b5bc51810739e049d662595af964c5aad5e0433c0205275488e4262"
+    },
+    {
+      "path": "\\docs\\fragmented.bin",
+      "size": 1310720,
+      "sha256": "1d4d9b173bab1aa1a877434e95edc2214fe17c278ef735361baa872c70adbcf3"
+    }
+  ],
+  "ads": {
+    "path": "\\docs\\exact_two_clusters.bin",
+    "stream": "secret"
+  }
+}

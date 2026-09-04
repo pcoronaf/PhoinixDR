@@ -3,7 +3,7 @@
 use phoinix_core::fmt::bytes_si;
 use phoinix_device::{DeviceKind, platform_enumerator};
 
-use crate::output;
+use crate::output::{self, outln};
 
 /// Arguments for `phoinix devices`.
 #[derive(Debug, clap::Args)]
@@ -26,7 +26,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         return output::print_json(&devices);
     }
     if devices.is_empty() {
-        println!("No block devices found (or none are accessible to this process).");
+        outln!("No block devices found (or none are accessible to this process).");
         return Ok(());
     }
     let rows: Vec<Vec<String>> = devices
@@ -59,15 +59,12 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             ]
         })
         .collect();
-    print!(
-        "{}",
-        output::table(
-            &[
-                "DEVICE", "BUS", "SIZE", "SECTOR", "MEDIA", "MODEL", "SERIAL"
-            ],
-            &rows
-        )
-    );
+    output::write_raw(&output::table(
+        &[
+            "DEVICE", "BUS", "SIZE", "SECTOR", "MEDIA", "MODEL", "SERIAL",
+        ],
+        &rows,
+    ));
     if devices.iter().any(|d| !d.accessible) {
         eprintln!("\nSome devices could not be opened; run with elevated privileges to read them.");
     }

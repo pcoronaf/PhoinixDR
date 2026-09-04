@@ -57,6 +57,13 @@ pub enum NtfsError {
     #[error("MFT record {0} does not exist")]
     NoSuchRecord(u64),
 
+    /// A data stream has no run covering the requested VCN.
+    #[error("no extent covers VCN {vcn}; the runlist is incomplete")]
+    MissingExtent {
+        /// Virtual cluster number without a run.
+        vcn: u64,
+    },
+
     /// The record or attribute requires a feature not yet implemented.
     #[error("unsupported NTFS feature: {0}")]
     Unsupported(String),
@@ -114,6 +121,10 @@ impl From<NtfsError> for FsError {
                 detail: d,
             },
             NtfsError::NoSuchRecord(r) => FsError::NotFound(format!("MFT record {r}")),
+            NtfsError::MissingExtent { vcn } => FsError::Malformed {
+                structure: "NTFS runlist",
+                detail: format!("no extent covers VCN {vcn}"),
+            },
             NtfsError::Unsupported(d) => FsError::Unsupported(d),
             NtfsError::NotFound(d) => FsError::NotFound(d),
         }

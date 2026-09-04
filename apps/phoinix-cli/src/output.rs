@@ -2,6 +2,38 @@
 
 use std::io::Write;
 
+/// Prints a line to stdout; if the consumer closed the pipe (`| head`), the
+/// process exits quietly with success instead of panicking.
+macro_rules! outln {
+    () => {
+        $crate::output::write_line(String::new())
+    };
+    ($($arg:tt)*) => {
+        $crate::output::write_line(format!($($arg)*))
+    };
+}
+pub(crate) use outln;
+
+/// Writes `text` plus a newline to stdout, exiting on a broken pipe.
+pub fn write_line(text: String) {
+    let mut stdout = std::io::stdout().lock();
+    if stdout
+        .write_all(text.as_bytes())
+        .and_then(|()| stdout.write_all(b"\n"))
+        .is_err()
+    {
+        std::process::exit(0);
+    }
+}
+
+/// Writes `text` verbatim to stdout, exiting on a broken pipe.
+pub fn write_raw(text: &str) {
+    let mut stdout = std::io::stdout().lock();
+    if stdout.write_all(text.as_bytes()).is_err() {
+        std::process::exit(0);
+    }
+}
+
 /// Renders rows as a left-aligned, space-padded table.
 pub fn table(header: &[&str], rows: &[Vec<String>]) -> String {
     let columns = header.len();

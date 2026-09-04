@@ -44,6 +44,15 @@ pub trait BlockReader: Send + Sync {
     fn read_at(&self, offset: u64, buffer: &mut [u8]) -> Result<usize, BlockError>;
 }
 
+impl std::fmt::Debug for dyn BlockReader + '_ {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockReader")
+            .field("source", &self.describe())
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
 /// Validates a read request against the reader contract.
 ///
 /// # Errors

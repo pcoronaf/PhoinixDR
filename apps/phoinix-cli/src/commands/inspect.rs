@@ -8,7 +8,7 @@ use phoinix_fs::Detection;
 use phoinix_volume::{PartitionScheme, PartitionTable};
 use serde::Serialize;
 
-use crate::output;
+use crate::output::{self, outln};
 use crate::source::{self, standard_probes};
 
 /// Arguments for `phoinix inspect`.
@@ -120,33 +120,33 @@ fn printed_container(index: u32) -> bool {
 
 fn print_text(report: &Report) {
     let s = &report.source;
-    println!("Source");
-    println!("  Path:         {}", s.path);
-    println!(
+    outln!("Source");
+    outln!("  Path:         {}", s.path);
+    outln!(
         "  Size:         {} bytes ({})",
         grouped(s.size),
         bytes_si(s.size)
     );
     match s.physical_sector_size {
-        Some(p) if p != s.logical_sector_size => println!(
+        Some(p) if p != s.logical_sector_size => outln!(
             "  Sector size:  {} logical / {p} physical",
             s.logical_sector_size
         ),
-        _ => println!("  Sector size:  {}", s.logical_sector_size),
+        _ => outln!("  Sector size:  {}", s.logical_sector_size),
     }
     if let Some(fp) = &s.fingerprint {
-        println!(
+        outln!(
             "  Fingerprint:  {}",
             phoinix_block::to_hex(&fp.first_mib_sha256)
         );
     }
 
     let t = &report.partition_table;
-    println!();
-    println!("Partition table");
-    println!("  Scheme:       {}", t.scheme);
+    outln!();
+    outln!("Partition table");
+    outln!("  Scheme:       {}", t.scheme);
     if let Some(guid) = t.disk_guid {
-        println!(
+        outln!(
             "  Disk GUID:    {}",
             guid.hyphenated().to_string().to_uppercase()
         );
@@ -154,27 +154,27 @@ fn print_text(report: &Report) {
     if let Some(sig) = t.mbr_disk_signature
         && t.scheme == PartitionScheme::Mbr
     {
-        println!("  Disk signature: {sig:#010x}");
+        outln!("  Disk signature: {sig:#010x}");
     }
     if t.diagnostics.is_empty() {
         if t.scheme == PartitionScheme::Gpt {
-            println!("  Header:       valid");
-            println!("  Backup:       valid");
+            outln!("  Header:       valid");
+            outln!("  Backup:       valid");
         }
     } else {
-        println!("  Diagnostics:");
+        outln!("  Diagnostics:");
         for d in &t.diagnostics {
-            println!("    - {d}");
+            outln!("    - {d}");
         }
     }
 
-    println!();
+    outln!();
     let whole_source = report.volumes.len() == 1
         && report
             .volumes
             .first()
             .is_some_and(|v| v.partition.is_none());
-    println!(
+    outln!(
         "{}",
         if whole_source {
             "Volume (whole source)"
@@ -200,17 +200,17 @@ fn print_text(report: &Report) {
                     && p.end_lba <= c.end_lba
                     && !printed_container(c.index)
                 {
-                    println!(
+                    outln!(
                         "{}  {}  [container]",
                         c.index,
                         c.partition_type.description()
                     );
-                    println!(
+                    outln!(
                         "   Sectors:  {} – {}",
                         grouped(c.start_lba),
                         grouped(c.end_lba)
                     );
-                    println!();
+                    outln!();
                 }
             }
         }
@@ -240,38 +240,39 @@ fn print_text(report: &Report) {
             _ => String::new(),
         };
         if !title.is_empty() {
-            println!("{title}");
+            outln!("{title}");
         }
         if let Some(p) = part {
-            println!("   Type:     {}", p.partition_type.description());
-            println!(
+            outln!("   Type:     {}", p.partition_type.description());
+            outln!(
                 "   Sectors:  {} – {}",
                 grouped(p.start_lba),
                 grouped(p.end_lba)
             );
         }
-        println!("   Offset:   {} bytes", grouped(v.offset));
-        println!(
+        outln!("   Offset:   {} bytes", grouped(v.offset));
+        outln!(
             "   Size:     {} ({} bytes)",
             bytes_si(v.length),
             grouped(v.length)
         );
         match &v.detection.best {
             Some(best) => {
-                println!(
+                outln!(
                     "   FS:       {} (confidence {}%)",
-                    best.filesystem, best.confidence
+                    best.filesystem,
+                    best.confidence
                 );
                 for e in &best.evidence {
-                    println!(
+                    outln!(
                         "             {} {}",
                         if e.supports { "✓" } else { "⚠" },
                         e.description
                     );
                 }
             }
-            None => println!("   FS:       unknown"),
+            None => outln!("   FS:       unknown"),
         }
-        println!();
+        outln!();
     }
 }

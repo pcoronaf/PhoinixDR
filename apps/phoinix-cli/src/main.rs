@@ -33,6 +33,9 @@ enum Command {
     Read(commands::read::Args),
     /// Identify the partition table and filesystems of a device or image.
     Inspect(commands::inspect::Args),
+    /// Native NTFS reader commands.
+    #[command(subcommand)]
+    Ntfs(commands::ntfs::Command),
 }
 
 fn init_tracing(verbosity: u8) {
@@ -55,6 +58,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Devices(args) => commands::devices::run(args),
         Command::Read(args) => commands::read::run(args),
         Command::Inspect(args) => commands::inspect::run(args),
+        Command::Ntfs(cmd) => commands::ntfs::run(cmd),
     }
 }
 

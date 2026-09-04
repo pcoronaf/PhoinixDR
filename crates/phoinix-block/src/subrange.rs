@@ -12,23 +12,12 @@ use crate::{BlockError, BlockGeometry, BlockReader, check_request};
 /// Every request is validated against the subrange before it is translated
 /// and forwarded, so a filesystem parser can never read outside its
 /// partition.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SubrangeReader {
     id: SourceId,
     parent: Arc<dyn BlockReader>,
     range: ByteRange,
     geometry: BlockGeometry,
-}
-
-impl std::fmt::Debug for SubrangeReader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SubrangeReader")
-            .field("id", &self.id)
-            .field("parent", &self.parent.describe())
-            .field("range", &self.range)
-            .field("geometry", &self.geometry)
-            .finish()
-    }
 }
 
 impl SubrangeReader {
