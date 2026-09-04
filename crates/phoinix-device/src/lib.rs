@@ -17,6 +17,7 @@
 #![deny(unsafe_code)]
 
 mod error;
+pub mod identity;
 mod model;
 
 #[cfg(target_os = "linux")]
@@ -30,6 +31,7 @@ use std::sync::Arc;
 use phoinix_block::{BlockReader, RawImage};
 
 pub use error::DeviceError;
+pub use identity::{DiskIdentity, disk_of_path, disk_of_source};
 pub use model::{DeviceBus, DeviceInfo, DeviceKind, DevicePath, device_source_id};
 
 /// Enumerates block devices and opens them read-only.

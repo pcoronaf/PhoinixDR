@@ -384,14 +384,20 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "flate2",
+ "hex",
  "phoinix-block",
  "phoinix-core",
  "phoinix-device",
  "phoinix-fs",
  "phoinix-fs-ntfs",
+ "phoinix-health",
+ "phoinix-recovery",
  "phoinix-volume",
  "serde",
  "serde_json",
+ "sha2",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
 ]
@@ -426,6 +432,7 @@ version = "0.1.0"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
+ "phoinix-health",
  "serde",
  "thiserror",
  "tracing",
@@ -438,6 +445,7 @@ dependencies = [
  "phoinix-block",
  "phoinix-core",
  "phoinix-fs",
+ "phoinix-health",
  "serde",
  "thiserror",
  "tracing",
@@ -447,8 +455,12 @@ dependencies = [
 name = "phoinix-health"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
  "phoinix-core",
+ "serde",
+ "serde_json",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -461,6 +473,8 @@ dependencies = [
  "phoinix-core",
  "phoinix-fs",
  "phoinix-fs-ntfs",
+ "phoinix-health",
+ "phoinix-recovery",
  "phoinix-volume",
  "serde_json",
  "sha2",
@@ -471,8 +485,16 @@ dependencies = [
 name = "phoinix-recovery"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "phoinix-core",
+ "phoinix-device",
+ "phoinix-fs",
+ "phoinix-health",
+ "serde",
+ "sha2",
+ "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

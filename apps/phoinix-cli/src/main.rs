@@ -36,6 +36,12 @@ enum Command {
     /// Native NTFS reader commands.
     #[command(subcommand)]
     Ntfs(commands::ntfs::Command),
+    /// Scan a source for recoverable files and assess their health.
+    Scan(commands::scan::Args),
+    /// Explain the evidence behind a candidate's recovery health.
+    Explain(commands::explain::Args),
+    /// Recover candidates to another filesystem and verify them.
+    Recover(commands::recover::Args),
 }
 
 fn init_tracing(verbosity: u8) {
@@ -59,6 +65,9 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Read(args) => commands::read::run(args),
         Command::Inspect(args) => commands::inspect::run(args),
         Command::Ntfs(cmd) => commands::ntfs::run(cmd),
+        Command::Scan(args) => commands::scan::run(args),
+        Command::Explain(args) => commands::explain::run(args),
+        Command::Recover(args) => commands::recover::run(args),
     }
 }
 

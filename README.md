@@ -33,9 +33,11 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
   tests, and future desktop and service front-ends.
 - **Third-party libraries sit behind adapters.**
 
-See [`docs/architecture/overview.md`](docs/architecture/overview.md) and the
-[architectural decision records](docs/decisions/) for the reasoning behind
-these rules.
+See [`docs/architecture/overview.md`](docs/architecture/overview.md), the
+[architectural decision records](docs/decisions/), the
+[NTFS reader notes](docs/ntfs/reader.md), the
+[health model](docs/recovery/health-model.md) and the
+[undelete corpus](docs/ntfs/undelete-corpus.md).
 
 ## Repository layout
 
@@ -86,9 +88,25 @@ phoinix scan disk.img --deleted
 # Explain the evidence behind a candidate's score.
 phoinix explain disk.img 64
 
-# Recover a candidate to another filesystem and verify by SHA-256.
-phoinix recover disk.img 64 --output /mnt/recovery
+# Recover candidates to another filesystem and verify by SHA-256.
+phoinix recover disk.img 64 65 --output /mnt/recovery --preserve-tree
 ```
+
+Example `scan` output on the test corpus:
+
+```text
+ID   NAME                 SIZE      RECOVERY         CONF  PATH
+68   tiny.txt             20 B      Excellent 97     82    \a\tiny.txt
+77   photo.jpg            61.6 KiB  Excellent 95     97    \docs\photo.jpg
+83   realloc_25.bin       256 KiB   Poor 59          82    \d\realloc_25.bin
+87   wiped.jpg            61.6 KiB  Very poor 20     82    \g\wiped.jpg
+96   document.txt         2.0 KiB   Very good 92     82    \?\document.txt
+122  frag10.bin           640 KiB   Very good 87     82    \c\frag10.bin
+```
+
+`explain` lists the evidence behind each figure, for example
+"16 of 64 required clusters are currently allocated to active filesystem
+data" or "The JPEG image structure validates successfully".
 
 When a source contains a partition table, `scan`, `explain`, `recover` and the
 `ntfs` commands operate on the first NTFS partition by default; pass

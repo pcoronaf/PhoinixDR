@@ -19,12 +19,20 @@ phoinix-device = { workspace = true }
 phoinix-volume = { workspace = true }
 phoinix-fs = { workspace = true }
 phoinix-fs-ntfs = { workspace = true }
+phoinix-health = { workspace = true }
+phoinix-recovery = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+flate2 = "1"
+sha2 = { workspace = true }
+hex = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

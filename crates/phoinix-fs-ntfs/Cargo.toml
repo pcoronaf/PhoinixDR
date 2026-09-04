@@ -12,6 +12,7 @@ authors.workspace = true
 phoinix-core = { workspace = true }
 phoinix-block = { workspace = true }
 phoinix-fs = { workspace = true }
+phoinix-health = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

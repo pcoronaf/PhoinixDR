@@ -15,6 +15,7 @@
 //! - [`tree`] — path reconstruction with stale-parent detection;
 //! - [`bitmap`] — `$Bitmap` cluster allocation;
 //! - [`volume`] — the [`NtfsVolume`] facade;
+//! - [`undelete`] — deleted-record detection, evidence and candidates;
 //! - [`probe`](NtfsProbe) — filesystem detection.
 
 #![forbid(unsafe_code)]
@@ -37,6 +38,7 @@ pub mod standard_information;
 pub mod stream;
 pub mod timestamp;
 pub mod tree;
+pub mod undelete;
 pub mod volume;
 
 pub use bitmap::{ClusterAllocationMap, ClusterBitmap, ClusterState, RangeAllocation};
@@ -54,4 +56,5 @@ pub use standard_information::StandardInformation;
 pub use stream::{NtfsDataStream, StreamCursor};
 pub use timestamp::NtfsTimestamp;
 pub use tree::{PathResolver, ResolvedPath};
+pub use undelete::{CandidateMetadataState, NtfsDeletedCandidate, NtfsUndelete};
 pub use volume::{NtfsVolume, VolumeInformation};

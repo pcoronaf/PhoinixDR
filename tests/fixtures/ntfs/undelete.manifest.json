@@ -1,0 +1,294 @@
+{
+  "image": "undelete.img.gz",
+  "label": "PHXUNDEL",
+  "cluster_size": 4096,
+  "files": [
+    {
+      "path": "\\a\\tiny.txt",
+      "size": 20,
+      "sha256": "10baed40a1c3e07c957388e2b2fe92a8738d9151e5166e65cdf8f84dd6167d97",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "resident": true
+      },
+      "record": 68
+    },
+    {
+      "path": "\\a\\config.json",
+      "size": 99,
+      "sha256": "80a422164f9dc7d1abe5afc3b219410a249b1b37239c270bba66d7cb8babe6b2",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "resident": true
+      },
+      "record": 69
+    },
+    {
+      "path": "\\a\\small.bin",
+      "size": 400,
+      "sha256": "09ed236133e26e76a43d96068521e02d7d0e8daca5beabff69721bfc30121262",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "resident": true
+      },
+      "record": 70
+    },
+    {
+      "path": "\\a\\ünïcödé 文件.txt",
+      "size": 50,
+      "sha256": "26823d81adbb2a7416778b5acf9b6a307264d06608212e168981a31b9bd96bc0",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "resident": true
+      },
+      "record": 71
+    },
+    {
+      "path": "\\b\\64k.bin",
+      "size": 65536,
+      "sha256": "5ce05316a2452752146316a7db85aeb89d5704d6016ad392b72c51f3af98e4fd",
+      "scenario": "B",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "max_extents": 1
+      },
+      "record": 73
+    },
+    {
+      "path": "\\b\\1mib.bin",
+      "size": 1048576,
+      "sha256": "e5d6e29869fc1d314dc51144bb250ce19b4f5b249ec86dd6fdc498064a388724",
+      "scenario": "B",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "max_extents": 1
+      },
+      "record": 74
+    },
+    {
+      "path": "\\docs\\report.pdf",
+      "size": 120310,
+      "sha256": "9ffe5b6f29175513223d6edec6a8475f15b544f5d6f8f359cd984b242a120b03",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "type": "pdf",
+        "validation": "valid"
+      },
+      "record": 76
+    },
+    {
+      "path": "\\docs\\photo.jpg",
+      "size": 63046,
+      "sha256": "e34f62334b2d4e934ae50b2d23fac5785e1329097154e09b14587e34273b564e",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "type": "jpeg",
+        "validation": "valid"
+      },
+      "record": 77
+    },
+    {
+      "path": "\\docs\\logo.png",
+      "size": 13308,
+      "sha256": "8013d8086d471cdc0c99d95e399de131a2de43817bc5e4711aca5917934f0d2f",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "type": "png",
+        "validation": "valid"
+      },
+      "record": 78
+    },
+    {
+      "path": "\\docs\\proposal.docx",
+      "size": 15835,
+      "sha256": "4f0baed6e917fddf4634a79ade084e2211df22b395c5944f717218c98e537b31",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "type": "docx",
+        "validation": "valid"
+      },
+      "record": 79
+    },
+    {
+      "path": "\\d\\realloc_1.bin",
+      "size": 1048576,
+      "sha256": "cfb72acbde24a9c00f7147c40e4966b75e6cb3e1c9546576e08fe6e72c7d2a93",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "allocated_percent": 1,
+        "allocated_clusters": 3,
+        "total_clusters": 256
+      },
+      "record": 81
+    },
+    {
+      "path": "\\d\\realloc_10.bin",
+      "size": 262144,
+      "sha256": "18e45d271ac71922fcc63d7e573d469ed8349eada2639a9bfcb3838ad1b0fd16",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "allocated_percent": 10,
+        "allocated_clusters": 6,
+        "total_clusters": 64
+      },
+      "record": 82
+    },
+    {
+      "path": "\\d\\realloc_25.bin",
+      "size": 262144,
+      "sha256": "3b0d6c7b8ae3f9ece7f55176399e5b1b4fe74962c24a2ed709b670bb9f444c3e",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "allocated_percent": 25,
+        "allocated_clusters": 16,
+        "total_clusters": 64
+      },
+      "record": 83
+    },
+    {
+      "path": "\\d\\realloc_50.bin",
+      "size": 262144,
+      "sha256": "42cd413edcc9d4f779bff13de0a3bcab3d8901f1877b21c47b7d76a1d47b08df",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "allocated_percent": 50,
+        "allocated_clusters": 32,
+        "total_clusters": 64
+      },
+      "record": 84
+    },
+    {
+      "path": "\\d\\realloc_100.bin",
+      "size": 262144,
+      "sha256": "052b77a325cbbf70ce98131dad0bade92f379194e9e85cf2547361e6c3a5c0f9",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "allocated_percent": 100,
+        "allocated_clusters": 64,
+        "total_clusters": 64
+      },
+      "record": 85
+    },
+    {
+      "path": "\\g\\wiped.jpg",
+      "size": 63046,
+      "sha256": "e34f62334b2d4e934ae50b2d23fac5785e1329097154e09b14587e34273b564e",
+      "scenario": "G",
+      "expect": {
+        "exact": false,
+        "max": "very poor"
+      },
+      "record": 87
+    },
+    {
+      "path": "\\h\\gone\\keep.txt",
+      "size": 3000,
+      "sha256": "745c196da4c666083a3f3a72bf41c577a5d14919388dacb4bedd188f5112fdd8",
+      "scenario": "H",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "via_deleted_dir": true
+      },
+      "record": 90
+    },
+    {
+      "path": "\\f\\corrupt_usa.bin",
+      "size": 40000,
+      "sha256": "9e2aa1d9d220d6fd58ce67499f5125b3b5dca4180a6c34d2e5d2e8074d4851ec",
+      "scenario": "F",
+      "expect": {
+        "corruption": "usa"
+      },
+      "record": 92
+    },
+    {
+      "path": "\\f\\corrupt_attr.bin",
+      "size": 40000,
+      "sha256": "3f52c4a20292d1ed40ba874469cfdd1172cd29e4964c73f176ef6ca95af3977e",
+      "scenario": "F",
+      "expect": {
+        "corruption": "attr"
+      },
+      "record": 93
+    },
+    {
+      "path": "\\f\\corrupt_runlist.bin",
+      "size": 40000,
+      "sha256": "01eaf0875dbde23c19047c5242f694b608655799603e215aa7083b2a799e493e",
+      "scenario": "F",
+      "expect": {
+        "corruption": "runlist"
+      },
+      "record": 94
+    },
+    {
+      "path": "\\f\\corrupt_namelen.bin",
+      "size": 40000,
+      "sha256": "173134d4d8aa4741c2da199551a9d80169b9fa5bf5cb112342bc8b2112805044",
+      "scenario": "F",
+      "expect": {
+        "corruption": "namelen"
+      },
+      "record": 95
+    },
+    {
+      "path": "\\c\\frag10.bin",
+      "size": 655360,
+      "sha256": "2a3da29952e1a3ec3a16f5a7bf97983177a38efeb5a1d219a39135573b01581a",
+      "scenario": "C",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "min_extents": 8
+      },
+      "record": 122
+    },
+    {
+      "path": "\\c\\frag2.bin",
+      "size": 131072,
+      "sha256": "e13eb62b985947c33e75eab345c61b2113a4298699d35f6ab1386eb28ad66fb5",
+      "scenario": "C",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "min_extents": 2
+      },
+      "record": 123
+    },
+    {
+      "path": "\\e\\olddir\\sub\\document.txt",
+      "size": 2000,
+      "sha256": "64fec85ca1f840d2e02c570acb40e933265a11dd4f9c9dc1a72e8bee98f238d5",
+      "scenario": "E",
+      "expect": {
+        "exact": true,
+        "path_uncertain": true
+      },
+      "record": 96
+    }
+  ]
+}

@@ -47,24 +47,19 @@ impl NtfsTimestamp {
         i64::try_from(nanos.div_euclid(1_000_000_000)).unwrap_or(i64::MAX)
     }
 
+    /// Microseconds within the second.
+    #[must_use]
+    pub fn subsec_micros(&self) -> u32 {
+        u32::try_from((self.raw % 10_000_000) / 10).unwrap_or(0)
+    }
+
     /// Formats as ISO-8601 UTC with microsecond precision, or `-` when zero.
     #[must_use]
     pub fn to_iso8601(&self) -> String {
         if self.is_zero() {
             return "-".to_owned();
         }
-        let secs = self.unix_seconds();
-        let sub_100ns = self.raw % 10_000_000;
-        let days = secs.div_euclid(86_400);
-        let sod = secs.rem_euclid(86_400);
-        let (y, m, d) = civil_from_days(days);
-        format!(
-            "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{:06}Z",
-            sod / 3600,
-            (sod % 3600) / 60,
-            sod % 60,
-            sub_100ns / 10
-        )
+        phoinix_core::fmt::iso8601_utc(self.unix_seconds(), self.subsec_micros())
     }
 }
 
@@ -72,20 +67,6 @@ impl fmt::Display for NtfsTimestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.to_iso8601())
     }
-}
-
-/// Howard Hinnant's algorithm: days since 1970-01-01 to (year, month, day).
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = u32::try_from(doy - (153 * mp + 2) / 5 + 1).unwrap_or(1);
-    let m = u32::try_from(if mp < 10 { mp + 3 } else { mp - 9 }).unwrap_or(1);
-    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 #[cfg(test)]
