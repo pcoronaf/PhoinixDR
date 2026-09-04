@@ -11,9 +11,14 @@ authors.workspace = true
 
 [dependencies]
 phoinix-core = { workspace = true }
+phoinix-block = { workspace = true }
+flate2 = "1"
+serde_json = { workspace = true }
 
 [dev-dependencies]
-phoinix-block = { workspace = true }
+phoinix-volume = { workspace = true }
+phoinix-fs = { workspace = true }
+phoinix-fs-ntfs = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 tempfile = { workspace = true }

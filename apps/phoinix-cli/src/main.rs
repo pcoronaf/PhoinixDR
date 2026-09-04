@@ -8,6 +8,7 @@
 
 mod commands;
 mod output;
+mod source;
 
 use clap::{Parser, Subcommand};
 
@@ -30,6 +31,8 @@ enum Command {
     Devices(commands::devices::Args),
     /// Read raw bytes from a source (developer/debug command).
     Read(commands::read::Args),
+    /// Identify the partition table and filesystems of a device or image.
+    Inspect(commands::inspect::Args),
 }
 
 fn init_tracing(verbosity: u8) {
@@ -51,6 +54,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Devices(args) => commands::devices::run(args),
         Command::Read(args) => commands::read::run(args),
+        Command::Inspect(args) => commands::inspect::run(args),
     }
 }
 

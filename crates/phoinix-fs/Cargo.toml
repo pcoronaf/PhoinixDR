@@ -10,7 +10,10 @@ authors.workspace = true
 
 [dependencies]
 phoinix-core = { workspace = true }
+phoinix-block = { workspace = true }
+serde = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

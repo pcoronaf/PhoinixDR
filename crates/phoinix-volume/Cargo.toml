@@ -10,7 +10,16 @@ authors.workspace = true
 
 [dependencies]
 phoinix-core = { workspace = true }
+phoinix-block = { workspace = true }
+bitflags = { workspace = true }
+crc32fast = { workspace = true }
+serde = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

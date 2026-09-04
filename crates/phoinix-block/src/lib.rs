@@ -32,7 +32,7 @@ mod reader;
 mod subrange;
 
 pub use error::BlockError;
-pub use fingerprint::SourceFingerprint;
+pub use fingerprint::{SourceFingerprint, to_hex};
 pub use geometry::BlockGeometry;
 pub use memory::MemoryReader;
 pub use raw::RawImage;
