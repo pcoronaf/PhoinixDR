@@ -1,0 +1,16 @@
+[package]
+name = "phoinix-device"
+description = "Physical device enumeration and read-only device access"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+phoinix-core = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

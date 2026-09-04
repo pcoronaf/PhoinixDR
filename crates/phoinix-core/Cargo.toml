@@ -1,0 +1,20 @@
+[package]
+name = "phoinix-core"
+description = "Core identifiers, ranges, checked arithmetic and byte-parsing helpers shared by all PHOINIX crates"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

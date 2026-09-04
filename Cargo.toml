@@ -1,0 +1,83 @@
+[workspace]
+resolver = "3"
+members = [
+    "apps/phoinix-cli",
+    "crates/phoinix-core",
+    "crates/phoinix-block",
+    "crates/phoinix-device",
+    "crates/phoinix-volume",
+    "crates/phoinix-fs",
+    "crates/phoinix-fs-ntfs",
+    "crates/phoinix-health",
+    "crates/phoinix-recovery",
+    "tests/integration",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/pcoronaf/PhoinixDR"
+authors = ["PHOINIX contributors"]
+keywords = ["data-recovery", "forensics", "ntfs", "undelete"]
+categories = ["filesystem"]
+
+[workspace.dependencies]
+# Internal crates
+phoinix-core = { path = "crates/phoinix-core" }
+phoinix-block = { path = "crates/phoinix-block" }
+phoinix-device = { path = "crates/phoinix-device" }
+phoinix-volume = { path = "crates/phoinix-volume" }
+phoinix-fs = { path = "crates/phoinix-fs" }
+phoinix-fs-ntfs = { path = "crates/phoinix-fs-ntfs" }
+phoinix-health = { path = "crates/phoinix-health" }
+phoinix-recovery = { path = "crates/phoinix-recovery" }
+
+# External crates. Keep this list conservative (see CONTRIBUTING.md).
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+sha2 = "0.10"
+crc32fast = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+bitflags = { version = "2", features = ["serde"] }
+anyhow = "1"
+tempfile = "3"
+hex = "0.4"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# Panic policy: malformed media must never trigger a panic. These lints make the
+# policy mechanical. Test modules may opt out with `#![allow(...)]`.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+unreachable = "warn"
+todo = "warn"
+unimplemented = "warn"
+indexing_slicing = "warn"
+# Integer safety: on-disk values must go through checked arithmetic.
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+# General hygiene.
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+
+[profile.release]
+debug = 1
+lto = "thin"
+codegen-units = 4
+
+[profile.dev.package."*"]
+opt-level = 1

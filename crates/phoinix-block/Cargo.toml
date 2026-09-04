@@ -1,0 +1,16 @@
+[package]
+name = "phoinix-block"
+description = "Read-only block-level access to disks, images and subranges"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+phoinix-core = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "phoinix-integration-tests"
+description = "End-to-end tests across PHOINIX crates"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+phoinix-core = { workspace = true }
+
+[dev-dependencies]
+phoinix-block = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
