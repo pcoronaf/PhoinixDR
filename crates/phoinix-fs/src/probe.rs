@@ -157,7 +157,7 @@ impl ProbeRegistry {
                 }
             }
         }
-        results.sort_by(|a, b| b.confidence.cmp(&a.confidence));
+        results.sort_by_key(|a| std::cmp::Reverse(a.confidence));
         let best = results.first().filter(|r| r.is_positive()).cloned();
         Detection { best, results }
     }
