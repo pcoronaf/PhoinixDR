@@ -112,6 +112,13 @@ pub const fn div_ceil(a: u64, b: u64) -> Result<u64, ArithmeticOverflow> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::cast_possible_truncation
+    )]
     use super::*;
 
     #[test]

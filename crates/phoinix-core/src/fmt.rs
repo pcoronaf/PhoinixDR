@@ -88,6 +88,13 @@ pub fn hex_dump(base_offset: u64, data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::cast_possible_truncation
+    )]
     use super::*;
 
     #[test]

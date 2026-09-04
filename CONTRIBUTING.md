@@ -13,7 +13,7 @@ Thank you for helping build an open, evidence-driven recovery platform.
    `unreachable!` or direct slice indexing on values read from disk. Use the
    bounds-checked readers in `phoinix_core::bytes` and checked arithmetic in
    `phoinix_core::arith`. Test code may opt out with
-   `#![allow(clippy::unwrap_used, clippy::indexing_slicing)]`.
+   `#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::cast_possible_truncation)]`.
 4. **No `unsafe` outside platform crates.** If unsafe is unavoidable, document
    why, the assumptions, ownership, bounds and lifetimes next to the block.
 5. **Filesystem knowledge stays in filesystem crates.** Generic crates must

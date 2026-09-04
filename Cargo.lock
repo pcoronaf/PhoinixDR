@@ -329,8 +329,14 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 name = "phoinix-block"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "phoinix-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -339,7 +345,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "phoinix-block",
  "phoinix-core",
+ "phoinix-device",
  "serde",
  "serde_json",
  "tracing",
@@ -360,8 +368,14 @@ dependencies = [
 name = "phoinix-device"
 version = "0.1.0"
 dependencies = [
+ "phoinix-block",
  "phoinix-core",
+ "serde",
+ "tempfile",
  "thiserror",
+ "tracing",
+ "uuid",
+ "windows-sys",
 ]
 
 [[package]]
@@ -523,6 +537,12 @@ dependencies = [
  "serde_core",
  "zmij",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -714,6 +734,7 @@ dependencies = [
  "getrandom",
  "js-sys",
  "serde_core",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 
