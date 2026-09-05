@@ -12,6 +12,7 @@ use phoinix_core::FileSystemType;
 use phoinix_device::platform_enumerator;
 use phoinix_fs::{AllocationView, DeletedFileProvider, FileSystemObjectId, WholeSource};
 use phoinix_fs_exfat::{ExfatUndelete, ExfatVolume};
+use phoinix_fs_ext::{ExtUndelete, ExtVolume};
 use phoinix_fs_fat::{FatUndelete, FatVolume};
 use phoinix_fs_ntfs::{NtfsUndelete, NtfsVolume};
 use phoinix_health::{DeviceKind, StorageEvidence};
@@ -106,7 +107,7 @@ impl Session {
         let session = Self::open_any(args)?;
         if session.engine.is_none() {
             anyhow::bail!(
-                "no undelete engine for {}; supported: NTFS, FAT12/16/32, exFAT (use --partition to pick another volume, or `scan --deep` to carve the raw volume)",
+                "no undelete engine for {}; supported: NTFS, FAT12/16/32, exFAT, ext2/3/4 (use --partition to pick another volume, or `scan --deep` to carve the raw volume)",
                 session.filesystem
             );
         }
@@ -187,6 +188,17 @@ impl Session {
                 let volume =
                     Arc::new(ExfatVolume::open(reader.clone()).context("opening exFAT volume")?);
                 let e = ExfatUndelete::new(volume, storage.clone());
+                let e = Arc::new(if args.no_content {
+                    e.without_content_examination()
+                } else {
+                    e
+                });
+                (Some(e.clone()), e)
+            }
+            FileSystemType::Ext => {
+                let volume =
+                    Arc::new(ExtVolume::open(reader.clone()).context("opening ext volume")?);
+                let e = ExtUndelete::new(volume, storage.clone());
                 let e = Arc::new(if args.no_content {
                     e.without_content_examination()
                 } else {

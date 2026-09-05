@@ -16,6 +16,7 @@ phoinix-fs = { workspace = true }
 phoinix-fs-ntfs = { workspace = true }
 phoinix-fs-fat = { workspace = true }
 phoinix-fs-exfat = { workspace = true }
+phoinix-fs-ext = { workspace = true }
 phoinix-carve = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

@@ -326,6 +326,53 @@ fn recovery_and_previews_through_the_workspace() {
 }
 
 #[test]
+fn ext4_scan_recovers_through_the_journal() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::new(dir.path().join("sessions"));
+    let img = fixture("ext/ext4.img.gz", dir.path());
+    let m = manifest("ext/ext4.manifest.json");
+    let info = ws.inspect(&img).unwrap();
+    let volume = &info.volumes[0];
+    assert_eq!(volume.filesystem, FileSystemType::Ext);
+    assert!(volume.supported, "{volume:?}");
+    let outcome = ws.scan(&request(&img, ScanMode::Quick), &mut |_| {});
+    let session = ws.set_current(outcome.session.unwrap());
+    let photo = session
+        .candidates
+        .iter()
+        .find(|c| c.original_path.as_deref() == Some("/docs/photo.jpg"))
+        .unwrap();
+    assert_eq!(photo.evidence.source, CandidateSource::Journal);
+    assert!(matches!(
+        ws.preview(photo.id).unwrap(),
+        Preview::Image { mime, .. } if mime == "image/jpeg"
+    ));
+    let dest = dir.path().join("out");
+    let req = RecoverRequest {
+        candidates: vec![photo.id],
+        destination: dest,
+        preserve_tree: true,
+        preserve_timestamps: true,
+        hash: true,
+        overwrite: false,
+        allow_same_device: false,
+    };
+    let items = ws.recover(&req, &mut |_| {}).unwrap();
+    let sha = m["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["path"] == "/docs/photo.jpg")
+        .unwrap()["sha256"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        items[0].result.as_ref().unwrap().sha256.as_deref(),
+        Some(sha)
+    );
+}
+
+#[test]
 fn lost_partitions_are_found_mounted_and_scanned() {
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::new(dir.path().join("sessions"));

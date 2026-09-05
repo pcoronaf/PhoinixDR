@@ -35,6 +35,14 @@ pub enum FileSystemObjectId {
         /// Byte offset of the File directory entry inside the volume.
         entry_offset: u64,
     },
+    /// An ext2/3/4 inode (and the generation it had when the candidate
+    /// was built).
+    Ext {
+        /// Inode number.
+        inode: u32,
+        /// Inode generation.
+        generation: u32,
+    },
     /// A file found by signature carving, identified by the volume byte
     /// offset of its header. No filesystem structure describes it.
     Carved {
@@ -55,6 +63,7 @@ impl FileSystemObjectId {
             FileSystemObjectId::Ntfs { .. } => FileSystemType::Ntfs,
             FileSystemObjectId::Fat { .. } => FileSystemType::Fat32,
             FileSystemObjectId::ExFat { .. } => FileSystemType::ExFat,
+            FileSystemObjectId::Ext { .. } => FileSystemType::Ext,
             FileSystemObjectId::Carved { .. } => FileSystemType::Unknown,
         }
     }
@@ -83,6 +92,7 @@ impl FileSystemObjectId {
             } => format!("{record}:{s}"),
             FileSystemObjectId::Fat { entry_offset }
             | FileSystemObjectId::ExFat { entry_offset } => entry_offset.to_string(),
+            FileSystemObjectId::Ext { inode, .. } => inode.to_string(),
             FileSystemObjectId::Carved { offset, .. } => format!("c{offset}"),
         }
     }
@@ -117,6 +127,7 @@ impl fmt::Display for FileSystemObjectId {
             }
             FileSystemObjectId::Fat { entry_offset } => write!(f, "fat:{entry_offset}"),
             FileSystemObjectId::ExFat { entry_offset } => write!(f, "exfat:{entry_offset}"),
+            FileSystemObjectId::Ext { inode, generation } => write!(f, "ext:{inode}-{generation}"),
             FileSystemObjectId::Carved {
                 offset, type_id, ..
             } => write!(f, "carved:{offset}:{type_id}"),

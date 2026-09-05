@@ -336,6 +336,7 @@ impl CarveEngine {
             chain_known: false,
             heuristic: false,
             start_inferred: false,
+            stale: false,
         };
         let metadata = MetadataEvidence {
             valid_record: false,

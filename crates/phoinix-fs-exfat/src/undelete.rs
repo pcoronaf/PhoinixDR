@@ -126,6 +126,7 @@ impl ExfatUndelete {
                     chain_known: r.chain_known,
                     heuristic,
                     start_inferred: false,
+                    stale: false,
                 };
                 (extents, allocation, r.clusters.clone())
             }

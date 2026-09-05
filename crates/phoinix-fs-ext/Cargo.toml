@@ -1,0 +1,22 @@
+[package]
+name = "phoinix-fs-ext"
+description = "Native ext2/ext3/ext4 reader and undelete engine with journal-assisted recovery"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+phoinix-core = { workspace = true }
+phoinix-block = { workspace = true }
+phoinix-fs = { workspace = true }
+phoinix-health = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

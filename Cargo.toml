@@ -10,6 +10,7 @@ members = [
     "crates/phoinix-fs-ntfs",
     "crates/phoinix-fs-fat",
     "crates/phoinix-fs-exfat",
+    "crates/phoinix-fs-ext",
     "crates/phoinix-health",
     "crates/phoinix-carve",
     "crates/phoinix-recovery",
@@ -41,6 +42,7 @@ phoinix-fs = { path = "crates/phoinix-fs" }
 phoinix-fs-ntfs = { path = "crates/phoinix-fs-ntfs" }
 phoinix-fs-fat = { path = "crates/phoinix-fs-fat" }
 phoinix-fs-exfat = { path = "crates/phoinix-fs-exfat" }
+phoinix-fs-ext = { path = "crates/phoinix-fs-ext" }
 phoinix-health = { path = "crates/phoinix-health" }
 phoinix-carve = { path = "crates/phoinix-carve" }
 phoinix-session = { path = "crates/phoinix-session" }

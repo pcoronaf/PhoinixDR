@@ -74,5 +74,5 @@ export function fsLabel(fs: string): string {
 
 /** Whether PhoinixDR has an undelete engine for the filesystem. */
 export function hasEngine(fs: string): boolean {
-  return ["ntfs", "fat12", "fat16", "fat32", "ex-fat"].includes(fs);
+  return ["ntfs", "fat12", "fat16", "fat32", "ex-fat", "ext"].includes(fs);
 }

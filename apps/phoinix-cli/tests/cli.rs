@@ -188,6 +188,72 @@ fn scan_explain_recover_vertical_slice() {
 }
 
 #[test]
+fn scan_and_recover_on_ext() {
+    let dir = tempfile::tempdir().unwrap();
+    for (fixture_name, name, category) in [
+        ("ext/ext4.img.gz", "photo.jpg", "excellent"),
+        ("ext/ext3.img.gz", "medium.bin", "very_good"),
+    ] {
+        let img = fixture(fixture_name, dir.path());
+        let image = img.to_str().unwrap();
+        let (ok, out, err) = phoinix(&["scan", image, "--deleted"]);
+        assert!(ok, "{err}");
+        assert!(out.contains("on the EXT volume"), "{out}");
+        let (ok, out, _) = phoinix(&["scan", image, "--deleted", "--json"]);
+        assert!(ok);
+        let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let candidates = json["candidates"].as_array().unwrap();
+        let cand = candidates
+            .iter()
+            .find(|c| c["original_name"].as_str() == Some(name))
+            .unwrap_or_else(|| panic!("{fixture_name}: {name} not found in {out}"));
+        assert_eq!(
+            cand["health"]["category"], category,
+            "{fixture_name}: {cand}"
+        );
+        assert_eq!(cand["evidence"]["source"], "journal", "{cand}");
+        let id = cand["filesystem_object"]["inode"]
+            .as_u64()
+            .unwrap()
+            .to_string();
+        let (ok, out, err) = phoinix(&["explain", image, &id]);
+        assert!(ok, "{err}");
+        assert!(out.contains("journal transaction"), "{out}");
+        let dest = dir
+            .path()
+            .join(format!("out-{}", fixture_name.replace('/', "-")));
+        let (ok, out, err) = phoinix(&["recover", image, &id, "--output", dest.to_str().unwrap()]);
+        assert!(ok, "{err}");
+        let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(fixture_name.replace(".img.gz", ".manifest.json"));
+        let manifest: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(manifest_path).unwrap()).unwrap();
+        let expected = manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["path"].as_str().unwrap().ends_with(name))
+            .unwrap()["sha256"]
+            .as_str()
+            .unwrap();
+        assert!(out.contains(expected), "{fixture_name}: {out}");
+    }
+    // ext2 without a journal: candidates exist but nothing is recoverable.
+    let img = fixture("ext/ext2.img.gz", dir.path());
+    let (ok, out, err) = phoinix(&["scan", img.to_str().unwrap(), "--deleted", "--json"]);
+    assert!(ok, "{err}");
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let candidates = json["candidates"].as_array().unwrap();
+    assert!(!candidates.is_empty());
+    assert!(
+        candidates
+            .iter()
+            .all(|c| c["health"]["category"] == "unrecoverable")
+    );
+}
+
+#[test]
 fn scan_and_recover_on_fat_and_exfat() {
     let dir = tempfile::tempdir().unwrap();
     for (fixture_name, name, expected_fs, category) in [

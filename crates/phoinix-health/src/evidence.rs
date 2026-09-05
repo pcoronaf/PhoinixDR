@@ -56,6 +56,11 @@ pub struct ExtentEvidence {
     /// and the start used here was inferred from free clusters and their
     /// content.
     pub start_inferred: bool,
+    /// The layout comes from an older copy of the metadata (a journal
+    /// transaction) that predates the file's last modification, so blocks
+    /// may have been added or moved after it was written.
+    #[serde(default)]
+    pub stale: bool,
 }
 
 impl Default for ExtentEvidence {
@@ -85,6 +90,7 @@ impl ExtentEvidence {
             chain_known: true,
             heuristic: false,
             start_inferred: false,
+            stale: false,
         }
     }
 }

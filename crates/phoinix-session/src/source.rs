@@ -7,10 +7,9 @@ use std::sync::Arc;
 use phoinix_block::BlockReader;
 use phoinix_core::FileSystemType;
 use phoinix_device::{open_source, platform_enumerator};
-use phoinix_fs::{
-    AllocationView, DeletedFileProvider, FsError, ProbeRegistry, WholeSource, signature,
-};
+use phoinix_fs::{AllocationView, DeletedFileProvider, FsError, ProbeRegistry, WholeSource};
 use phoinix_fs_exfat::{ExFatProbe, ExfatUndelete, ExfatVolume};
+use phoinix_fs_ext::{ExtProbe, ExtUndelete, ExtVolume};
 use phoinix_fs_fat::{FatProbe, FatUndelete, FatVolume};
 use phoinix_fs_ntfs::{NtfsProbe, NtfsUndelete, NtfsVolume};
 use phoinix_health::{DeviceKind, StorageEvidence};
@@ -27,7 +26,7 @@ pub fn standard_probes() -> ProbeRegistry {
         .with(Box::new(NtfsProbe))
         .with(Box::new(FatProbe))
         .with(Box::new(ExFatProbe))
-        .with(Box::new(signature::ExtProbe))
+        .with(Box::new(ExtProbe))
 }
 
 /// Whether PhoinixDR has an undelete engine for `fs`.
@@ -40,6 +39,7 @@ pub const fn has_engine(fs: FileSystemType) -> bool {
             | FileSystemType::Fat16
             | FileSystemType::Fat32
             | FileSystemType::ExFat
+            | FileSystemType::Ext
     )
 }
 
@@ -352,6 +352,16 @@ fn build_engines(
         FileSystemType::ExFat => {
             let volume = Arc::new(ExfatVolume::open(reader.clone()).map_err(FsError::from)?);
             let e = ExfatUndelete::new(volume, storage.clone());
+            let e = Arc::new(if examine_content {
+                e
+            } else {
+                e.without_content_examination()
+            });
+            (Some(e.clone()), e)
+        }
+        FileSystemType::Ext => {
+            let volume = Arc::new(ExtVolume::open(reader.clone()).map_err(FsError::from)?);
+            let e = ExtUndelete::new(volume, storage.clone());
             let e = Arc::new(if examine_content {
                 e
             } else {

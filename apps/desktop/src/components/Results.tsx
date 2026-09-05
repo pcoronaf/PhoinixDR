@@ -70,7 +70,7 @@ export function Results({ api, session, rows, advanced, onRecover, onNewScan }: 
               {filtered.map((r) => (
                 <tr key={r.id} className={`${focus === r.id ? "focus" : ""} ${selected.has(r.id) ? "selected" : ""}`} onClick={() => setFocus(r.id)}>
                   <td className="check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} /></td>
-                  <td className="name">{r.name}{r.source === "file_carving" && <span className="tag">carved</span>}</td>
+                  <td className="name">{r.name}{r.source === "file_carving" && <span className="tag">carved</span>}{r.source === "journal" && <span className="tag">journal</span>}</td>
                   <td><HealthBadge category={r.category} likelihood={r.likelihood} confidence={r.confidence} /></td>
                   <td className="num">{formatBytes(r.size)}</td>
                   <td>{r.type_name ?? <span className="muted">–</span>}</td>

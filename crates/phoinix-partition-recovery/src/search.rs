@@ -9,8 +9,9 @@ use phoinix_carve::signature::{AssemblerKind, CarveSignature, HeaderPattern, Sig
 use phoinix_core::ByteRange as BlockRange;
 use phoinix_core::FileSystemType;
 use phoinix_core::bytes::ByteView;
-use phoinix_fs::{ByteRange, ProbeEvidence, ProbeRegistry, signature};
+use phoinix_fs::{ByteRange, ProbeEvidence, ProbeRegistry};
 use phoinix_fs_exfat::{ExFatProbe, ExfatBootSector, ExfatVolume};
+use phoinix_fs_ext::{ExtProbe, ExtVolume};
 use phoinix_fs_fat::{FatBootSector, FatProbe, FatVariant, FatVolume};
 use phoinix_fs_ntfs::{NtfsBootSector, NtfsProbe, NtfsVolume};
 use phoinix_volume::PartitionTable;
@@ -668,7 +669,7 @@ pub fn find_partitions(
                     .with(Box::new(NtfsProbe))
                     .with(Box::new(FatProbe))
                     .with(Box::new(ExFatProbe))
-                    .with(Box::new(signature::ExtProbe))
+                    .with(Box::new(ExtProbe))
                     .detect(&*view);
                 if detection.filesystem() == s.filesystem {
                     probe_confidence = detection.best.as_ref().map_or(0, |b| b.confidence);
@@ -812,6 +813,19 @@ fn verify_with_engine(
         FileSystemType::ExFat => match ExfatVolume::open(view.clone()) {
             Ok(v) => match v.walk() {
                 Ok(entries) => (Some(true), Some(entries.len())),
+                Err(_) => (Some(false), None),
+            },
+            Err(_) => (Some(false), None),
+        },
+        FileSystemType::Ext => match ExtVolume::open(view.clone()) {
+            Ok(v) => match v.inode(2).and_then(|root| v.layout_of(&root)) {
+                Ok(layout) => match v.read_directory(&layout) {
+                    Ok(entries) => (
+                        Some(true),
+                        Some(entries.iter().filter(|e| !e.deleted && !e.is_dot()).count()),
+                    ),
+                    Err(_) => (Some(false), None),
+                },
                 Err(_) => (Some(false), None),
             },
             Err(_) => (Some(false), None),

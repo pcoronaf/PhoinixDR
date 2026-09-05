@@ -78,7 +78,8 @@ describe("format helpers", () => {
     expect(fsLabel("hfs-plus")).toBe("HFS+");
     expect(fsLabel("something")).toBe("something");
     expect(hasEngine("fat32")).toBe(true);
-    expect(hasEngine("ext")).toBe(false);
+    expect(hasEngine("ext")).toBe(true);
+    expect(hasEngine("unknown")).toBe(false);
   });
   it("formats sizes", () => {
     expect(formatBytes(null)).toBe("–");

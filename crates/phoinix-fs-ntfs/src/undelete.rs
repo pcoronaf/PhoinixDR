@@ -366,6 +366,7 @@ impl NtfsUndelete {
             chain_known: true,
             heuristic: false,
             start_inferred: false,
+            stale: false,
             compressed,
             encrypted,
         };

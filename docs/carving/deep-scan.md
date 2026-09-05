@@ -9,7 +9,7 @@ entry was reused, after a quick format, or on a source without a
 recognisable filesystem.
 
 ```text
-AllocationView (NTFS $Bitmap, FAT, exFAT bitmap; or the whole source)
+AllocationView (NTFS $Bitmap, FAT, exFAT bitmap, ext block bitmaps; or the whole source)
         │  free byte ranges
    find_headers            chunked (8 MiB), overlapping, parallel matching
         │  hits (offset, signature)
@@ -28,7 +28,7 @@ AllocationView (NTFS $Bitmap, FAT, exFAT bitmap; or the whole source)
 |---|---|---|
 | default (`--deep`) | free clusters of the volume, merged into byte ranges | a supported filesystem is present |
 | `--carve-all` | the whole volume | files hidden inside allocated space, damaged allocation maps |
-| raw | the whole source | no supported filesystem (FAT/NTFS/exFAT absent): carving is the only engine |
+| raw | the whole source | no supported filesystem (FAT/NTFS/exFAT/ext absent): carving is the only engine |
 
 Only positions that are multiples of `--carve-align` (default 512) are
 tested: files start on sector or cluster boundaries. Alignment 1 tests

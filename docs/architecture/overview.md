@@ -20,6 +20,7 @@
 │  phoinix-fs-ntfs   native NTFS reader + undelete            │
 │  phoinix-fs-fat    native FAT12/16/32 reader + undelete     │
 │  phoinix-fs-exfat  native exFAT reader + undelete           │
+│  phoinix-fs-ext    native ext2/3/4 reader, journal, undelete│
 │  phoinix-health    evidence, scoring, explanations          │
 │  phoinix-carve     deep scan: signature carving, assembly   │
 │  phoinix-partition-recovery  lost partitions, virtual mount │
@@ -40,7 +41,7 @@ phoinix-volume        phoinix-health
    ▲                       ▲
 phoinix-fs ◄───────────────┘
    ▲
-phoinix-fs-ntfs / phoinix-fs-fat / phoinix-fs-exfat
+phoinix-fs-ntfs / phoinix-fs-fat / phoinix-fs-exfat / phoinix-fs-ext
 phoinix-carve (phoinix-fs contracts + phoinix-health only)
 phoinix-partition-recovery (block, volume, engines' boot parsers, carve scanner)
 phoinix-session (composes engines, carve, partition recovery and recovery; no GUI dependency)

@@ -141,6 +141,7 @@ impl FatUndelete {
                     chain_known: r.chain_known,
                     heuristic: r.is_heuristic(),
                     start_inferred: r.inferred_start.is_some(),
+                    stale: false,
                 };
                 (extents, allocation)
             }

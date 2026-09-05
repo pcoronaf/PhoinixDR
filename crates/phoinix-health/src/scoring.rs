@@ -329,6 +329,24 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
                 s.good("The content validates completely, which supports the inferred layout");
             }
         }
+        if x.stale {
+            let validated = evidence
+                .content
+                .validation
+                .as_ref()
+                .is_some_and(|v| v.status == ValidationStatus::Valid);
+            s.bad("The layout comes from an older journal copy written before the file was last modified; blocks may have changed since");
+            s.cap_at(if validated {
+                model.cap_heuristic_validated
+            } else {
+                model.cap_heuristic_reconstruction
+            });
+            if validated {
+                s.good("The content validates completely, which supports the older layout");
+            }
+        } else if evidence.source == CandidateSource::Journal {
+            s.good("The layout was recovered from a journal copy of the metadata written before deletion");
+        }
         if x.extent_count > 1 {
             let penalty = i32::from(model.fragment_penalty_per_extent)
                 * i32::from(x.extent_count.saturating_sub(1).min(255) as u8);
@@ -497,6 +515,9 @@ fn confidence(e: &RecoveryEvidence, model: &ScoringModel) -> u8 {
         c -= 3;
     }
     if e.storage.rotational == Some(false) && !e.storage.trim_state_known && !e.extents.resident {
+        c -= 10;
+    }
+    if e.extents.stale {
         c -= 10;
     }
     if carved {
@@ -884,6 +905,39 @@ mod tests {
         e.content.validation = Some(valid("JPEG"));
         let h = score(&e, &ScoringModel::default());
         assert!(h.likelihood <= 15, "{h:?}");
+    }
+
+    #[test]
+    fn journal_layouts_are_credited_unless_stale() {
+        // A layout recovered from a journal copy of the inode is as good as
+        // the record itself; a copy that predates the last modification is
+        // capped like any other inferred layout.
+        let mut e = non_resident(1, 10, 0);
+        e.source = CandidateSource::Journal;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood >= 80, "{h:?}");
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| r.text.contains("journal copy of the metadata"))
+        );
+        e.extents.stale = true;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 59, "{h:?}");
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| r.text.contains("older journal copy"))
+        );
+        e.content.validation = Some(valid("PDF"));
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood > 59 && h.likelihood <= 79, "{h:?}");
+        let fresh = {
+            let mut f = e.clone();
+            f.extents.stale = false;
+            score(&f, &ScoringModel::default())
+        };
+        assert!(h.confidence < fresh.confidence, "{h:?} vs {fresh:?}");
     }
 
     #[test]

@@ -1,0 +1,139 @@
+{
+  "image": "ext4.img.gz",
+  "flavour": "ext4",
+  "label": "PHXEXT4",
+  "journaled": true,
+  "files": [
+    {
+      "path": "/small.txt",
+      "inode": 18,
+      "size": 700,
+      "sha256": "c83fb676992934d2410f19caf9743244dcaaa4b1b1a60958838a368e5e47789d",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      },
+      "extents": 1
+    },
+    {
+      "path": "/docs/medium.bin",
+      "inode": 19,
+      "size": 200000,
+      "sha256": "1bd15d9913b96d50866a7793bd14315d4eaf5e1fa1dc76260b59421ab1dc42fc",
+      "scenario": "B",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      },
+      "extents": 1
+    },
+    {
+      "path": "/empty.txt",
+      "inode": 20,
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scenario": "E",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "empty": true
+      }
+    },
+    {
+      "path": "/docs/A long name with spaces ünï 文件.txt",
+      "inode": 21,
+      "size": 3000,
+      "sha256": "8a3a0cf735890d97c4cbbaa542d334980cb15f1312f0e9d86eae3bed866e861b",
+      "scenario": "L",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      },
+      "extents": 1
+    },
+    {
+      "path": "/docs/photo.jpg",
+      "inode": 17,
+      "size": 22219,
+      "sha256": "cb82495a26bf7a7b7682db579b045d70a3aca260b4884d269f60ef92362da435",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "type": "jpeg",
+        "validation": "valid"
+      },
+      "extents": 1
+    },
+    {
+      "path": "/gone/keep.txt",
+      "inode": 22,
+      "size": 2500,
+      "sha256": "81d47ca7cdb9b5bb4054b30e389c2eb80d70a5e91f48c7a324a0b4f490341123",
+      "scenario": "H",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "via_deleted_dir": true
+      },
+      "extents": 1
+    },
+    {
+      "path": "/d/reused.bin",
+      "inode": 16,
+      "size": 1048576,
+      "sha256": "cfe236521f74cd399af4d5c553bc9eff162b621a5213683208f727d2404aa779",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "max": "very poor",
+        "reallocated": true
+      },
+      "extents": 1
+    },
+    {
+      "path": "/docs/frag.bin",
+      "inode": 25,
+      "size": 197608,
+      "sha256": "e30030e6ad1926cae079f569fe0b62215df97dc6ecd81350e5a1b6b26a288f81",
+      "scenario": "C",
+      "expect": {
+        "exact": true,
+        "min": "poor"
+      },
+      "extents": 1
+    },
+    {
+      "path": "/docs/sparse.bin",
+      "inode": 24,
+      "size": 300000,
+      "sha256": "78041a573c54037cda9c50fe418f309fe8bb0de9fa2b166dbebfbd4d88fb34a9",
+      "scenario": "S",
+      "expect": {
+        "exact": true,
+        "min": "good",
+        "sparse": true
+      },
+      "extents": 2
+    },
+    {
+      "path": "/docs/edited.bin",
+      "inode": 27,
+      "size": 50000,
+      "sha256": "99d820229dfc35c77d96822d36b6bfba7ccc1ce656846a39ade8dfb7d7068f50",
+      "scenario": "J",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      },
+      "extents": 2
+    }
+  ],
+  "absent": [
+    {
+      "path": "/docs/renamed-old.txt",
+      "reason": "renamed, still live"
+    }
+  ]
+}

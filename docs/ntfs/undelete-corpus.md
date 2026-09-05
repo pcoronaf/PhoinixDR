@@ -48,3 +48,36 @@ stick.
 
 `tests/integration/tests/fat_exfat_undelete.rs` asserts every row for all
 five images and runs 240 corruption rounds without panics.
+
+
+# ext2/3/4 corpora
+
+`tests/generated/make_ext_undelete_corpus.sh` builds an ext4 image (4 KiB
+blocks, extents, checksummed 64-bit journal tags), an ext3 image (4 KiB
+blocks, block maps, legacy journal tags) and an ext2 image (1 KiB blocks,
+six block groups, no journal) with mke2fs and the kernel drivers over loop
+devices. The manifests record each file's inode number, size, SHA-256 and
+extent count (`filefrag`) *before* deletion, so the tests assert exactly
+what the journal still yields:
+
+| scenario | content | ext3/ext4 expectation | ext2 expectation |
+|---|---|---|---|
+| A, B | 700 B and 200 KB contiguous files | exact, ≥ Very good, layout from the journal | found by inode, no name, no size, Unrecoverable |
+| E | empty file | Excellent, validation not applicable (the journal shows it was empty) | as above |
+| L | long name with spaces and Unicode | name and path from directory slack | — |
+| V | JPEG | validator passes, exact | as above |
+| H | file inside a directory removed with `rm -r` | exact; the directory's layout comes from the journal, its entries from its (still readable) block | as above |
+| D | 1 MiB file whose blocks **and inode** were reused by a new file | reallocated blocks reported, ≤ Very poor, not exact; the name is chosen by the transaction in which it was live | absent (the inode is alive again) |
+| C | file written into holes between fillers | exact, extent count as recorded | as above |
+| S | sparse file (head, 290 KB hole, tail) | exact, sparse reported, holes read as zeros | as above |
+| J | file grown after its first commit | exact from the newest journal copy | as above |
+| absent | file renamed while alive | never a candidate | — |
+
+The ext2 rows document what the kernel's ext2 driver leaves behind: it
+clears the size, the block map and even the directory entries on deletion,
+so without a journal PhoinixDR reports deleted inodes with their deletion
+time only and leaves the content to carving (`scan --deep`).
+
+`tests/integration/tests/ext_undelete.rs` asserts every row for the three
+images, checks journal tag checksums, the allocation view against the
+superblock's free count, and runs 120 corruption rounds without panics.

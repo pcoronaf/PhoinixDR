@@ -13,8 +13,9 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 ```
 
 > **Status:** early engineering preview. The repository implements milestones
-> M0–M9 of the technical specification: the read-only block layer, MBR/GPT
-> discovery, native NTFS, FAT12/16/32 and exFAT readers with undelete, deep
+> M0–M10 of the technical specification: the read-only block layer, MBR/GPT
+> discovery, native NTFS, FAT12/16/32, exFAT and ext2/3/4 readers with
+> undelete (journal-assisted on ext3/ext4), deep
 > scan (signature carving of unallocated space), lost-partition recovery
 > (virtual mounts, no table writes), evidence-based recovery health, a
 > verified recovery writer, the `phoinix` CLI and a desktop application
@@ -58,6 +59,7 @@ crates/phoinix-fs       filesystem-neutral contracts: probes, recovery candidate
 crates/phoinix-fs-ntfs  native NTFS reader and undelete engine
 crates/phoinix-fs-fat   native FAT12/16/32 reader and undelete engine
 crates/phoinix-fs-exfat native exFAT reader and undelete engine
+crates/phoinix-fs-ext   native ext2/3/4 reader, jbd2 journal reader and undelete engine
 crates/phoinix-health   recovery evidence model, scoring and explanations
 crates/phoinix-carve    deep scan: signature carving with structural assembly
 crates/phoinix-recovery recovery writer with destination safety and SHA-256 verification
@@ -67,7 +69,7 @@ apps/desktop            desktop application: Tauri 2 shell (src-tauri) + React/T
 tests/fixtures          compressed disk-image fixtures with ground-truth manifests
 tests/generated         scripts that build the fixtures deterministically
 tests/integration       end-to-end tests across crates
-docs/                   architecture, NTFS notes, decision records
+docs/                   architecture, filesystem notes, decision records
 ```
 
 ## Building
@@ -146,8 +148,8 @@ ID   NAME                 SIZE      RECOVERY         CONF  PATH
 "16 of 64 required clusters are currently allocated to active filesystem
 data" or "The JPEG image structure validates successfully".
 
-`scan`, `explain` and `recover` detect the volume's filesystem (NTFS, FAT12/16/32
-or exFAT) and use the matching engine. When a source contains a partition
+`scan`, `explain` and `recover` detect the volume's filesystem (NTFS, FAT12/16/32,
+exFAT or ext2/3/4) and use the matching engine. When a source contains a partition
 table they operate on the first supported partition by default; pass
 `--partition N` to choose another, or point them at a bare volume image.
 
