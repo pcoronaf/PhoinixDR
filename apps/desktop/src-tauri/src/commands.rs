@@ -26,7 +26,7 @@ pub enum ScanCompletion {
     /// The scan finished (or was cancelled with partial results).
     Session {
         /// The session, now current and saved.
-        summary: SessionSummary,
+        summary: Box<SessionSummary>,
         /// Whether it was cancelled.
         cancelled: bool,
     },
@@ -105,7 +105,7 @@ pub fn start_scan(
                     if let Err(e) = workspace.save_session(&mut session, None) {
                         tracing::warn!(error = %e, "session not saved");
                     }
-                    let summary = workspace.set_current(session).summary();
+                    let summary = Box::new(workspace.set_current(session).summary());
                     ScanCompletion::Session {
                         summary,
                         cancelled: matches!(
