@@ -127,6 +127,9 @@ def layout(lang: str, title: str, body: str, page: str, counterpart: str, banner
 """
 
 
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+
+
 def first_heading(text: str, fallback: str) -> str:
     m = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
     return m.group(1).strip() if m else fallback
@@ -174,6 +177,10 @@ def rewrite_links(body: str, source: Path, page: str, lang: str) -> str:
         if not target.endswith(".md"):
             if rel_repo.parts and rel_repo.parts[0] == "assets":
                 return f'{m.group(1)}"{rel_to("assets/" + rel_repo.name, page)}"'
+            if rel_repo.suffix.lower() in IMAGE_SUFFIXES and rel_repo.parts[:1] == ("docs",):
+                # Images kept next to the documents (docs/**/images/*) are
+                # copied once, language-independent, under /docs/.
+                return f'{m.group(1)}"{rel_to(rel_repo.as_posix(), page)}"'
             return f'{m.group(1)}"{REPO_URL}/blob/HEAD/{rel_repo.as_posix()}"'
         key = doc_key(rel_repo)
         if key is None:
@@ -220,6 +227,13 @@ def main() -> None:
             shutil.copytree(item, out / item.name)
         else:
             shutil.copy2(item, out / item.name)
+    # Images referenced by the documents (docs/**/images/*), served once
+    # under /docs/ for both languages.
+    for image in sorted(DOCS.rglob("*")):
+        if image.is_file() and image.suffix.lower() in IMAGE_SUFFIXES and "images" in image.relative_to(DOCS).parts:
+            target = out / image.relative_to(ROOT)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(image, target)
     # Documents: every English document, rendered in both languages.
     sources: dict[str, Path] = {}
     for source in sorted(DOCS.rglob("*.md")):

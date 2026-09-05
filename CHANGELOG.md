@@ -6,6 +6,8 @@ GitHub Releases.
 
 ## Unreleased
 
+- Documentation: the desktop guide (English and Spanish) now includes
+  screenshots of every step, from the home page to the recovery result.
 - Desktop: a **Restart as administrator** button appears when a device is
   not accessible (and on the home page when no device can be listed). It
   requests elevation through the system prompt (UAC on Windows, polkit on

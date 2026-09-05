@@ -67,3 +67,8 @@ section.block h2 { margin-top: 0; font-size: 1.7rem; }
 .foot .disclaimer { max-width: 820px; margin: 0 auto 12px; font-size: 0.85rem; }
 .top nav .lang { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--text); }
 .banner { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 8px 12px; color: var(--muted); }
+
+/* screenshots in the guides */
+.doc figure { margin: 18px 0; }
+.doc figure img { max-width: 100%; height: auto; border: 1px solid var(--line, #ddd); border-radius: 8px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08); }
+.doc figcaption { font-size: 13px; color: var(--muted, #666); margin-top: 6px; }

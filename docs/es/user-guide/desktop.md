@@ -7,6 +7,11 @@ inglés; esta guía indica entre paréntesis los textos que verá en pantalla.
 
 ## Inicio
 
+<figure>
+  <img src="../../user-guide/images/01-home.png" alt="Página de inicio de PhoinixDR" width="960">
+  <figcaption>La página de inicio: elija un disco físico, un dispositivo extraíble o una imagen de disco; debajo se listan las sesiones recientes.</figcaption>
+</figure>
+
 - **Windows:** ejecute `PhoinixDR-<versión>-windows-x64-portable.exe`. No se instala
   nada (véase [Versión portable para Windows](../release/windows-portable.md)).
   Para escanear un disco físico o una memoria USB, haga clic derecho en el
@@ -43,6 +48,11 @@ recupere a un disco distinto del que está recuperando.
 
 ## 1. Elegir una fuente
 
+<figure>
+  <img src="../../user-guide/images/02-devices.png" alt="Selector de dispositivos con un disco no accesible y el botón Restart as administrator" width="960">
+  <figcaption>El selector de dispositivos. Un disco que no puede abrirse aparece atenuado y el aviso ofrece reiniciar con permisos de administrador.</figcaption>
+</figure>
+
 | opción | qué lista |
 |---|---|
 | **Physical disk** (disco físico) | unidades internas y SSD |
@@ -62,6 +72,11 @@ usted mismo el ejecutable con *Ejecutar como administrador* o `sudo`. Las
 imágenes de disco nunca necesitan elevación.
 
 ## 2. Configuración del escaneo
+
+<figure>
+  <img src="../../user-guide/images/03-setup.png" alt="Página de configuración del escaneo" width="960">
+  <figcaption>Configuración del escaneo: el volumen detectado, la búsqueda de particiones perdidas, Quick o Deep Scan y el examen del contenido.</figcaption>
+</figure>
 
 La página de configuración muestra la fuente, su tabla de particiones y
 cada volumen con su sistema de archivos y la confianza de la detección.
@@ -92,11 +107,21 @@ cada volumen con su sistema de archivos y la confianza de la detección.
 
 ## 3. Escaneo
 
+<figure>
+  <img src="../../user-guide/images/04-scanning.png" alt="Progreso del escaneo" width="960">
+  <figcaption>Escaneo en curso: fase, recuentos y velocidad, con un botón Cancel que conserva los resultados parciales.</figcaption>
+</figure>
+
 El progreso muestra la fase (metadatos, tallado), los recuentos y el
 rendimiento. El escaneo puede cancelarse; los resultados parciales se
 conservan.
 
 ## 4. Resultados
+
+<figure>
+  <img src="../../user-guide/images/05-results.png" alt="Resultados con el panel de evidencia" width="960">
+  <figcaption>Resultados: cada candidato con su salud de recuperación; el panel de la derecha lista la evidencia detrás de los números del archivo seleccionado.</figcaption>
+</figure>
 
 Cada fila es un candidato de recuperación:
 
@@ -125,7 +150,17 @@ todos los bytes hayan desaparecido; «Unrecoverable» significa que no se
 pudo localizar ninguna extensión del contenido, en cuyo caso un escaneo
 profundo todavía puede tallarlo.
 
+<figure>
+  <img src="../../user-guide/images/06-preview.png" alt="Pestaña Preview del panel de detalle" width="960">
+  <figcaption>La pestaña Preview muestra imágenes y texto y vuelca en hexadecimal el resto; solo lee de la fuente.</figcaption>
+</figure>
+
 ## 5. Recuperación
+
+<figure>
+  <img src="../../user-guide/images/07-recover.png" alt="Diálogo Recover" width="960">
+  <figcaption>El diálogo Recover: destino en otro disco, opciones y los campos opcionales de informe y caso.</figcaption>
+</figure>
 
 Seleccione filas y pulse **Recover**:
 
@@ -144,6 +179,11 @@ Seleccione filas y pulse **Recover**:
 La tabla de resultados muestra cada archivo con los bytes escritos,
 `verified` o `PARTIAL`, el prefijo del SHA-256 y la ruta de salida. La
 ruta del informe se muestra cuando se ha escrito uno.
+
+<figure>
+  <img src="../../user-guide/images/08-recovered.png" alt="Tabla de resultados de la recuperación" width="960">
+  <figcaption>Tras la recuperación: bytes escritos, estado de verificación y ruta de salida de cada archivo.</figcaption>
+</figure>
 
 ## Sesiones
 

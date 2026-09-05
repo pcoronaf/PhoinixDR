@@ -6,6 +6,11 @@ recover. It never writes to the source.
 
 ## Starting
 
+<figure>
+  <img src="images/01-home.png" alt="PhoinixDR home page" width="960">
+  <figcaption>The home page: choose a physical disk, a removable device or a disk image; recent sessions are listed below.</figcaption>
+</figure>
+
 - **Windows:** run `PhoinixDR-<version>-windows-x64-portable.exe`. Nothing is
   installed (see [Windows portable release](../release/windows-portable.md)).
   To scan a physical disk or a USB stick, right-click the executable and
@@ -40,6 +45,11 @@ a different disk than the one you are recovering from.
 
 ## 1. Choose a source
 
+<figure>
+  <img src="images/02-devices.png" alt="Device picker with an inaccessible disk and the Restart as administrator button" width="960">
+  <figcaption>The device picker. A disk that cannot be opened is greyed out and the notice offers to restart with administrator rights.</figcaption>
+</figure>
+
 | choice | what it lists |
 |---|---|
 | **Physical disk** | internal drives and SSDs |
@@ -57,6 +67,11 @@ can be listed at all. Starting the executable with *Run as administrator*
 or `sudo` yourself works too. Disk images never need elevation.
 
 ## 2. Scan setup
+
+<figure>
+  <img src="images/03-setup.png" alt="Scan setup page" width="960">
+  <figcaption>Scan setup: the detected volume, the lost-partition search, Quick or Deep Scan, and content examination.</figcaption>
+</figure>
 
 The setup page shows the source, its partition table and every volume with
 its filesystem and detection confidence.
@@ -83,10 +98,20 @@ its filesystem and detection confidence.
 
 ## 3. Scanning
 
+<figure>
+  <img src="images/04-scanning.png" alt="Scan progress" width="960">
+  <figcaption>Scanning: phase, counts and throughput, with a Cancel button that keeps partial results.</figcaption>
+</figure>
+
 Progress shows the phase (metadata, carving), counts and throughput. The
 scan can be cancelled; partial results are kept.
 
 ## 4. Results
+
+<figure>
+  <img src="images/05-results.png" alt="Results with the evidence panel" width="960">
+  <figcaption>Results: every candidate with its recovery health; the panel on the right lists the evidence behind the selected file's numbers.</figcaption>
+</figure>
 
 Every row is a recovery candidate:
 
@@ -112,7 +137,17 @@ filesystem data" means the clusters have been reused, not that every
 byte is gone; "Unrecoverable" means no extent of the content could be
 located, in which case a deep scan may still carve it.
 
+<figure>
+  <img src="images/06-preview.png" alt="Preview tab of the detail panel" width="960">
+  <figcaption>The Preview tab renders images and text and hex-dumps other content, reading only from the source.</figcaption>
+</figure>
+
 ## 5. Recovery
+
+<figure>
+  <img src="images/07-recover.png" alt="Recover dialog" width="960">
+  <figcaption>The Recover dialog: destination on another disk, options, and the optional report and case fields.</figcaption>
+</figure>
 
 Select rows and press **Recover**:
 
@@ -130,6 +165,11 @@ Select rows and press **Recover**:
 The result table shows every file with bytes written, `verified` or
 `PARTIAL`, the SHA-256 prefix and the output path. The report path is
 shown when one was written.
+
+<figure>
+  <img src="images/08-recovered.png" alt="Recovery result table" width="960">
+  <figcaption>After recovery: bytes written, verification state and output path for every file.</figcaption>
+</figure>
 
 ## Sessions
 
