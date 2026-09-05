@@ -44,9 +44,12 @@ component.
 ## Verification
 
 The release workflow (`.github/workflows/release.yml`) builds both
-executables on `windows-latest`, runs `phoinix.exe --version` and
-`phoinix.exe inspect` on a fixture, and fails if the desktop build produced
-anything beside the single executable in its output directory. The
+executables on `windows-latest` (the desktop one through the Tauri CLI,
+whose production build embeds the front-end), runs `phoinix.exe --version`
+and `phoinix.exe inspect` on a fixture, fails if the desktop build produced
+anything beside the single executable in its output directory, and fails
+if the executable does not contain the front-end bundle (a development
+build would look for a local dev server instead). The
 published `SHA256SUMS.txt` lets users verify what they downloaded:
 
 ```powershell

@@ -47,10 +47,13 @@ componente del sistema operativo.
 ## Verificación
 
 El flujo de trabajo de publicación (`.github/workflows/release.yml`)
-compila ambos ejecutables en `windows-latest`, ejecuta
-`phoinix.exe --version` y `phoinix.exe inspect` sobre un fixture, y falla
-si la compilación de escritorio produce algo más que el único ejecutable
-en su directorio de salida. El `SHA256SUMS.txt` publicado permite a los
+compila ambos ejecutables en `windows-latest` (el de escritorio mediante
+la CLI de Tauri, cuya compilación de producción incrusta el front-end),
+ejecuta `phoinix.exe --version` y `phoinix.exe inspect` sobre un fixture,
+falla si la compilación de escritorio produce algo más que el único
+ejecutable en su directorio de salida, y falla si el ejecutable no contiene
+el paquete del front-end (una compilación de desarrollo buscaría un
+servidor local en su lugar). El `SHA256SUMS.txt` publicado permite a los
 usuarios verificar lo que han descargado:
 
 ```powershell

@@ -1,7 +1,7 @@
 {
   "name": "phoinixdr-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "PhoinixDR desktop front-end (React + TypeScript + Vite) for the Tauri shell",
   "type": "module",
   "scripts": {

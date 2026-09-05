@@ -4,8 +4,13 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.1
 
+- Fixed: the Windows portable executable and the Linux desktop binary of
+  0.1.0 were development builds that tried to reach a local dev server
+  ("localhost refused to connect"). The release pipeline now builds the
+  desktop application through the Tauri CLI in production mode and
+  verifies that the executable embeds its front-end.
 - Spanish documentation (docs/es) and website (`/es/`): guides, FAQ,
   about pages, disclaimer and release requirement, with a language switch
   and English fallback for untranslated pages.

@@ -50,13 +50,17 @@ Tauri 2 con un front-end React/TypeScript y necesita Node.js 22.
    cargo build --release                 # target\release\phoinix.exe
    cd apps\desktop
    npm ci
-   npm run build                         # paquete del front-end
-   cargo build --release --manifest-path src-tauri\Cargo.toml
+   npx tauri build --no-bundle           # compilación de producción de la aplicación de escritorio
    # apps\desktop\src-tauri\target\release\phoinix-desktop.exe (portable)
    npm run tauri dev                     # ventana de desarrollo con recarga en caliente
    ```
 
-   `npm run tauri build` genera además instaladores MSI/NSIS en
+   Compile la aplicación de escritorio con la CLI de Tauri, como arriba. Un
+   `cargo build --release` directo dentro de `src-tauri` produce un binario
+   de *desarrollo* que espera el servidor de Vite en `localhost:1420` y
+   muestra «localhost refused to connect» al ejecutarse solo; la CLI activa
+   la característica de producción que incrusta el front-end. `npx tauri
+   build` sin `--no-bundle` genera además instaladores MSI/NSIS en
    `src-tauri\target\release\bundle`; son opcionales.
 
 ### Linux (Debian/Ubuntu)
@@ -68,8 +72,8 @@ curl https://sh.rustup.rs -sSf | sh
 git clone https://github.com/pcoronaf/PhoinixDR.git
 cd PhoinixDR
 cargo build --release                    # target/release/phoinix
-cd apps/desktop && npm ci && npm run build
-cargo build --release --manifest-path src-tauri/Cargo.toml
+cd apps/desktop && npm ci && npx tauri build --no-bundle
+# apps/desktop/src-tauri/target/release/phoinix-desktop
 ```
 
 ### Pruebas

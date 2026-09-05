@@ -129,8 +129,8 @@ cargo test --workspace
 cd apps/desktop
 npm ci
 npm run tauri dev                                     # development window
-npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml   # single portable executable
-npm run tauri build                                   # optional installers under src-tauri/target/release/bundle
+npx tauri build --no-bundle                           # single portable executable (src-tauri/target/release)
+npm run tauri build                                   # the same plus optional installers under src-tauri/target/release/bundle
 ```
 
 Linux needs the WebKitGTK development packages first

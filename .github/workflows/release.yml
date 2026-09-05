@@ -44,18 +44,23 @@ jobs:
           cache-dependency-path: apps/desktop/package-lock.json
       - name: Build the command-line application
         run: cargo build --release -p phoinix-cli
-      - name: Build the desktop application (single executable, no bundle)
+      - name: Build the desktop application (production build, single executable, no bundle)
         working-directory: apps/desktop
         run: |
           npm ci
-          npm run build
-          cargo build --release --manifest-path src-tauri/Cargo.toml
+          npx tauri build --no-bundle
       - name: Collect and check the artefacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item target\release\phoinix.exe dist\phoinix-windows-x64.exe
           Copy-Item apps\desktop\src-tauri\target\release\phoinix-desktop.exe dist\PhoinixDR-windows-x64-portable.exe
+          # REL-001: the executable must embed the front-end (a development
+          # build would try to reach the Vite dev server on localhost instead).
+          $asset = (Get-ChildItem apps\desktop\dist\assets -Filter 'index-*.js' | Select-Object -First 1).Name
+          $bytes = [System.IO.File]::ReadAllBytes('dist\PhoinixDR-windows-x64-portable.exe')
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if (-not $text.Contains($asset)) { Write-Error "the desktop executable does not embed the front-end ($asset missing): not a production build" }
           # REL-001: the desktop build must not depend on files beside the executable.
           $extra = Get-ChildItem apps\desktop\src-tauri\target\release -File | Where-Object { $_.Extension -in '.dll' -or $_.Name -like 'resources*' }
           if ($extra) { Write-Error "unexpected files beside the executable: $($extra.Name -join ', ')" }
@@ -99,8 +104,9 @@ jobs:
       - working-directory: apps/desktop
         run: |
           npm ci
-          npm run build
-          cargo build --release --manifest-path src-tauri/Cargo.toml
+          npx tauri build --no-bundle
+          asset=$(ls dist/assets/index-*.js | head -1 | xargs basename)
+          grep -q "$asset" src-tauri/target/release/phoinix-desktop || { echo "desktop binary does not embed the front-end"; exit 1; }
       - name: Package
         run: |
           mkdir -p dist/phoinixdr
