@@ -10,7 +10,7 @@ recover. It never writes to the source.
   installed (see [Windows portable release](../release/windows-portable.md)).
   To scan a physical disk or a USB stick, right-click the executable and
   choose *Run as administrator*; disk images do not need that.
-- **Linux:** run `phoinixdr-desktop`; physical devices need `sudo` or a
+- **Linux:** run `phoinix-desktop`; physical devices need `sudo` or a
   udev rule that grants read access to the disks.
 
 The home page shows the version and author in the top bar and lists recent

@@ -55,7 +55,7 @@ Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256
 
 ## Other platforms
 
-Linux releases are a tarball with the two executables; the desktop binary
+Linux releases are a tarball with the two executables (`phoinix`, `phoinix-desktop`); the desktop binary
 needs the distribution's WebKitGTK 4.1 packages, which is the equivalent of
 the WebView2 dependency. They are convenience builds: Windows is the
 platform the portable requirement is written for.

@@ -11,6 +11,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish (for example v0.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -24,6 +29,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -48,7 +55,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item target\release\phoinix.exe dist\phoinix-windows-x64.exe
-          Copy-Item apps\desktop\src-tauri\target\release\phoinixdr-desktop.exe dist\PhoinixDR-windows-x64-portable.exe
+          Copy-Item apps\desktop\src-tauri\target\release\phoinix-desktop.exe dist\PhoinixDR-windows-x64-portable.exe
           # REL-001: the desktop build must not depend on files beside the executable.
           $extra = Get-ChildItem apps\desktop\src-tauri\target\release -File | Where-Object { $_.Extension -in '.dll' -or $_.Name -like 'resources*' }
           if ($extra) { Write-Error "unexpected files beside the executable: $($extra.Name -join ', ')" }
@@ -71,6 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - name: Webview dependencies
         run: |
           sudo apt-get update
@@ -96,7 +105,7 @@ jobs:
         run: |
           mkdir -p dist/phoinixdr
           cp target/release/phoinix dist/phoinixdr/
-          cp apps/desktop/src-tauri/target/release/phoinixdr-desktop dist/phoinixdr/
+          cp apps/desktop/src-tauri/target/release/phoinix-desktop dist/phoinixdr/
           cp README.md LICENSE-MIT LICENSE-APACHE dist/phoinixdr/
           tar -C dist -czf dist/phoinix-linux-x64.tar.gz phoinixdr
           rm -r dist/phoinixdr
@@ -120,15 +129,17 @@ jobs:
         working-directory: dist
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Release notes
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           {
-            echo "PhoinixDR ${GITHUB_REF_NAME} by @pcoronaf"
+            echo "PhoinixDR ${RELEASE_TAG} by @pcoronaf"
             echo
             echo "| file | what |"
             echo "|---|---|"
             echo "| PhoinixDR-windows-x64-portable.exe | desktop application, single executable, no installation (needs Windows 10 21H2+/11 with WebView2) |"
             echo "| phoinix-windows-x64.exe | command-line application |"
-            echo "| phoinix-linux-x64.tar.gz | both executables for Linux x86-64 (desktop needs WebKitGTK 4.1) |"
+            echo "| phoinix-linux-x64.tar.gz | both executables (phoinix, phoinix-desktop) for Linux x86-64 (desktop needs WebKitGTK 4.1) |"
             echo "| SHA256SUMS.txt | checksums of the files above |"
             echo
             echo "Verify a download on Windows with \`Get-FileHash <file> -Algorithm SHA256\`."
@@ -136,9 +147,10 @@ jobs:
             echo "See CHANGELOG.md for what changed."
           } > notes.md
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: dist/*
           body_path: notes.md
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}

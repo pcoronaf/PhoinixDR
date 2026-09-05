@@ -23,7 +23,7 @@ published here.
 ## Download (Linux)
 
 Download `phoinix-linux-x64.tar.gz`, unpack it and run `./phoinix` or
-`./phoinixdr-desktop`. The desktop binary needs the distribution's
+`./phoinix-desktop`. The desktop binary needs the distribution's
 WebKitGTK 4.1 packages (`libwebkit2gtk-4.1-0`, `libgtk-3-0`,
 `libayatana-appindicator3-1`). Reading devices needs `sudo`.
 
@@ -52,7 +52,7 @@ front-end and needs Node.js 22.
    npm ci
    npm run build                         # front-end bundle
    cargo build --release --manifest-path src-tauri\Cargo.toml
-   # apps\desktop\src-tauri\target\release\phoinixdr-desktop.exe (portable)
+   # apps\desktop\src-tauri\target\release\phoinix-desktop.exe (portable)
    npm run tauri dev                     # development window with hot reload
    ```
 
