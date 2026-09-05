@@ -4,6 +4,12 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- Desktop: the evidence panel of the results view scales with the window
+  width instead of a fixed 380 px, long reasons wrap, and on narrow windows
+  it moves below the file list.
+
 ## 0.1.2
 
 - The Windows portable desktop executable is published as
