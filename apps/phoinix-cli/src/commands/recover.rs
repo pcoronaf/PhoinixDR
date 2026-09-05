@@ -3,11 +3,10 @@
 use std::path::PathBuf;
 
 use phoinix_core::fmt::grouped;
-use phoinix_fs::DeletedFileProvider;
 use phoinix_recovery::{RecoveryRequest, RecoveryWriter};
 use serde::Serialize;
 
-use crate::commands::undelete::{Session, SourceArgs, parse_reference};
+use crate::commands::undelete::{Session, SourceArgs};
 use crate::output::{self, outln};
 
 /// Arguments for `phoinix recover`.
@@ -52,14 +51,14 @@ struct Report {
 
 pub fn run(args: Args) -> anyhow::Result<()> {
     let session = Session::open(&args.source)?;
-    let engine = session.undelete(true);
+    let engine = &*session.engine;
     let mut request = RecoveryRequest::new(&args.output);
     request.preserve_tree = args.preserve_tree;
     request.preserve_timestamps = !args.no_timestamps;
     request.hash_after_write = !args.no_hash;
     request.overwrite = args.overwrite;
     request.allow_same_device = args.allow_source_destination;
-    let writer = RecoveryWriter::new(&engine, &args.source.source, request)?;
+    let writer = RecoveryWriter::new(engine, &args.source.source, request)?;
     if let Some(w) = writer.destination_check().warning() {
         eprintln!("warning: {w}");
     }
@@ -67,7 +66,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     let mut reports = Vec::new();
     let mut failures = 0usize;
     for reference in &args.candidates {
-        let object = match parse_reference(reference) {
+        let object = match engine.object_from_reference(reference) {
             Ok(o) => o,
             Err(e) => {
                 failures += 1;

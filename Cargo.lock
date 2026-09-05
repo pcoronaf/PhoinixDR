@@ -390,6 +390,8 @@ dependencies = [
  "phoinix-core",
  "phoinix-device",
  "phoinix-fs",
+ "phoinix-fs-exfat",
+ "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
  "phoinix-recovery",
@@ -439,6 +441,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "phoinix-fs-exfat"
+version = "0.1.0"
+dependencies = [
+ "phoinix-block",
+ "phoinix-core",
+ "phoinix-fs",
+ "phoinix-health",
+ "serde",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "phoinix-fs-fat"
+version = "0.1.0"
+dependencies = [
+ "phoinix-block",
+ "phoinix-core",
+ "phoinix-fs",
+ "phoinix-health",
+ "serde",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "phoinix-fs-ntfs"
 version = "0.1.0"
 dependencies = [
@@ -472,6 +500,8 @@ dependencies = [
  "phoinix-block",
  "phoinix-core",
  "phoinix-fs",
+ "phoinix-fs-exfat",
+ "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
  "phoinix-recovery",

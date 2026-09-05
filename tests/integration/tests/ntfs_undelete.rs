@@ -25,7 +25,7 @@ use serde_json::Value;
 
 struct Corpus {
     image: Vec<u8>,
-    volume: NtfsVolume,
+    volume: Arc<NtfsVolume>,
     reader: MemoryReader,
     files: Vec<Value>,
 }
@@ -33,7 +33,7 @@ struct Corpus {
 fn corpus() -> Corpus {
     let image = load_gz("ntfs/undelete.img.gz");
     let reader = MemoryReader::new(image.clone());
-    let volume = NtfsVolume::open(Arc::new(reader.clone())).unwrap();
+    let volume = Arc::new(NtfsVolume::open(Arc::new(reader.clone())).unwrap());
     let m = manifest("ntfs/undelete.manifest.json");
     let files = m["files"].as_array().unwrap().clone();
     Corpus {
@@ -58,7 +58,7 @@ fn category(name: &str) -> HealthCategory {
 }
 
 /// Recovers `candidate` into a fresh temp dir and returns (sha256 hex, complete).
-fn recover(engine: &NtfsUndelete<'_>, candidate: &RecoveryCandidate) -> (String, bool) {
+fn recover(engine: &NtfsUndelete, candidate: &RecoveryCandidate) -> (String, bool) {
     let dir = tempfile::tempdir().unwrap();
     let image = dir.path().join("source.img");
     std::fs::File::create(&image)
@@ -74,7 +74,7 @@ fn recover(engine: &NtfsUndelete<'_>, candidate: &RecoveryCandidate) -> (String,
 #[test]
 fn corpus_is_detected_assessed_and_recovered_per_manifest() {
     let c = corpus();
-    let engine = NtfsUndelete::new(&c.volume, storage());
+    let engine = NtfsUndelete::new(c.volume.clone(), storage());
     let by_record: HashMap<u64, RecoveryCandidate> = engine
         .deleted_files()
         .map(Result::unwrap)
@@ -294,7 +294,7 @@ fn corpus_is_detected_assessed_and_recovered_per_manifest() {
 #[test]
 fn malformed_records_are_diagnosed_not_fatal() {
     let c = corpus();
-    let engine = NtfsUndelete::new(&c.volume, storage());
+    let engine = NtfsUndelete::new(c.volume.clone(), storage());
     let all: Vec<RecoveryCandidate> = engine.deleted_files().map(Result::unwrap).collect();
     let find = |record: u64| {
         all.iter().find(|x| matches!(x.filesystem_object, FileSystemObjectId::Ntfs { record: r, .. } if r == record))
@@ -355,6 +355,7 @@ fn malformed_records_are_diagnosed_not_fatal() {
         .iter()
         .map(|x| match x.filesystem_object {
             FileSystemObjectId::Ntfs { record, .. } => record,
+            _ => 0,
         })
         .max()
         .unwrap();
@@ -364,7 +365,7 @@ fn malformed_records_are_diagnosed_not_fatal() {
 #[test]
 fn candidate_addressing_is_deterministic() {
     let c = corpus();
-    let engine = NtfsUndelete::new(&c.volume, storage());
+    let engine = NtfsUndelete::new(c.volume.clone(), storage());
     let first = engine
         .deleted_files()
         .map(Result::unwrap)
@@ -389,7 +390,7 @@ fn candidate_addressing_is_deterministic() {
 #[test]
 fn recovery_refuses_destinations_that_would_overwrite_the_source_image() {
     let c = corpus();
-    let engine = NtfsUndelete::new(&c.volume, storage());
+    let engine = NtfsUndelete::new(c.volume.clone(), storage());
     let dir = tempfile::tempdir().unwrap();
     let image = dir.path().join("undelete.img");
     std::fs::write(&image, &c.image).unwrap();
@@ -413,8 +414,8 @@ fn source_length_is_respected_when_reading_candidates() {
     let c = corpus();
     let cut = c.image[..c.image.len() / 2].to_vec();
     let reader: Arc<dyn BlockReader> = Arc::new(MemoryReader::new(cut));
-    let volume = NtfsVolume::open(reader).unwrap();
-    let engine = NtfsUndelete::new(&volume, storage());
+    let volume = Arc::new(NtfsVolume::open(reader).unwrap());
+    let engine = NtfsUndelete::new(volume, storage());
     for cand in engine.deleted_files().map(Result::unwrap) {
         if let Ok(mut content) = engine.open_content(&cand) {
             let mut sink = Vec::new();

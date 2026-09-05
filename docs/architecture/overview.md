@@ -18,6 +18,8 @@
 │  phoinix-volume    MBR / EBR / GPT, partition views         │
 │  phoinix-fs        probes, recovery candidates, providers   │
 │  phoinix-fs-ntfs   native NTFS reader + undelete            │
+│  phoinix-fs-fat    native FAT12/16/32 reader + undelete     │
+│  phoinix-fs-exfat  native exFAT reader + undelete           │
 │  phoinix-health    evidence, scoring, explanations          │
 │  phoinix-recovery  recovery writer, safety, SHA-256         │
 └─────────────────────────────────────────────────────────────┘
@@ -34,7 +36,7 @@ phoinix-volume        phoinix-health
    ▲                       ▲
 phoinix-fs ◄───────────────┘
    ▲
-phoinix-fs-ntfs
+phoinix-fs-ntfs / phoinix-fs-fat / phoinix-fs-exfat
    ▲
 phoinix-recovery (via phoinix-fs contracts only)
    ▲

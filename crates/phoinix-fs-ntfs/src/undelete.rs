@@ -15,6 +15,7 @@
 //! [`RecoveryHealth`].
 
 use std::io::{Read, Seek, SeekFrom};
+use std::sync::Arc;
 
 use phoinix_core::{CandidateId, FileSystemType, SourceId};
 use phoinix_fs::{
@@ -75,8 +76,8 @@ pub struct NtfsDeletedCandidate {
 }
 
 /// The NTFS undelete engine over one volume.
-pub struct NtfsUndelete<'a> {
-    volume: &'a NtfsVolume,
+pub struct NtfsUndelete {
+    volume: Arc<NtfsVolume>,
     bitmap: Option<ClusterBitmap>,
     storage: StorageEvidence,
     model: ScoringModel,
@@ -85,24 +86,25 @@ pub struct NtfsUndelete<'a> {
     examine_content: bool,
 }
 
-impl<'a> NtfsUndelete<'a> {
+impl NtfsUndelete {
     /// Creates the engine, loading `$Bitmap`. If the bitmap cannot be read,
     /// candidates are still produced with unknown allocation state.
     #[must_use]
-    pub fn new(volume: &'a NtfsVolume, storage: StorageEvidence) -> Self {
-        let bitmap = match ClusterBitmap::load(volume) {
+    pub fn new(volume: Arc<NtfsVolume>, storage: StorageEvidence) -> Self {
+        let bitmap = match ClusterBitmap::load(&volume) {
             Ok(b) => Some(b),
             Err(e) => {
                 tracing::warn!(error = %e, "$Bitmap unavailable; allocation evidence will be unknown");
                 None
             }
         };
+        let source_id = volume.reader().id();
         Self {
             volume,
             bitmap,
             storage,
             model: ScoringModel::default(),
-            source_id: volume.reader().id(),
+            source_id,
             byte_budget: DEFAULT_BYTE_BUDGET,
             examine_content: true,
         }
@@ -131,8 +133,8 @@ impl<'a> NtfsUndelete<'a> {
 
     /// The volume.
     #[must_use]
-    pub const fn volume(&self) -> &'a NtfsVolume {
-        self.volume
+    pub fn volume(&self) -> &NtfsVolume {
+        &self.volume
     }
 
     /// The loaded bitmap, if any.
@@ -219,6 +221,7 @@ impl<'a> NtfsUndelete<'a> {
         // Unnamed stream first.
         out.sort_by_key(|c| match &c.filesystem_object {
             FileSystemObjectId::Ntfs { stream, .. } => stream.clone(),
+            _ => None,
         });
         out
     }
@@ -359,6 +362,8 @@ impl<'a> NtfsUndelete<'a> {
             },
             expected_clusters,
             sparse: stream.has_sparse_runs() || stream.flags & crate::attribute::FLAG_SPARSE != 0,
+            chain_known: true,
+            heuristic: false,
             compressed,
             encrypted,
         };
@@ -521,7 +526,7 @@ impl CandidateContent for NtfsContent {
     }
 }
 
-impl DeletedFileProvider for NtfsUndelete<'_> {
+impl DeletedFileProvider for NtfsUndelete {
     fn deleted_files(&self) -> Box<dyn Iterator<Item = Result<RecoveryCandidate, FsError>> + '_> {
         let resolver = self.volume.resolver();
         let iter = self
@@ -542,14 +547,37 @@ impl DeletedFileProvider for NtfsUndelete<'_> {
             FileSystemObjectId::Ntfs { record, stream, .. } => {
                 Ok(self.candidate_for(*record, stream.as_deref())?)
             }
+            other => Err(FsError::NotFound(format!("{other} is not an NTFS object"))),
         }
+    }
+
+    fn object_from_reference(&self, text: &str) -> Result<FileSystemObjectId, FsError> {
+        let (record, stream) = match text.split_once(':') {
+            Some((r, s)) => (r, Some(s.to_owned())),
+            None => (text, None),
+        };
+        let record: u64 = record.trim().parse().map_err(|_| {
+            FsError::NotFound(format!(
+                "invalid NTFS candidate reference {text:?}; expected an MFT record number"
+            ))
+        })?;
+        Ok(FileSystemObjectId::Ntfs {
+            record,
+            sequence: 0,
+            stream,
+        })
     }
 
     fn open_content(
         &self,
         candidate: &RecoveryCandidate,
     ) -> Result<Box<dyn CandidateContent>, FsError> {
-        let FileSystemObjectId::Ntfs { record, stream, .. } = &candidate.filesystem_object;
+        let FileSystemObjectId::Ntfs { record, stream, .. } = &candidate.filesystem_object else {
+            return Err(FsError::NotFound(format!(
+                "{} is not an NTFS object",
+                candidate.filesystem_object
+            )));
+        };
         let file = self.volume.file(*record)?;
         let s = self.volume.open_stream(&file, stream.as_deref())?;
         let mut cursor = s.cursor();

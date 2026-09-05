@@ -1,7 +1,7 @@
 //! `phoinix scan` — list recoverable files with their health.
 
 use phoinix_core::fmt::bytes_iec;
-use phoinix_fs::{DeletedFileProvider, RecoveryCandidate};
+use phoinix_fs::RecoveryCandidate;
 use phoinix_health::HealthCategory;
 
 use crate::commands::undelete::{Session, SourceArgs};
@@ -34,7 +34,7 @@ fn parse_category(text: &str) -> Result<HealthCategory, String> {
 
 pub fn run(args: Args) -> anyhow::Result<()> {
     let session = Session::open(&args.source)?;
-    let engine = session.undelete(args.source.no_content);
+    let engine = &*session.engine;
     let needle = args.name.as_ref().map(|n| n.to_lowercase());
     let mut candidates: Vec<RecoveryCandidate> = Vec::new();
     for item in engine.deleted_files() {
@@ -89,8 +89,9 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     ));
     outln!();
     outln!(
-        "{} candidate(s). Recovery figures are estimates. Use `phoinix explain <source> <ID>` for the evidence.",
-        candidates.len()
+        "{} candidate(s) on the {} volume. Recovery figures are estimates. Use `phoinix explain <source> <ID>` for the evidence.",
+        candidates.len(),
+        session.filesystem
     );
     Ok(())
 }

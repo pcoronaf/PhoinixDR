@@ -9,3 +9,4 @@
 /fuzz/artifacts
 /fuzz/corpus
 .DS_Store
+__pycache__/

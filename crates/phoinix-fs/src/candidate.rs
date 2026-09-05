@@ -22,6 +22,18 @@ pub enum FileSystemObjectId {
         /// Named stream, or `None` for the unnamed stream.
         stream: Option<String>,
     },
+    /// A FAT12/16/32 directory entry, identified by the volume byte offset
+    /// of its 8.3 entry.
+    Fat {
+        /// Byte offset of the short-name directory entry inside the volume.
+        entry_offset: u64,
+    },
+    /// An exFAT directory entry set, identified by the volume byte offset of
+    /// its File entry.
+    ExFat {
+        /// Byte offset of the File directory entry inside the volume.
+        entry_offset: u64,
+    },
 }
 
 impl FileSystemObjectId {
@@ -30,6 +42,8 @@ impl FileSystemObjectId {
     pub const fn filesystem(&self) -> FileSystemType {
         match self {
             FileSystemObjectId::Ntfs { .. } => FileSystemType::Ntfs,
+            FileSystemObjectId::Fat { .. } => FileSystemType::Fat32,
+            FileSystemObjectId::ExFat { .. } => FileSystemType::ExFat,
         }
     }
 
@@ -47,6 +61,8 @@ impl FileSystemObjectId {
                 stream: Some(s),
                 ..
             } => format!("{record}:{s}"),
+            FileSystemObjectId::Fat { entry_offset }
+            | FileSystemObjectId::ExFat { entry_offset } => entry_offset.to_string(),
         }
     }
 }
@@ -65,6 +81,8 @@ impl fmt::Display for FileSystemObjectId {
                 }
                 Ok(())
             }
+            FileSystemObjectId::Fat { entry_offset } => write!(f, "fat:{entry_offset}"),
+            FileSystemObjectId::ExFat { entry_offset } => write!(f, "exfat:{entry_offset}"),
         }
     }
 }
@@ -153,6 +171,14 @@ pub trait DeletedFileProvider: Send + Sync {
     /// Returns [`FsError::NotFound`] if the object does not exist or is not
     /// a candidate.
     fn candidate(&self, object: &FileSystemObjectId) -> Result<RecoveryCandidate, FsError>;
+
+    /// Parses a short reference as printed by `scan` (the inverse of
+    /// [`FileSystemObjectId::short_reference`]) for this engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FsError::NotFound`] if the text is not a valid reference.
+    fn object_from_reference(&self, text: &str) -> Result<FileSystemObjectId, FsError>;
 
     /// Opens the content of `candidate` for streaming.
     ///

@@ -1,24 +1,28 @@
-//! Shared setup for the undelete commands: open the NTFS volume of a source
-//! and build the undelete engine with storage evidence.
+//! Shared setup for the undelete commands: open a source, pick the volume,
+//! detect its filesystem and build the matching engine.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::Context;
 use phoinix_core::FileSystemType;
 use phoinix_device::platform_enumerator;
-use phoinix_fs::FileSystemObjectId;
+use phoinix_fs::DeletedFileProvider;
+use phoinix_fs_exfat::{ExfatUndelete, ExfatVolume};
+use phoinix_fs_fat::{FatUndelete, FatVolume};
 use phoinix_fs_ntfs::{NtfsUndelete, NtfsVolume};
 use phoinix_health::{DeviceKind, StorageEvidence};
 
-use crate::source;
+use crate::source::{self, standard_probes};
 
 /// Common source-selection arguments for scan/explain/recover.
 #[derive(Debug, clap::Args)]
 pub struct SourceArgs {
     /// Device path or image file.
     pub source: PathBuf,
-    /// Partition index to use (default: first NTFS partition, or the whole
-    /// source when it has no partition table).
+    /// Partition index to use (default: the first partition with a
+    /// supported filesystem, or the whole source when it has no partition
+    /// table).
     #[arg(long, short = 'p')]
     pub partition: Option<u32>,
     /// Skip content examination (faster; lowers assessment confidence).
@@ -26,33 +30,62 @@ pub struct SourceArgs {
     pub no_content: bool,
 }
 
-/// An opened NTFS volume ready for undelete work.
+/// An opened volume with its undelete engine.
 pub struct Session {
-    /// The NTFS volume.
-    pub volume: NtfsVolume,
-    /// Storage evidence for the source.
-    pub storage: StorageEvidence,
+    /// Detected filesystem.
+    pub filesystem: FileSystemType,
+    /// The engine.
+    pub engine: Box<dyn DeletedFileProvider>,
 }
 
 impl Session {
-    /// Opens the source and its NTFS volume.
+    /// Opens the source and builds the engine for its filesystem.
     pub fn open(args: &SourceArgs) -> anyhow::Result<Self> {
         let opened = source::open(&args.source)?;
-        let selected = source::select_volume(&opened, args.partition, Some(FileSystemType::Ntfs))?;
-        let volume = NtfsVolume::open(selected.reader.clone()).context("opening NTFS volume")?;
+        let selected = source::select_volume(&opened, args.partition, None)?;
+        let detection = standard_probes().detect(&*selected.reader);
+        let filesystem = detection.filesystem();
         let storage = storage_evidence(&args.source);
-        tracing::info!(partition = ?selected.partition, offset = selected.offset, "NTFS volume selected");
-        Ok(Self { volume, storage })
-    }
-
-    /// Builds the undelete engine.
-    pub fn undelete(&self, no_content: bool) -> NtfsUndelete<'_> {
-        let engine = NtfsUndelete::new(&self.volume, self.storage.clone());
-        if no_content {
-            engine.without_content_examination()
-        } else {
-            engine
-        }
+        tracing::info!(partition = ?selected.partition, offset = selected.offset, %filesystem, "volume selected");
+        let engine: Box<dyn DeletedFileProvider> = match filesystem {
+            FileSystemType::Ntfs => {
+                let volume = Arc::new(
+                    NtfsVolume::open(selected.reader.clone()).context("opening NTFS volume")?,
+                );
+                let e = NtfsUndelete::new(volume, storage);
+                Box::new(if args.no_content {
+                    e.without_content_examination()
+                } else {
+                    e
+                })
+            }
+            FileSystemType::Fat12 | FileSystemType::Fat16 | FileSystemType::Fat32 => {
+                let volume = Arc::new(
+                    FatVolume::open(selected.reader.clone()).context("opening FAT volume")?,
+                );
+                let e = FatUndelete::new(volume, storage);
+                Box::new(if args.no_content {
+                    e.without_content_examination()
+                } else {
+                    e
+                })
+            }
+            FileSystemType::ExFat => {
+                let volume = Arc::new(
+                    ExfatVolume::open(selected.reader.clone()).context("opening exFAT volume")?,
+                );
+                let e = ExfatUndelete::new(volume, storage);
+                Box::new(if args.no_content {
+                    e.without_content_examination()
+                } else {
+                    e
+                })
+            }
+            other => anyhow::bail!(
+                "no undelete engine for {other}; supported: NTFS, FAT12/16/32, exFAT (use --partition to pick another volume)"
+            ),
+        };
+        Ok(Self { filesystem, engine })
     }
 }
 
@@ -79,21 +112,4 @@ pub fn storage_evidence(source: &Path) -> StorageEvidence {
         trim_supported: None,
         trim_state_known: false,
     }
-}
-
-/// Parses a candidate reference typed on the command line: `<record>` or
-/// `<record>:<stream>`.
-pub fn parse_reference(text: &str) -> anyhow::Result<FileSystemObjectId> {
-    let (record, stream) = match text.split_once(':') {
-        Some((r, s)) => (r, Some(s.to_owned())),
-        None => (text, None),
-    };
-    let record: u64 = record.parse().with_context(|| {
-        format!("invalid candidate reference {text:?}; expected an MFT record number")
-    })?;
-    Ok(FileSystemObjectId::Ntfs {
-        record,
-        sequence: 0,
-        stream,
-    })
 }

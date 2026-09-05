@@ -9,12 +9,19 @@ use phoinix_block::BlockReader;
 use phoinix_core::FileSystemType;
 use phoinix_device::open_source;
 use phoinix_fs::{ProbeRegistry, signature};
+use phoinix_fs_exfat::ExFatProbe;
+use phoinix_fs_fat::FatProbe;
 use phoinix_fs_ntfs::NtfsProbe;
 use phoinix_volume::{PartitionScheme, PartitionTable, read_partition_table};
 
-/// Every probe PHOINIX ships, native engines first.
+/// Every probe PhoinixDR ships: native engines first, then signature-only
+/// probes for filesystems without an engine yet.
 pub fn standard_probes() -> ProbeRegistry {
-    signature::register_all(ProbeRegistry::new().with(Box::new(NtfsProbe)))
+    ProbeRegistry::new()
+        .with(Box::new(NtfsProbe))
+        .with(Box::new(FatProbe))
+        .with(Box::new(ExFatProbe))
+        .with(Box::new(signature::ExtProbe))
 }
 
 /// An opened source together with its partition table.

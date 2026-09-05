@@ -22,6 +22,7 @@ mod candidate;
 mod error;
 mod probe;
 pub mod signature;
+pub mod stream;
 
 pub use candidate::{
     CandidateContent, CandidateTimestamps, DeletedFileProvider, FileSystemObjectId,
@@ -31,3 +32,4 @@ pub use error::FsError;
 pub use probe::{
     Detection, FileSystemProbe, POSITIVE_THRESHOLD, ProbeEvidence, ProbeRegistry, ProbeResult,
 };
+pub use stream::{Extent, ExtentStream, ExtentStreamCursor};

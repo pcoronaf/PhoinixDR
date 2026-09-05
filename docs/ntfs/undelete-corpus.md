@@ -21,3 +21,25 @@ path, size, SHA-256, MFT record number and expectations.
 The integration test `tests/integration/tests/ntfs_undelete.rs` asserts every
 row and additionally checks that the image is never written and that a
 recovery destination equal to the image is refused.
+
+
+# FAT and exFAT corpora
+
+`tests/generated/make_fat_undelete_corpus.py` builds FAT12, FAT16 and FAT32
+images with mtools (no mounting), and
+`tests/generated/make_exfat_undelete_corpus.sh` builds an exFAT image with
+mkfs.exfat and exfat-fuse over a loop device. Each has a manifest with paths,
+sizes, SHA-256 digests and expectations:
+
+| scenario | content | expectation |
+|---|---|---|
+| A | small and 200 KB contiguous files | exact under the contiguous assumption |
+| C | file written into holes between fillers | FAT: heuristic reconstruction, exact but capped; exFAT: FAT chain intact, ≥ 2 extents |
+| D | file whose clusters were reused by a new file | reallocated clusters reported, ≤ Very poor, not exact |
+| E | empty file | Excellent, validation not applicable |
+| H | file inside a deleted directory | exact, path through the deleted directory |
+| L | long name with spaces and Unicode | name reconstructed from deleted LFN / name entries |
+| V | JPEG, PDF, DOCX | validators pass, exact |
+
+`tests/integration/tests/fat_exfat_undelete.rs` asserts every row for all
+four images and runs 240 corruption rounds without panics.

@@ -37,6 +37,14 @@ pub struct ScoringModel {
     pub cap_zero_suspicious: u8,
     /// Confidence penalty when zero-filled content is ambiguous.
     pub ambiguous_zero_confidence_penalty: u8,
+    /// Cap when the layout was reconstructed heuristically around allocated
+    /// clusters.
+    pub cap_heuristic_reconstruction: u8,
+    /// Confidence penalty when the cluster chain is unknown and contiguity
+    /// was assumed.
+    pub assumed_contiguous_confidence_penalty: u8,
+    /// Confidence penalty for a heuristic fragmented reconstruction.
+    pub heuristic_confidence_penalty: u8,
     /// Bonus for a fully valid structure (within caps).
     pub bonus_valid_structure: u8,
     /// Penalty per fragment beyond the first, capped by `fragment_penalty_max`.
@@ -61,6 +69,9 @@ impl Default for ScoringModel {
             cap_zero_contradicts_format: 20,
             cap_zero_suspicious: 59,
             ambiguous_zero_confidence_penalty: 25,
+            cap_heuristic_reconstruction: 59,
+            assumed_contiguous_confidence_penalty: 10,
+            heuristic_confidence_penalty: 30,
             bonus_valid_structure: 3,
             fragment_penalty_per_extent: 1,
             fragment_penalty_max: 5,
@@ -203,20 +214,32 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
                 s.likelihood = s.likelihood.min(i32::from(model.all_free_base));
             } else {
                 if a.clusters_allocated > 0 {
-                    s.bad(format!(
-                        "{}% of the required clusters ({} of {}) are currently allocated to active filesystem data",
-                        percent(ratio),
-                        group(a.clusters_allocated),
-                        group(a.clusters_total)
-                    ));
-                    if a.clusters_allocated == a.clusters_total {
-                        s.cap_at(model.cap_allocated_100);
-                    } else if ratio >= 0.5 {
-                        s.cap_at(model.cap_allocated_50);
-                    } else if ratio >= 0.1 {
-                        s.cap_at(model.cap_allocated_10);
+                    if x.heuristic && a.clusters_allocated < a.clusters_total {
+                        // The heuristic already skipped these clusters; whether
+                        // the file was fragmented around them or overwritten by
+                        // them is undecidable from allocation alone.
+                        s.bad(format!(
+                            "{}% of the clusters in the assumed span ({} of {}) are allocated to active filesystem data and were skipped",
+                            percent(ratio),
+                            group(a.clusters_allocated),
+                            group(a.clusters_total)
+                        ));
                     } else {
-                        s.cap_at(model.cap_any_allocated);
+                        s.bad(format!(
+                            "{}% of the required clusters ({} of {}) are currently allocated to active filesystem data",
+                            percent(ratio),
+                            group(a.clusters_allocated),
+                            group(a.clusters_total)
+                        ));
+                        if a.clusters_allocated == a.clusters_total {
+                            s.cap_at(model.cap_allocated_100);
+                        } else if ratio >= 0.5 {
+                            s.cap_at(model.cap_allocated_50);
+                        } else if ratio >= 0.1 {
+                            s.cap_at(model.cap_allocated_10);
+                        } else {
+                            s.cap_at(model.cap_any_allocated);
+                        }
                     }
                 }
                 if a.clusters_unknown > 0 {
@@ -231,6 +254,14 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
         } else if x.total_clusters.is_some_and(|t| t > 0) {
             s.bad("The allocation map is unavailable; cluster reuse cannot be checked");
             s.cap_at(model.cap_no_allocation_map);
+        }
+        if !x.resident && !x.chain_known {
+            if x.heuristic {
+                s.bad("The cluster chain is gone; the layout was reconstructed by skipping clusters now used by other files (heuristic)");
+                s.cap_at(model.cap_heuristic_reconstruction);
+            } else {
+                s.bad("The cluster chain is gone; the file is assumed to have been stored contiguously");
+            }
         }
         if x.extent_count > 1 {
             let penalty = i32::from(model.fragment_penalty_per_extent)
@@ -398,6 +429,13 @@ fn confidence(e: &RecoveryEvidence, model: &ScoringModel) -> u8 {
     }
     if e.storage.rotational == Some(false) && !e.storage.trim_state_known && !e.extents.resident {
         c -= 10;
+    }
+    if !e.extents.resident && !e.extents.chain_known {
+        c -= i32::from(if e.extents.heuristic {
+            model.heuristic_confidence_penalty
+        } else {
+            model.assumed_contiguous_confidence_penalty
+        });
     }
     if e.extents.compressed || e.extents.encrypted {
         c = c.max(90);
@@ -666,6 +704,37 @@ mod tests {
         let mut e = non_resident(1, 10, 0);
         e.extents.encrypted = true;
         assert!(score(&e, &ScoringModel::default()).likelihood <= 10);
+    }
+
+    #[test]
+    fn unknown_chain_lowers_confidence_and_heuristics_cap_likelihood() {
+        let mut e = non_resident(1, 10, 0);
+        e.extents.chain_known = false;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood >= 85, "{h:?}");
+        assert!(h.confidence <= 75, "{h:?}");
+        e.extents.heuristic = true;
+        e.extents.extent_count = 3;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 59, "{h:?}");
+        assert!(h.reasons.iter().any(|r| r.text.contains("heuristic")));
+    }
+
+    #[test]
+    fn heuristic_reconstruction_is_not_double_penalised() {
+        // Half the assumed span is allocated but the heuristic skipped it.
+        let mut e = non_resident(4, 64, 32);
+        e.extents.chain_known = false;
+        e.extents.heuristic = true;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood >= 50 && h.likelihood <= 59, "{h:?}");
+        assert!(h.reasons.iter().any(|r| r.text.contains("were skipped")));
+        // The whole span is taken: nothing of the file can remain there.
+        let mut e = non_resident(1, 64, 64);
+        e.extents.chain_known = false;
+        e.extents.heuristic = true;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 15, "{h:?}");
     }
 
     #[test]

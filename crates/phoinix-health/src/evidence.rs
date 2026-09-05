@@ -25,7 +25,7 @@ pub struct MetadataEvidence {
 }
 
 /// Evidence about where the content lives.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtentEvidence {
     /// Content is stored inside the metadata record; no clusters involved.
     pub resident: bool,
@@ -44,6 +44,43 @@ pub struct ExtentEvidence {
     pub compressed: bool,
     /// The stream is encrypted (content unusable without keys).
     pub encrypted: bool,
+    /// The extents come from an intact cluster chain or runlist rather than
+    /// being reconstructed. `false` means the layout was inferred (FAT
+    /// contiguity assumption).
+    pub chain_known: bool,
+    /// The layout was inferred by skipping clusters that are now allocated
+    /// to other files: a heuristic fragmented reconstruction.
+    pub heuristic: bool,
+}
+
+impl Default for ExtentEvidence {
+    fn default() -> Self {
+        Self::known(false, false, 0, None)
+    }
+}
+
+impl ExtentEvidence {
+    /// Evidence for a stream whose layout is fully known.
+    #[must_use]
+    pub const fn known(
+        resident: bool,
+        complete: bool,
+        extent_count: u32,
+        total_clusters: Option<u64>,
+    ) -> Self {
+        Self {
+            resident,
+            complete,
+            extent_count,
+            total_clusters,
+            expected_clusters: None,
+            sparse: false,
+            compressed: false,
+            encrypted: false,
+            chain_known: true,
+            heuristic: false,
+        }
+    }
 }
 
 /// Evidence from the filesystem's allocation structures.

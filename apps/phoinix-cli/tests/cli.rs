@@ -185,3 +185,68 @@ fn scan_explain_recover_vertical_slice() {
     assert!(!ok);
     assert!(err.contains("source image"), "{err}");
 }
+
+#[test]
+fn scan_and_recover_on_fat_and_exfat() {
+    let dir = tempfile::tempdir().unwrap();
+    for (fixture_name, name, expected_fs) in [
+        ("fat/fat32.img.gz", "photo.jpg", "FAT32"),
+        ("fat/fat12.img.gz", "report.pdf", "FAT12"),
+        ("exfat/undelete.img.gz", "photo.jpg", "exFAT"),
+    ] {
+        let img = fixture(fixture_name, dir.path());
+        let image = img.to_str().unwrap();
+        let (ok, out, err) = phoinix(&["scan", image, "--deleted"]);
+        assert!(ok, "{err}");
+        assert!(
+            out.contains(&format!("on the {expected_fs} volume")),
+            "{out}"
+        );
+        let (ok, out, _) = phoinix(&["scan", image, "--deleted", "--json"]);
+        assert!(ok);
+        let candidates: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
+        // FAT short names lose their first character: match on the tail.
+        let tail = &name[1..];
+        let cand = candidates
+            .iter()
+            .find(|c| {
+                c["original_name"]
+                    .as_str()
+                    .unwrap()
+                    .to_lowercase()
+                    .ends_with(tail)
+            })
+            .unwrap_or_else(|| panic!("{fixture_name}: {name} not found in {out}"));
+        assert_eq!(
+            cand["health"]["category"], "excellent",
+            "{fixture_name}: {cand}"
+        );
+        let id = cand["filesystem_object"]["entry_offset"]
+            .as_u64()
+            .unwrap()
+            .to_string();
+        let (ok, out, err) = phoinix(&["explain", image, &id]);
+        assert!(ok, "{err}");
+        assert!(out.contains("validates successfully"), "{out}");
+        let dest = dir.path().join(format!("out-{expected_fs}"));
+        let (ok, out, err) = phoinix(&["recover", image, &id, "--output", dest.to_str().unwrap()]);
+        assert!(ok, "{err}");
+        let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(fixture_name.replace(".img.gz", ".manifest.json"));
+        let manifest: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(manifest_path).unwrap()).unwrap();
+        let expected = manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["path"].as_str().unwrap().to_lowercase().ends_with(name))
+            .unwrap()["sha256"]
+            .as_str()
+            .unwrap();
+        assert!(
+            out.contains(expected),
+            "{fixture_name}: recovered digest mismatch:\n{out}"
+        );
+    }
+}

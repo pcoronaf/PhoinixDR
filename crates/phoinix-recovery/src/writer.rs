@@ -344,6 +344,9 @@ mod tests {
         fn candidate(&self, _: &FileSystemObjectId) -> Result<RecoveryCandidate, FsError> {
             Err(FsError::NotFound("n/a".into()))
         }
+        fn object_from_reference(&self, _: &str) -> Result<FileSystemObjectId, FsError> {
+            Err(FsError::NotFound("n/a".into()))
+        }
         fn open_content(
             &self,
             _: &RecoveryCandidate,

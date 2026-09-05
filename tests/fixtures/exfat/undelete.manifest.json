@@ -1,0 +1,91 @@
+{
+  "image": "undelete.img.gz",
+  "label": "PHXEXFAT",
+  "files": [
+    {
+      "path": "\\small.txt",
+      "size": 700,
+      "sha256": "c83fb676992934d2410f19caf9743244dcaaa4b1b1a60958838a368e5e47789d",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      }
+    },
+    {
+      "path": "\\docs\\medium.bin",
+      "size": 200000,
+      "sha256": "1bd15d9913b96d50866a7793bd14315d4eaf5e1fa1dc76260b59421ab1dc42fc",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      }
+    },
+    {
+      "path": "\\empty.txt",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scenario": "E",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "empty": true
+      }
+    },
+    {
+      "path": "\\docs\\A long name with spaces ünï 文件.txt",
+      "size": 3000,
+      "sha256": "8a3a0cf735890d97c4cbbaa542d334980cb15f1312f0e9d86eae3bed866e861b",
+      "scenario": "L",
+      "expect": {
+        "exact": true,
+        "min": "very good"
+      }
+    },
+    {
+      "path": "\\docs\\photo.jpg",
+      "size": 22219,
+      "sha256": "cb82495a26bf7a7b7682db579b045d70a3aca260b4884d269f60ef92362da435",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "type": "jpeg",
+        "validation": "valid"
+      }
+    },
+    {
+      "path": "\\gone\\keep.txt",
+      "size": 2500,
+      "sha256": "81d47ca7cdb9b5bb4054b30e389c2eb80d70a5e91f48c7a324a0b4f490341123",
+      "scenario": "H",
+      "expect": {
+        "exact": true,
+        "min": "very good",
+        "via_deleted_dir": true
+      }
+    },
+    {
+      "path": "\\d\\reused.bin",
+      "size": 65536,
+      "sha256": "6e50dbe917225d8f7a1be6a67c6b670fbc35946296278fff056bc11b908d183b",
+      "scenario": "D",
+      "expect": {
+        "exact": false,
+        "max": "very poor",
+        "reallocated": true
+      }
+    },
+    {
+      "path": "\\docs\\frag.bin",
+      "size": 65436,
+      "sha256": "d69fa317926f0c313ccf327a47c92734756ea23c7a4865761ffbae0dd06b5a24",
+      "scenario": "C",
+      "expect": {
+        "exact": true,
+        "min": "poor"
+      }
+    }
+  ]
+}

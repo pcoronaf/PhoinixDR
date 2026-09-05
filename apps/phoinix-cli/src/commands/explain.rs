@@ -1,9 +1,8 @@
 //! `phoinix explain` — the evidence behind a candidate's score.
 
 use phoinix_core::fmt::{bytes_iec, grouped};
-use phoinix_fs::DeletedFileProvider;
 
-use crate::commands::undelete::{Session, SourceArgs, parse_reference};
+use crate::commands::undelete::{Session, SourceArgs};
 use crate::output::{self, outln};
 
 /// Arguments for `phoinix explain`.
@@ -20,8 +19,8 @@ pub struct Args {
 
 pub fn run(args: Args) -> anyhow::Result<()> {
     let session = Session::open(&args.source)?;
-    let engine = session.undelete(args.source.no_content);
-    let object = parse_reference(&args.candidate)?;
+    let engine = &*session.engine;
+    let object = engine.object_from_reference(&args.candidate)?;
     let c = engine.candidate(&object)?;
     if args.json {
         return output::print_json(&c);

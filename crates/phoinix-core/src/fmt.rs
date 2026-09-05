@@ -72,6 +72,46 @@ pub fn iso8601_utc(unix_seconds: i64, micros: u32) -> String {
     )
 }
 
+/// Days since 1970-01-01 for a civil date (inverse of the civil-from-days
+/// conversion used by [`iso8601_utc`]).
+#[must_use]
+pub fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let m = i64::from(month);
+    let mp = if m > 2 { m - 3 } else { m + 9 };
+    let doy = (153 * mp + 2) / 5 + i64::from(day) - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+/// Converts a DOS date/time pair (as used by FAT and exFAT) into seconds
+/// since the Unix epoch, treating the value as UTC. `tenths` adds 10 ms
+/// units (0–199) as on-disk. Returns `None` for an all-zero or invalid date.
+#[must_use]
+pub fn dos_datetime_to_unix(date: u16, time: u16, tenths: u8) -> Option<i64> {
+    if date == 0 {
+        return None;
+    }
+    let year = 1980 + i64::from(date >> 9);
+    let month = u32::from((date >> 5) & 0x0F);
+    let day = u32::from(date & 0x1F);
+    let hour = i64::from(time >> 11);
+    let minute = i64::from((time >> 5) & 0x3F);
+    let second = i64::from((time & 0x1F) * 2);
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return None;
+    }
+    let days = days_from_civil(year, month, day);
+    Some(days * 86_400 + hour * 3600 + minute * 60 + second + i64::from(tenths / 100))
+}
+
 /// Howard Hinnant's algorithm: days since 1970-01-01 to (year, month, day).
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
@@ -158,6 +198,19 @@ mod tests {
             "2026-09-04T12:34:56.500000Z"
         );
         assert_eq!(iso8601_utc(-86_400, 0), "1969-12-31T00:00:00.000000Z");
+    }
+
+    #[test]
+    fn dos_datetime() {
+        // 2026-09-05 01:38:00 → date: (46<<9)|(9<<5)|5, time: (1<<11)|(38<<5)|0
+        let date = (46 << 9) | (9 << 5) | 5;
+        let time = (1 << 11) | (38 << 5);
+        let secs = dos_datetime_to_unix(date, time, 0).unwrap();
+        assert_eq!(iso8601_utc(secs, 0), "2026-09-05T01:38:00.000000Z");
+        assert_eq!(dos_datetime_to_unix(0, 0, 0), None);
+        assert_eq!(dos_datetime_to_unix((46 << 9) | (13 << 5) | 5, 0, 0), None);
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(2000, 3, 1), 11_017);
     }
 
     #[test]

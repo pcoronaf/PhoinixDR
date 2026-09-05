@@ -12,11 +12,11 @@ The fundamental workflow is:
 Select source → Scan → Find lost data → Assess recoverability → Preview → Recover
 ```
 
-> **Status:** early engineering preview. The repository currently implements
-> milestones M0–M4 of the technical specification: the read-only block layer,
-> MBR/GPT discovery, a native NTFS reader, NTFS undelete, evidence-based
-> recovery health and a verified recovery writer, all exposed through
-> `phoinix-cli`. There is no desktop GUI yet.
+> **Status:** early engineering preview. The repository implements milestones
+> M0–M4 and M7 of the technical specification: the read-only block layer,
+> MBR/GPT discovery, native NTFS, FAT12/16/32 and exFAT readers with undelete,
+> evidence-based recovery health and a verified recovery writer, all exposed
+> through `phoinix-cli`. There is no desktop GUI yet.
 
 ## Principles
 
@@ -36,8 +36,10 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 See [`docs/architecture/overview.md`](docs/architecture/overview.md), the
 [architectural decision records](docs/decisions/), the
 [NTFS reader notes](docs/ntfs/reader.md), the
-[health model](docs/recovery/health-model.md) and the
-[undelete corpus](docs/ntfs/undelete-corpus.md).
+[FAT/exFAT engine notes](docs/fat/reader.md), the
+[health model](docs/recovery/health-model.md), the
+[undelete corpora](docs/ntfs/undelete-corpus.md) and the
+[real-hardware test procedure](docs/testing/real-hardware.md).
 
 ## Repository layout
 
@@ -49,6 +51,8 @@ crates/phoinix-device   physical device enumeration and read-only access (Linux,
 crates/phoinix-volume   MBR / extended MBR / GPT discovery and partition views
 crates/phoinix-fs       filesystem-neutral contracts: probes, recovery candidates
 crates/phoinix-fs-ntfs  native NTFS reader and undelete engine
+crates/phoinix-fs-fat   native FAT12/16/32 reader and undelete engine
+crates/phoinix-fs-exfat native exFAT reader and undelete engine
 crates/phoinix-health   recovery evidence model, scoring and explanations
 crates/phoinix-recovery recovery writer with destination safety and SHA-256 verification
 tests/fixtures          compressed disk-image fixtures with ground-truth manifests
@@ -108,8 +112,9 @@ ID   NAME                 SIZE      RECOVERY         CONF  PATH
 "16 of 64 required clusters are currently allocated to active filesystem
 data" or "The JPEG image structure validates successfully".
 
-When a source contains a partition table, `scan`, `explain`, `recover` and the
-`ntfs` commands operate on the first NTFS partition by default; pass
+`scan`, `explain` and `recover` detect the volume's filesystem (NTFS, FAT12/16/32
+or exFAT) and use the matching engine. When a source contains a partition
+table they operate on the first supported partition by default; pass
 `--partition N` to choose another, or point them at a bare volume image.
 
 ## Safety
