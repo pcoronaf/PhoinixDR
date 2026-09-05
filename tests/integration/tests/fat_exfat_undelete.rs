@@ -181,6 +181,28 @@ fn check_corpus(engine: &dyn DeletedFileProvider, files: &[Value], label: &str) 
                 "{label}: {path}"
             );
         }
+        if expect["inferred_start"].as_bool().unwrap_or(false) {
+            assert!(
+                cand.evidence.extents.start_inferred,
+                "{label}: {path} should have an inferred start: {:?}",
+                cand.evidence.extents
+            );
+            assert!(
+                cand.evidence
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("was chosen among")),
+                "{label}: {path}: {:?}",
+                cand.evidence.diagnostics
+            );
+            assert!(
+                cand.health
+                    .reasons
+                    .iter()
+                    .any(|r| r.text.contains("start was inferred")),
+                "{label}: {path}"
+            );
+        }
         if let Some(n) = expect["min_extents"].as_u64() {
             assert!(
                 u64::from(cand.evidence.extents.extent_count) >= n,
@@ -217,7 +239,7 @@ fn check_corpus(engine: &dyn DeletedFileProvider, files: &[Value], label: &str) 
 
 #[test]
 fn fat_corpora_are_recovered() {
-    for variant in ["fat12", "fat16", "fat32"] {
+    for variant in ["fat12", "fat16", "fat32", "fat32w"] {
         let image = load_gz(&format!("fat/{variant}.img.gz"));
         let reader: Arc<dyn BlockReader> = Arc::new(MemoryReader::new(image.clone()));
         let detection = ProbeRegistry::new()
@@ -228,6 +250,9 @@ fn fat_corpora_are_recovered() {
             "fat16" => FileSystemType::Fat16,
             _ => FileSystemType::Fat32,
         };
+        if variant == "fat32w" {
+            windows_deletion_on_large_fat32(&image);
+        }
         assert_eq!(
             detection.filesystem(),
             expected_fs,
@@ -260,6 +285,45 @@ fn fat_corpora_are_recovered() {
             .unwrap();
         assert_eq!(mem.data(), &image[..]);
     }
+}
+
+/// The Windows FAT32 driver clears the high word of the first cluster on
+/// deletion. Without inference every deleted file on the fat32w image
+/// points into the region of the older files and nothing can be located;
+/// with it, every file is byte-exact.
+fn windows_deletion_on_large_fat32(image: &[u8]) {
+    let reader: Arc<dyn BlockReader> = Arc::new(MemoryReader::new(image.to_vec()));
+    let volume = FatVolume::open(reader).unwrap();
+    assert!(volume.boot().cluster_count > 0xFFFF);
+    let deleted: Vec<_> = volume
+        .walk()
+        .unwrap()
+        .into_iter()
+        .filter(|w| w.entry.deleted && !w.entry.attributes.is_directory())
+        .collect();
+    assert_eq!(deleted.len(), 4);
+    for w in &deleted {
+        assert_eq!(w.entry.first_cluster_high, 0);
+        assert!(volume.high_word_untrustworthy(&w.entry));
+        let r = volume.reconstruct(&w.entry).unwrap();
+        let inferred = r.inferred_start.as_ref().unwrap();
+        assert!(inferred.recorded_allocated, "{inferred:?}");
+        assert_eq!(inferred.chosen, inferred.recorded | 0x1_0000);
+        assert!(r.complete && r.first_cluster() == Some(inferred.chosen));
+        // The recorded cluster sits inside the older files, so it could
+        // never have been the start of this deleted file.
+        assert!(!volume.fat().is_free(inferred.recorded));
+        assert!(volume.fat().is_free(inferred.chosen));
+    }
+    let notes = deleted
+        .iter()
+        .find(|w| w.entry.name().ends_with("OTES.TXT"))
+        .unwrap();
+    let r = volume.reconstruct(&notes.entry).unwrap();
+    assert_eq!(
+        r.inferred_start.unwrap().evidence,
+        phoinix_fs_fat::StartEvidence::NonZero
+    );
 }
 
 #[test]

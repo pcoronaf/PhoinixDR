@@ -51,6 +51,11 @@ pub struct ExtentEvidence {
     /// The layout was inferred by skipping clusters that are now allocated
     /// to other files: a heuristic fragmented reconstruction.
     pub heuristic: bool,
+    /// The recorded start of the file was untrustworthy (for example a
+    /// FAT32 driver cleared the high word of the first cluster on deletion)
+    /// and the start used here was inferred from free clusters and their
+    /// content.
+    pub start_inferred: bool,
 }
 
 impl Default for ExtentEvidence {
@@ -79,6 +84,7 @@ impl ExtentEvidence {
             encrypted: false,
             chain_known: true,
             heuristic: false,
+            start_inferred: false,
         }
     }
 }

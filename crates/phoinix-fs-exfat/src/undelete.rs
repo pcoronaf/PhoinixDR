@@ -124,6 +124,7 @@ impl ExfatUndelete {
                     encrypted: false,
                     chain_known: r.chain_known,
                     heuristic,
+                    start_inferred: false,
                 };
                 (extents, allocation, r.clusters.clone())
             }
@@ -135,6 +136,12 @@ impl ExfatUndelete {
                     ExtentEvidence {
                         complete: false,
                         chain_known: false,
+                        total_clusters: Some(0),
+                        expected_clusters: Some(
+                            entry
+                                .data_length
+                                .div_ceil(u64::from(self.volume.cluster_size())),
+                        ),
                         ..Default::default()
                     },
                     AllocationEvidence {

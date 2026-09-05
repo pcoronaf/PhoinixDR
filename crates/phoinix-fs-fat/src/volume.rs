@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use phoinix_block::{BlockReader, BlockReaderExt};
 use phoinix_fs::{Extent, ExtentStream};
+use phoinix_health::validate::{SIGNATURES, detect_type, expected_type_from_name};
 use serde::{Deserialize, Serialize};
 
 use crate::FatError;
@@ -16,6 +17,60 @@ use crate::table::{FatEntry, FatTable};
 pub const MAX_DIRECTORY_BYTES: u64 = 64 * 1024 * 1024;
 /// Deepest directory nesting walked.
 pub const MAX_DEPTH: usize = 128;
+/// Allocated clusters skipped before a contiguous reconstruction gives up.
+pub const MAX_SKIPPED_CLUSTERS: usize = 65_536;
+/// Bytes read from each candidate start cluster when inferring the start.
+pub const START_PROBE_BYTES: usize = 4096;
+
+/// Strength of the content evidence behind an inferred start cluster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StartEvidence {
+    /// The content at the chosen cluster carries the signature of the type
+    /// expected from the file name.
+    ExpectedType,
+    /// The content starts with a recognisable file signature (no type was
+    /// expected from the name).
+    KnownType,
+    /// The content is merely not zero-filled: weak evidence.
+    NonZero,
+}
+
+impl StartEvidence {
+    /// Wording for diagnostics.
+    #[must_use]
+    pub const fn describe(self) -> &'static str {
+        match self {
+            StartEvidence::ExpectedType => {
+                "its content carries the signature of the type expected from the file name"
+            }
+            StartEvidence::KnownType => "its content starts with a recognisable file signature",
+            StartEvidence::NonZero => {
+                "it is the highest free candidate holding non-zero data (weak evidence)"
+            }
+        }
+    }
+}
+
+/// A start cluster inferred because the recorded one could not be trusted.
+///
+/// Windows clears the high 16 bits of the first cluster when it deletes a
+/// file on FAT32. On volumes with more than 65 536 clusters the surviving
+/// low word then points to the wrong place. Every cluster sharing that low
+/// word is a candidate; free ones are probed and ranked by their content.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InferredStart {
+    /// The first cluster recorded in the directory entry.
+    pub recorded: u32,
+    /// Whether the recorded cluster is currently allocated to other data.
+    pub recorded_allocated: bool,
+    /// The cluster used instead.
+    pub chosen: u32,
+    /// Free clusters sharing the recorded low word that were probed.
+    pub candidates: u32,
+    /// Why the chosen cluster was preferred.
+    pub evidence: StartEvidence,
+}
 
 /// How a file's clusters were determined.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,13 +89,24 @@ pub struct Reconstruction {
     /// Clusters of the plain contiguous span (before skipping), used for
     /// allocation evidence.
     pub contiguous_span: Vec<u32>,
+    /// The start cluster was inferred rather than taken from the entry.
+    pub inferred_start: Option<InferredStart>,
+    /// The contiguous search gave up: [`MAX_SKIPPED_CLUSTERS`] allocated
+    /// clusters follow the start, so the start is probably wrong.
+    pub search_exhausted: bool,
 }
 
 impl Reconstruction {
-    /// Whether the layout was inferred heuristically.
+    /// Whether the layout was inferred heuristically by skipping clusters.
     #[must_use]
     pub fn is_heuristic(&self) -> bool {
         !self.chain_known && !self.skipped_allocated.is_empty()
+    }
+
+    /// The first cluster actually used, if any.
+    #[must_use]
+    pub fn first_cluster(&self) -> Option<u32> {
+        self.clusters.first().copied()
     }
 }
 
@@ -210,7 +276,9 @@ impl FatVolume {
     ///
     /// Allocated files follow the FAT chain. Deleted files whose chain is
     /// gone are assumed contiguous; clusters in that span now allocated to
-    /// other files are skipped (heuristic reconstruction).
+    /// other files are skipped (heuristic reconstruction). On large FAT32
+    /// volumes a deleted entry whose first-cluster high word is zero has
+    /// its start inferred, see [`InferredStart`].
     ///
     /// # Errors
     ///
@@ -218,18 +286,25 @@ impl FatVolume {
     pub fn reconstruct(&self, entry: &DirEntry) -> Result<Reconstruction, FatError> {
         let cs = u64::from(self.boot.cluster_size);
         let needed = u64::from(entry.size).div_ceil(cs);
-        let empty = || Reconstruction {
-            clusters: Vec::new(),
-            chain_known: true,
-            skipped_allocated: Vec::new(),
-            complete: true,
-            extent_count: 0,
-            contiguous_span: Vec::new(),
-        };
         if needed == 0 {
-            return Ok(empty());
+            return Ok(Reconstruction {
+                clusters: Vec::new(),
+                chain_known: true,
+                skipped_allocated: Vec::new(),
+                complete: true,
+                extent_count: 0,
+                contiguous_span: Vec::new(),
+                inferred_start: None,
+                search_exhausted: false,
+            });
         }
-        let first = self.effective_first_cluster(entry);
+        let recorded = self.effective_first_cluster(entry);
+        let inferred = if entry.deleted && self.high_word_untrustworthy(entry) {
+            self.infer_start(entry, recorded, needed)
+        } else {
+            None
+        };
+        let first = inferred.as_ref().map_or(recorded, |i| i.chosen);
         if !self.boot.is_valid_cluster(first) {
             return Err(FatError::InvalidChain(format!(
                 "first cluster {first} is outside the volume"
@@ -237,7 +312,8 @@ impl FatVolume {
         }
         // An intact chain of the right length (allocated file, or a driver
         // that did not clear the FAT on deletion).
-        if let Ok(chain) = self.fat.chain(first)
+        if inferred.is_none()
+            && let Ok(chain) = self.fat.chain(first)
             && chain.len() as u64 >= needed
             && (!entry.deleted || chain.len() as u64 == needed)
         {
@@ -254,14 +330,23 @@ impl FatVolume {
                 complete: true,
                 extent_count,
                 contiguous_span: span,
+                inferred_start: None,
+                search_exhausted: false,
             });
         }
-        // Contiguous assumption with skipping of allocated clusters.
+        let mut r = self.contiguous_from(first, needed);
+        r.inferred_start = inferred;
+        Ok(r)
+    }
+
+    /// Contiguous assumption from `first`, skipping allocated clusters.
+    fn contiguous_from(&self, first: u32, needed: u64) -> Reconstruction {
         let mut clusters = Vec::new();
         let mut skipped = Vec::new();
         let mut span = Vec::new();
         let mut c = first;
         let limit = self.boot.cluster_count.saturating_add(2);
+        let mut exhausted = false;
         while (clusters.len() as u64) < needed && c < limit {
             if (span.len() as u64) < needed {
                 span.push(c);
@@ -271,19 +356,110 @@ impl FatVolume {
                 _ => skipped.push(c),
             }
             c = c.saturating_add(1);
-            if skipped.len() > 65_536 {
+            if skipped.len() > MAX_SKIPPED_CLUSTERS {
+                exhausted = true;
                 break;
             }
         }
         let complete = clusters.len() as u64 == needed;
         let extent_count = count_extents(&clusters);
-        Ok(Reconstruction {
+        Reconstruction {
             clusters,
             chain_known: false,
             skipped_allocated: skipped,
             complete,
             extent_count,
             contiguous_span: span,
+            inferred_start: None,
+            search_exhausted: exhausted,
+        }
+    }
+
+    /// Whether the entry's first-cluster high word may have been cleared on
+    /// deletion: FAT32, high word zero, and a volume large enough for the
+    /// high word to matter.
+    #[must_use]
+    pub fn high_word_untrustworthy(&self, entry: &DirEntry) -> bool {
+        self.boot.variant == FatVariant::Fat32
+            && entry.first_cluster_high == 0
+            && self.boot.cluster_count > 0xFFFF
+    }
+
+    /// Infers the start of a deleted file whose first-cluster high word is
+    /// untrustworthy. Every cluster sharing the recorded low word is a
+    /// candidate; free candidates are probed and ranked by content evidence
+    /// ([`StartEvidence`]), the recorded cluster wins ties against
+    /// alternatives, and among alternatives the highest cluster wins because
+    /// new files land after existing data.
+    ///
+    /// Returns `None` when the recorded cluster remains the best choice.
+    #[must_use]
+    pub fn infer_start(
+        &self,
+        entry: &DirEntry,
+        recorded: u32,
+        needed: u64,
+    ) -> Option<InferredStart> {
+        if needed == 0 {
+            return None;
+        }
+        let low = recorded & 0xFFFF;
+        let max_high = self.boot.cluster_count.saturating_add(1) >> 16;
+        let expected = expected_type_from_name(entry.name()).map(|d| d.id);
+        let probe =
+            usize::try_from(u64::from(self.boot.cluster_size).min(START_PROBE_BYTES as u64))
+                .unwrap_or(START_PROBE_BYTES);
+        let mut buf = vec![0u8; probe];
+        let mut best: Option<(u8, u32)> = None;
+        let mut candidates = 0u32;
+        let recorded_allocated =
+            self.boot.is_valid_cluster(recorded) && !self.fat.is_free(recorded);
+        for high in 0..=max_high {
+            let c = (high << 16) | low;
+            if !self.boot.is_valid_cluster(c) || !self.fat.is_free(c) {
+                continue;
+            }
+            candidates = candidates.saturating_add(1);
+            let Ok(off) = self.boot.cluster_offset(c) else {
+                continue;
+            };
+            if self.reader.read_exact_at(off, &mut buf).is_err() {
+                continue;
+            }
+            let score = content_score(&buf, expected.as_deref());
+            let better = match best {
+                None => score > 0,
+                // The recorded cluster keeps ties; later (higher) clusters
+                // replace an earlier alternative on equal evidence.
+                Some((bs, bc)) => score > bs || (score == bs && bc != recorded),
+            };
+            if better {
+                best = Some((score, c));
+            }
+        }
+        let (score, chosen) = best?;
+        if chosen == recorded {
+            return None;
+        }
+        let evidence = match score {
+            3 => StartEvidence::ExpectedType,
+            2 => StartEvidence::KnownType,
+            _ => StartEvidence::NonZero,
+        };
+        tracing::debug!(
+            name = entry.name(),
+            recorded,
+            chosen,
+            candidates,
+            ?evidence,
+            "start cluster inferred"
+        );
+        Some(InferredStart {
+            recorded,
+            recorded_allocated,
+            chosen,
+            candidates,
+            evidence,
         })
     }
 
@@ -339,6 +515,30 @@ impl FatVolume {
             extents,
             covered.min(u64::from(entry.size)),
         ))
+    }
+}
+
+/// Ranks the content at a candidate start: 3 = matches the type expected
+/// from the name, 2 = some recognisable signature, 1 = non-zero data,
+/// 0 = zero-filled or contradicting the expected type.
+fn content_score(head: &[u8], expected: Option<&str>) -> u8 {
+    let detected = detect_type(head).map(|s| s.id);
+    // Families that share a container signature.
+    fn family(id: &str) -> &str {
+        match id {
+            "docx" | "xlsx" | "pptx" | "odf" | "jar" => "zip",
+            "doc" | "xls" | "ppt" => "ole",
+            other => other,
+        }
+    }
+    let non_zero = head.iter().any(|b| *b != 0);
+    match (detected, expected.map(family)) {
+        (Some(d), Some(e)) if d == e => 3,
+        (Some(_), Some(_)) => 0,
+        (Some(_), None) => 2,
+        // Expected a type with a known signature but did not see it.
+        (None, Some(e)) if SIGNATURES.iter().any(|s| s.id == e) => 0,
+        (None, _) => u8::from(non_zero),
     }
 }
 

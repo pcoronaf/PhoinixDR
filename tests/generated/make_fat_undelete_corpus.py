@@ -11,6 +11,12 @@ Scenarios per image:
   V  real JPEG / PDF / DOCX                     validators
   E  empty file                                 Excellent, validation not applicable
   L  long name with spaces and Unicode          LFN reconstructed from deleted entries
+
+The fat32w image reproduces a Windows deletion on a large FAT32 volume
+(more than 65 536 clusters): Windows clears the high word of the first
+cluster, so the surviving low word points into the region occupied by older
+files. Scenario W checks that the start is inferred from free clusters
+sharing the low word and their content.
 """
 import hashlib
 import io
@@ -150,6 +156,69 @@ def reallocate(img: Path, dirname: str, short_name_tail: str):
     open(img, "wb").write(d)
 
 
+def clear_high_words(img: Path, dirname: str) -> int:
+    """Simulates the Windows FAT32 driver, which zeroes the high word of the
+    first cluster of every entry it deletes. Returns the number of entries
+    patched; every one of them must have had a non-zero high word, or the
+    scenario would not exercise the inference."""
+    import struct
+    d = bytearray(open(img, "rb").read())
+    bps = struct.unpack_from("<H", d, 11)[0]; spc = d[13]; rsv = struct.unpack_from("<H", d, 14)[0]
+    nf = d[16]; spf = struct.unpack_from("<I", d, 36)[0]
+    fat_off = rsv * bps; data_off = fat_off + nf * spf * bps
+    cs = bps * spc
+    def cluster_off(c): return data_off + (c - 2) * cs
+    root_cluster = struct.unpack_from("<I", d, 44)[0]
+    root = d[cluster_off(root_cluster):cluster_off(root_cluster) + cs]
+    sub = None
+    for i in range(0, len(root), 32):
+        e = root[i:i + 32]
+        if e[0] == 0: break
+        if e[11] != 0x0F and e[:11].decode("latin1").strip() == dirname and e[11] & 0x10:
+            sub = e; break
+    assert sub is not None, dirname
+    sub_cluster = (struct.unpack_from("<H", sub, 20)[0] << 16) | struct.unpack_from("<H", sub, 26)[0]
+    base = cluster_off(sub_cluster)
+    patched = 0
+    for i in range(0, cs, 32):
+        e = d[base + i:base + i + 32]
+        if e[0] == 0: break
+        if e[0] != 0xE5 or e[11] == 0x0F or e[11] & 0x10: continue
+        high = struct.unpack_from("<H", e, 20)[0]
+        assert high != 0, "deleted entry must start above cluster 65535"
+        struct.pack_into("<H", d, base + i + 20, 0)
+        patched += 1
+    open(img, "wb").write(d)
+    return patched
+
+
+def build_windows_deleted(work: Path):
+    """fat32w: 40 MiB, 512-byte clusters (about 81 000 clusters)."""
+    img = work / "fat32w.img"
+    with open(img, "wb") as f:
+        f.truncate(40 * 1024 * 1024)
+    run("mkfs.vfat", "-F", "32", "-s", "1", "-n", "FAT32W", str(img))
+    im = Image_(img, "fat32")
+    im.mkdir("/x"); im.mkdir("/docs")
+    # Older data filling the first 36 MiB: every low-word cluster of the
+    # files deleted later lands inside this region.
+    for i in range(9):
+        im.put(f"/x/older{i}.bin", (f"older{i} ".encode() * (600 * 1024))[:4 * 1024 * 1024], "filler", {})
+        im.entries.pop(f"\\x\\older{i}.bin")
+    im.put("/docs/photo.jpg", make_jpeg(), "W", {"exact": True, "min": "good", "type": "jpeg", "validation": "valid", "inferred_start": True})
+    im.put("/docs/report.pdf", make_pdf(40_000), "W", {"exact": True, "min": "good", "type": "pdf", "validation": "valid", "inferred_start": True})
+    im.put("/docs/proposal.docx", make_docx(), "W", {"exact": True, "min": "good", "type": "docx", "validation": "valid", "inferred_start": True})
+    im.put("/docs/notes.txt", gen("notes", 9_000), "W", {"exact": True, "min": "poor", "max": "poor", "inferred_start": True, "max_confidence": 60})
+    for target in ("/docs/photo.jpg", "/docs/report.pdf", "/docs/proposal.docx", "/docs/notes.txt"):
+        im.delete(target)
+    patched = clear_high_words(img, "DOCS")
+    assert patched == 4, patched
+    manifest = {"image": "fat32w.img.gz", "variant": "fat32", "files": list(im.entries.values())}
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "fat32w.manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+    subprocess.run(f"gzip -9 -n -c '{img}' > '{OUT / 'fat32w.img.gz'}'", shell=True, check=True)
+
+
 def build(variant: str, size_mb: int, mkfs_args: list, work: Path):
     img = work / f"{variant}.img"
     with open(img, "wb") as f:
@@ -203,6 +272,7 @@ def main():
         build("fat12", 4, ["-F", "12", "-s", "2"], work)      # 4 MiB, 1 KiB clusters → FAT12
         build("fat16", 16, ["-F", "16", "-s", "4"], work)     # 16 MiB, 2 KiB clusters
         build("fat32", 48, ["-F", "32", "-s", "8"], work)     # 48 MiB, 4 KiB clusters
+        build_windows_deleted(work)
     finally:
         for p in work.iterdir():
             p.unlink()

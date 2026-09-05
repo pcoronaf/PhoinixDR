@@ -29,4 +29,4 @@ pub use error::FatError;
 pub use probe::FatProbe;
 pub use table::{FatEntry, FatTable};
 pub use undelete::FatUndelete;
-pub use volume::{FatVolume, Reconstruction, WalkedEntry};
+pub use volume::{FatVolume, InferredStart, Reconstruction, StartEvidence, WalkedEntry};

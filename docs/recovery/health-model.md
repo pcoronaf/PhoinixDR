@@ -27,6 +27,7 @@ evidence moves it within the cap, and every adjustment produces a reason.
 | zeros suspicious for a recognised type (`Suspicious`) | cap 59 |
 | empty file (logical size 0) | likelihood ≤ 97, validation not applicable |
 | encrypted / compressed | cap 10 / 0 |
+| heuristic layout (skipped clusters) or inferred start | cap 59, or 79 when the content validates completely |
 | valid structure | +3 |
 | fragments | −1 per extra extent, at most −5 |
 
@@ -60,7 +61,8 @@ Starts at 100 and loses points for what PHOINIX could not see: damaged record
 (−30), unknown size (−10), incomplete extents (−25), no allocation map (−25,
 or proportional to unknown clusters), no structural validator (−15), no
 content sample (−5), ambiguous zero-filled content (−25), unknown medium
-(−3), SSD without TRIM knowledge (−10).
+(−3), SSD without TRIM knowledge (−10), contiguity assumed (−10) or
+heuristic layout (−30), start inferred (a further −20).
 
 ## Wording
 

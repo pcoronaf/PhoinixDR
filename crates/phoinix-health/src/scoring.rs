@@ -40,6 +40,13 @@ pub struct ScoringModel {
     /// Cap when the layout was reconstructed heuristically around allocated
     /// clusters.
     pub cap_heuristic_reconstruction: u8,
+    /// Cap for a heuristic reconstruction (skipped clusters or an inferred
+    /// start) whose content validates completely: the structure confirms the
+    /// inferred layout, so the file is probably right, but the layout is
+    /// still not proven.
+    pub cap_heuristic_validated: u8,
+    /// Confidence penalty when the start of the file had to be inferred.
+    pub inferred_start_confidence_penalty: u8,
     /// Confidence penalty when the cluster chain is unknown and contiguity
     /// was assumed.
     pub assumed_contiguous_confidence_penalty: u8,
@@ -70,6 +77,8 @@ impl Default for ScoringModel {
             cap_zero_suspicious: 59,
             ambiguous_zero_confidence_penalty: 25,
             cap_heuristic_reconstruction: 59,
+            cap_heuristic_validated: 79,
+            inferred_start_confidence_penalty: 20,
             assumed_contiguous_confidence_penalty: 10,
             heuristic_confidence_penalty: 30,
             bonus_valid_structure: 3,
@@ -256,11 +265,31 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
             s.cap_at(model.cap_no_allocation_map);
         }
         if !x.resident && !x.chain_known {
+            // A complete structural validation of the reconstructed content
+            // supports the inferred layout, so the cap is relaxed (not
+            // lifted): the layout is still inferred, not proven.
+            let validated = evidence
+                .content
+                .validation
+                .as_ref()
+                .is_some_and(|v| v.status == ValidationStatus::Valid);
+            let heuristic_cap = if validated {
+                model.cap_heuristic_validated
+            } else {
+                model.cap_heuristic_reconstruction
+            };
+            if x.start_inferred {
+                s.bad("The recorded start cluster was untrustworthy; the start was inferred from free clusters and their content (heuristic)");
+                s.cap_at(heuristic_cap);
+            }
             if x.heuristic {
                 s.bad("The cluster chain is gone; the layout was reconstructed by skipping clusters now used by other files (heuristic)");
-                s.cap_at(model.cap_heuristic_reconstruction);
-            } else {
+                s.cap_at(heuristic_cap);
+            } else if !x.start_inferred {
                 s.bad("The cluster chain is gone; the file is assumed to have been stored contiguously");
+            }
+            if validated && (x.heuristic || x.start_inferred) {
+                s.good("The content validates completely, which supports the inferred layout");
             }
         }
         if x.extent_count > 1 {
@@ -436,6 +465,9 @@ fn confidence(e: &RecoveryEvidence, model: &ScoringModel) -> u8 {
         } else {
             model.assumed_contiguous_confidence_penalty
         });
+        if e.extents.start_inferred {
+            c -= i32::from(model.inferred_start_confidence_penalty);
+        }
     }
     if e.extents.compressed || e.extents.encrypted {
         c = c.max(90);
@@ -733,6 +765,37 @@ mod tests {
         let mut e = non_resident(1, 64, 64);
         e.extents.chain_known = false;
         e.extents.heuristic = true;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 15, "{h:?}");
+    }
+
+    #[test]
+    fn inferred_start_is_capped_and_relaxed_by_validation() {
+        let mut e = non_resident(1, 10, 0);
+        e.extents.chain_known = false;
+        e.extents.start_inferred = true;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 59, "{h:?}");
+        assert!(h.confidence <= 60, "{h:?}");
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| r.text.contains("start was inferred"))
+        );
+        // A complete validation supports the inferred layout: Good, not Poor.
+        e.content.validation = Some(valid("PDF"));
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood > 59 && h.likelihood <= 79, "{h:?}");
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| r.text.contains("supports the inferred layout"))
+        );
+        // Reused clusters still dominate.
+        let mut e = non_resident(1, 64, 64);
+        e.extents.chain_known = false;
+        e.extents.start_inferred = true;
+        e.content.validation = Some(valid("PDF"));
         let h = score(&e, &ScoringModel::default());
         assert!(h.likelihood <= 15, "{h:?}");
     }

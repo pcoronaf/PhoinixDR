@@ -290,7 +290,13 @@ impl ExfatVolume {
     pub fn reconstruct(&self, entry: &EntrySet) -> Result<Reconstruction, ExfatError> {
         let cs = u64::from(self.boot.cluster_size);
         let needed = entry.data_length.div_ceil(cs);
-        if needed == 0 || entry.first_cluster == 0 {
+        if needed > 0 && entry.first_cluster == 0 {
+            return Err(ExfatError::Malformed(format!(
+                "the first cluster is zero although the file is {} bytes long; the driver cleared the start of the file on deletion",
+                entry.data_length
+            )));
+        }
+        if needed == 0 {
             return Ok(Reconstruction {
                 clusters: Vec::new(),
                 chain_known: true,

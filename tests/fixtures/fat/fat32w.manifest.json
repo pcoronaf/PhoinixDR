@@ -1,0 +1,58 @@
+{
+  "image": "fat32w.img.gz",
+  "variant": "fat32",
+  "files": [
+    {
+      "path": "\\docs\\photo.jpg",
+      "size": 22219,
+      "sha256": "cb82495a26bf7a7b7682db579b045d70a3aca260b4884d269f60ef92362da435",
+      "scenario": "W",
+      "expect": {
+        "exact": true,
+        "min": "good",
+        "type": "jpeg",
+        "validation": "valid",
+        "inferred_start": true
+      }
+    },
+    {
+      "path": "\\docs\\report.pdf",
+      "size": 40308,
+      "sha256": "5d17c989279aaf6bab8e7fab49831987218b75574edc5dc167b83d72e7916ae6",
+      "scenario": "W",
+      "expect": {
+        "exact": true,
+        "min": "good",
+        "type": "pdf",
+        "validation": "valid",
+        "inferred_start": true
+      }
+    },
+    {
+      "path": "\\docs\\proposal.docx",
+      "size": 4743,
+      "sha256": "7706556f255e494d60cdf428886a5e026dfa76d86e84e1e59a6fd583986b0d25",
+      "scenario": "W",
+      "expect": {
+        "exact": true,
+        "min": "good",
+        "type": "docx",
+        "validation": "valid",
+        "inferred_start": true
+      }
+    },
+    {
+      "path": "\\docs\\notes.txt",
+      "size": 9000,
+      "sha256": "92fd646e14518efbf512f22a13b267cc44af4c37472275219f2c2b5f28b89dfe",
+      "scenario": "W",
+      "expect": {
+        "exact": true,
+        "min": "poor",
+        "max": "poor",
+        "inferred_start": true,
+        "max_confidence": 60
+      }
+    }
+  ]
+}

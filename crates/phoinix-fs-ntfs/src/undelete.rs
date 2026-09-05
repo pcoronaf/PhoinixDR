@@ -364,6 +364,7 @@ impl NtfsUndelete {
             sparse: stream.has_sparse_runs() || stream.flags & crate::attribute::FLAG_SPARSE != 0,
             chain_known: true,
             heuristic: false,
+            start_inferred: false,
             compressed,
             encrypted,
         };

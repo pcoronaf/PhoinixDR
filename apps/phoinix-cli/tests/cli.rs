@@ -189,10 +189,12 @@ fn scan_explain_recover_vertical_slice() {
 #[test]
 fn scan_and_recover_on_fat_and_exfat() {
     let dir = tempfile::tempdir().unwrap();
-    for (fixture_name, name, expected_fs) in [
-        ("fat/fat32.img.gz", "photo.jpg", "FAT32"),
-        ("fat/fat12.img.gz", "report.pdf", "FAT12"),
-        ("exfat/undelete.img.gz", "photo.jpg", "exFAT"),
+    for (fixture_name, name, expected_fs, category) in [
+        ("fat/fat32.img.gz", "photo.jpg", "FAT32", "excellent"),
+        ("fat/fat12.img.gz", "report.pdf", "FAT12", "excellent"),
+        // Windows-style deletion on a large FAT32 volume: start inferred.
+        ("fat/fat32w.img.gz", "proposal.docx", "FAT32", "good"),
+        ("exfat/undelete.img.gz", "photo.jpg", "exFAT", "excellent"),
     ] {
         let img = fixture(fixture_name, dir.path());
         let image = img.to_str().unwrap();
@@ -218,7 +220,7 @@ fn scan_and_recover_on_fat_and_exfat() {
             })
             .unwrap_or_else(|| panic!("{fixture_name}: {name} not found in {out}"));
         assert_eq!(
-            cand["health"]["category"], "excellent",
+            cand["health"]["category"], category,
             "{fixture_name}: {cand}"
         );
         let id = cand["filesystem_object"]["entry_offset"]
@@ -228,7 +230,9 @@ fn scan_and_recover_on_fat_and_exfat() {
         let (ok, out, err) = phoinix(&["explain", image, &id]);
         assert!(ok, "{err}");
         assert!(out.contains("validates successfully"), "{out}");
-        let dest = dir.path().join(format!("out-{expected_fs}"));
+        let dest = dir
+            .path()
+            .join(format!("out-{}", fixture_name.replace('/', "-")));
         let (ok, out, err) = phoinix(&["recover", image, &id, "--output", dest.to_str().unwrap()]);
         assert!(ok, "{err}");
         let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR"))

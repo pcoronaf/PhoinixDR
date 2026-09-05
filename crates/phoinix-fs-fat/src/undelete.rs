@@ -3,7 +3,7 @@
 use std::io::Read;
 use std::sync::Arc;
 
-use phoinix_core::fmt::iso8601_utc;
+use phoinix_core::fmt::{grouped as group, iso8601_utc};
 use phoinix_core::{CandidateId, SourceId};
 use phoinix_fs::{
     CandidateContent, CandidateTimestamps, DeletedFileProvider, ExtentStreamCursor,
@@ -18,8 +18,7 @@ use phoinix_health::{
 };
 
 use crate::FatError;
-use crate::boot::FatVariant;
-use crate::volume::{FatVolume, WalkedEntry};
+use crate::volume::{FatVolume, MAX_SKIPPED_CLUSTERS, WalkedEntry};
 
 /// The FAT undelete engine.
 pub struct FatUndelete {
@@ -75,21 +74,44 @@ impl FatUndelete {
         } else if entry.long_name_unverified {
             diagnostics.push(RecoveryDiagnostic::info("The long name was taken from deleted entries whose checksum can no longer be verified"));
         }
-        if self.volume.variant() == FatVariant::Fat32
-            && entry.first_cluster_high == 0
-            && self.volume.boot().cluster_count > 0xFFFF
-        {
+        let cs = u64::from(self.volume.cluster_size());
+        let needed = u64::from(entry.size).div_ceil(cs);
+        let reconstruction = self.volume.reconstruct(entry);
+        let inferred = reconstruction
+            .as_ref()
+            .ok()
+            .and_then(|r| r.inferred_start.as_ref());
+        if let Some(i) = inferred {
+            let recorded_state = if i.recorded_allocated {
+                "is allocated to other data"
+            } else {
+                "holds no plausible content"
+            };
+            diagnostics.push(RecoveryDiagnostic::warning(format!(
+                "The high word of the first cluster was cleared on deletion and the recorded cluster {} {}; cluster {} was chosen among {} free candidate{} sharing the low word because {}",
+                group(u64::from(i.recorded)),
+                recorded_state,
+                group(u64::from(i.chosen)),
+                group(u64::from(i.candidates)),
+                if i.candidates == 1 { "" } else { "s" },
+                i.evidence.describe()
+            )));
+        } else if self.volume.high_word_untrustworthy(entry) && needed > 0 {
             diagnostics.push(RecoveryDiagnostic::warning(
-                "The high word of the first cluster is zero; some drivers clear it on deletion, so the start of the file may be wrong on this large volume",
+                "The high word of the first cluster is zero; Windows clears it on deletion, so the start of the file may be wrong on this large volume. No free cluster sharing the low word held more plausible content",
             ));
+        }
+        if reconstruction.as_ref().is_ok_and(|r| r.search_exhausted) {
+            diagnostics.push(RecoveryDiagnostic::warning(format!(
+                "No free cluster was found within {} clusters after the assumed start; that region is fully allocated, so the recorded start is probably wrong",
+                group(MAX_SKIPPED_CLUSTERS as u64)
+            )));
         }
         if w.via_deleted_directory {
             diagnostics.push(RecoveryDiagnostic::info(
                 "The original path passes through a deleted directory whose name survived",
             ));
         }
-        let cs = u64::from(self.volume.cluster_size());
-        let reconstruction = self.volume.reconstruct(entry);
         let (extents, allocation) = match &reconstruction {
             Ok(r) => {
                 let span: Vec<u32> = if r.chain_known {
@@ -117,6 +139,7 @@ impl FatUndelete {
                     encrypted: false,
                     chain_known: r.chain_known,
                     heuristic: r.is_heuristic(),
+                    start_inferred: r.inferred_start.is_some(),
                 };
                 (extents, allocation)
             }
@@ -128,6 +151,8 @@ impl FatUndelete {
                     ExtentEvidence {
                         complete: false,
                         chain_known: false,
+                        total_clusters: Some(0),
+                        expected_clusters: Some(needed),
                         ..Default::default()
                     },
                     AllocationEvidence {
