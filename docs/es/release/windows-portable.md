@@ -16,7 +16,7 @@ componente del sistema operativo.
 
 | artefacto | contenido | dependencias |
 |---|---|---|
-| `PhoinixDR-windows-x64-portable.exe` | la aplicación de escritorio: la capa Tauri con el front-end React incrustado en tiempo de compilación y todo el motor de recuperación enlazado dentro | WebView2 (parte de Windows), las DLL del entorno de Visual C++ que vienen con Windows |
+| `PhoinixDR-<versión>-windows-x64-portable.exe` | la aplicación de escritorio: la capa Tauri con el front-end React incrustado en tiempo de compilación y todo el motor de recuperación enlazado dentro | WebView2 (parte de Windows), las DLL del entorno de Visual C++ que vienen con Windows |
 | `phoinix-windows-x64.exe` | la aplicación de línea de comandos | ninguna más allá del propio Windows |
 
 - Los recursos del front-end se compilan dentro del ejecutable; el
@@ -57,8 +57,20 @@ servidor local en su lugar). El `SHA256SUMS.txt` publicado permite a los
 usuarios verificar lo que han descargado:
 
 ```powershell
-Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256
+Get-FileHash .\PhoinixDR-<versión>-windows-x64-portable.exe -Algorithm SHA256
 ```
+
+## Versión
+
+El ejecutable de escritorio lleva el número de versión en su nombre de
+archivo (`PhoinixDR-0.1.2-windows-x64-portable.exe` para la versión 0.1.2)
+y en su recurso de versión de Windows: clic derecho sobre el archivo,
+*Propiedades*, *Detalles* muestra *Nombre del producto* PhoinixDR, *Versión
+del archivo* y *Versión del producto*. La compilación de Tauri obtiene el
+recurso de `tauri.conf.json`, y el flujo de publicación se niega a publicar
+cuando la etiqueta, la versión del espacio de trabajo en `Cargo.toml` y el
+recurso de versión no coinciden. La aplicación muestra la misma versión
+junto al autor en su barra superior.
 
 ## Otras plataformas
 

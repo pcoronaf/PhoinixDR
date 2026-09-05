@@ -21,12 +21,12 @@
 </header>
 <main class="doc">
   <h1>Download</h1>
-  <p>Every release is published on <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">GitHub Releases</a> with a <code>SHA256SUMS.txt</code>. The links below always point at the latest release.</p>
+  <p>Every release is published on <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">GitHub Releases</a> with a <code>SHA256SUMS.txt</code>. The links below always point at the latest release (<span data-latest-version>see GitHub</span>); the desktop executable carries the version in its file name and in its file properties.</p>
   <div class="dl">
     <div class="card">
       <h3>Windows · desktop (portable)</h3>
       <p>Single executable, no installation, no separately installed dependencies. Windows 10 (21H2 or later) or Windows 11, 64-bit; uses the WebView2 runtime that ships with Windows. Run as administrator to scan physical disks.</p>
-      <p><a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">PhoinixDR-windows-x64-portable.exe</a></p>
+      <p><a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest" data-asset="PhoinixDR-*-windows-x64-portable.exe" data-asset-name>PhoinixDR-&lt;version&gt;-windows-x64-portable.exe</a></p>
     </div>
     <div class="card">
       <h3>Windows · command line</h3>
@@ -41,7 +41,7 @@
     <div class="card">
       <h3>Checksums</h3>
       <p>Compare a download with the published sums before running it.</p>
-      <code>Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256</code>
+      <code>Get-FileHash .\PhoinixDR-&lt;version&gt;-windows-x64-portable.exe -Algorithm SHA256</code>
       <code>sha256sum -c SHA256SUMS.txt</code>
       <p><a class="btn" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a></p>
     </div>
@@ -61,5 +61,6 @@
   <a href="docs/about/vibecoded.html">Yes, PHOINIX is vibecoded</a> ·
   <a href="docs/about/origin.html">Where PHOINIX came from</a></p>
 </footer>
+<script src="download.js" defer></script>
 </body>
 </html>

@@ -3,7 +3,10 @@ name: Release
 # Builds the single-executable Windows portable release (REL-001, see
 # docs/release/windows-portable.md) and a Linux tarball, computes SHA-256
 # sums and publishes everything as a GitHub Release when a version tag is
-# pushed. Asset names carry no version so that
+# pushed. The desktop executable carries the version in its name
+# (PhoinixDR-<version>-windows-x64-portable.exe); the website resolves the
+# current name through the GitHub API. The other asset names carry no
+# version so that
 # https://github.com/pcoronaf/PhoinixDR/releases/latest/download/<asset>
 # always points at the current release.
 
@@ -24,9 +27,34 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  version:
+    name: Release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "$version" != "$cargo_version" ]; then
+            echo "tag ${RELEASE_TAG} does not match the workspace version ${cargo_version} in Cargo.toml"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Releasing PhoinixDR ${version}"
+
   windows:
     name: Windows portable
+    needs: version
     runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,26 +80,33 @@ jobs:
       - name: Collect and check the artefacts
         shell: pwsh
         run: |
+          $v = $env:VERSION
+          $cli = "dist\phoinix-windows-x64.exe"
+          $desktop = "dist\PhoinixDR-$v-windows-x64-portable.exe"
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item target\release\phoinix.exe dist\phoinix-windows-x64.exe
-          Copy-Item apps\desktop\src-tauri\target\release\phoinix-desktop.exe dist\PhoinixDR-windows-x64-portable.exe
+          Copy-Item target\release\phoinix.exe $cli
+          Copy-Item apps\desktop\src-tauri\target\release\phoinix-desktop.exe $desktop
           # REL-001: the executable must embed the front-end (a development
           # build would try to reach the Vite dev server on localhost instead).
           $asset = (Get-ChildItem apps\desktop\dist\assets -Filter 'index-*.js' | Select-Object -First 1).Name
-          $bytes = [System.IO.File]::ReadAllBytes('dist\PhoinixDR-windows-x64-portable.exe')
+          $bytes = [System.IO.File]::ReadAllBytes($desktop)
           $text = [System.Text.Encoding]::ASCII.GetString($bytes)
           if (-not $text.Contains($asset)) { Write-Error "the desktop executable does not embed the front-end ($asset missing): not a production build" }
           # REL-001: the desktop build must not depend on files beside the executable.
           $extra = Get-ChildItem apps\desktop\src-tauri\target\release -File | Where-Object { $_.Extension -in '.dll' -or $_.Name -like 'resources*' }
           if ($extra) { Write-Error "unexpected files beside the executable: $($extra.Name -join ', ')" }
-          & dist\phoinix-windows-x64.exe --version
+          # The desktop executable's Windows version resource (Properties → Details) must match the tag.
+          $info = (Get-Item $desktop).VersionInfo
+          Write-Host "$desktop`: product '$($info.ProductName)' version '$($info.ProductVersion)' company '$($info.CompanyName)'"
+          if ($info.ProductVersion -ne $v) { Write-Error "the desktop executable reports version '$($info.ProductVersion)', expected $v" }
+          & $cli --version
           $fixture = "tests\fixtures\fat\fat12.img.gz"
           $raw = "dist\fat12.img"
           $in = New-Object System.IO.FileStream($fixture, [System.IO.FileMode]::Open)
           $gz = New-Object System.IO.Compression.GZipStream($in, [System.IO.Compression.CompressionMode]::Decompress)
           $out = New-Object System.IO.FileStream($raw, [System.IO.FileMode]::Create)
           $gz.CopyTo($out); $out.Close(); $gz.Close(); $in.Close()
-          & dist\phoinix-windows-x64.exe inspect $raw | Select-String "FAT12"
+          & $cli inspect $raw | Select-String "FAT12"
           Remove-Item $raw
       - uses: actions/upload-artifact@v4
         with:
@@ -109,6 +144,7 @@ jobs:
           grep -q "$asset" src-tauri/target/release/phoinix-desktop || { echo "desktop binary does not embed the front-end"; exit 1; }
       - name: Package
         run: |
+          target/release/phoinix --version
           mkdir -p dist/phoinixdr
           cp target/release/phoinix dist/phoinixdr/
           cp apps/desktop/src-tauri/target/release/phoinix-desktop dist/phoinixdr/
@@ -123,8 +159,10 @@ jobs:
 
   publish:
     name: Publish release
-    needs: [windows, linux]
+    needs: [version, windows, linux]
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -139,15 +177,16 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           {
-            echo "PhoinixDR ${RELEASE_TAG} by @pcoronaf"
+            echo "PhoinixDR ${VERSION} by @pcoronaf"
             echo
             echo "| file | what |"
             echo "|---|---|"
-            echo "| PhoinixDR-windows-x64-portable.exe | desktop application, single executable, no installation (needs Windows 10 21H2+/11 with WebView2) |"
+            echo "| PhoinixDR-${VERSION}-windows-x64-portable.exe | desktop application, single executable, no installation (needs Windows 10 21H2+/11 with WebView2) |"
             echo "| phoinix-windows-x64.exe | command-line application |"
             echo "| phoinix-linux-x64.tar.gz | both executables (phoinix, phoinix-desktop) for Linux x86-64 (desktop needs WebKitGTK 4.1) |"
             echo "| SHA256SUMS.txt | checksums of the files above |"
             echo
+            echo "The desktop executable also carries the version in its file properties (Details tab)."
             echo "Verify a download on Windows with \`Get-FileHash <file> -Algorithm SHA256\`."
             echo
             echo "See CHANGELOG.md for what changed."

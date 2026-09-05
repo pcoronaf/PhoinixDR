@@ -51,6 +51,13 @@ Windows 11. On an older or trimmed installation, install Microsoft's
 WebView2 Evergreen Bootstrapper. The command-line `phoinix.exe` has no
 such dependency.
 
+### Which version do I have?
+
+The desktop executable carries the version in its file name
+(`PhoinixDR-0.1.2-windows-x64-portable.exe`) and in its file properties
+(*Details* tab), and shows it next to the author in the top bar. The
+command line prints it with `phoinix --version`.
+
 ### SmartScreen or an antivirus warns about the executable.
 
 The executables read raw disks, which some heuristics flag, and the

@@ -21,12 +21,12 @@
 </header>
 <main class="doc">
   <h1>Descargar</h1>
-  <p>Cada versión se publica en <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">GitHub Releases</a> con un <code>SHA256SUMS.txt</code>. Los enlaces siguientes apuntan siempre a la última versión.</p>
+  <p>Cada versión se publica en <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">GitHub Releases</a> con un <code>SHA256SUMS.txt</code>. Los enlaces siguientes apuntan siempre a la última versión (<span data-latest-version>véase GitHub</span>); el ejecutable de escritorio lleva la versión en su nombre de archivo y en sus propiedades.</p>
   <div class="dl">
     <div class="card">
       <h3>Windows · escritorio (portable)</h3>
       <p>Un único ejecutable, sin instalación y sin dependencias instaladas por separado. Windows 10 (21H2 o posterior) o Windows 11, 64 bits; usa el entorno WebView2 incluido en Windows. Ejecútelo como administrador para escanear discos físicos.</p>
-      <p><a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">PhoinixDR-windows-x64-portable.exe</a></p>
+      <p><a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest" data-asset="PhoinixDR-*-windows-x64-portable.exe" data-asset-name>PhoinixDR-&lt;versión&gt;-windows-x64-portable.exe</a></p>
     </div>
     <div class="card">
       <h3>Windows · línea de comandos</h3>
@@ -41,7 +41,7 @@
     <div class="card">
       <h3>Sumas de comprobación</h3>
       <p>Compare la descarga con las sumas publicadas antes de ejecutarla.</p>
-      <code>Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256</code>
+      <code>Get-FileHash .\PhoinixDR-&lt;versión&gt;-windows-x64-portable.exe -Algorithm SHA256</code>
       <code>sha256sum -c SHA256SUMS.txt</code>
       <p><a class="btn" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a></p>
     </div>
@@ -61,5 +61,6 @@
   <a href="docs/about/vibecoded.html">Sí, PHOINIX está «vibecodeado»</a> ·
   <a href="docs/about/origin.html">De dónde viene PHOINIX</a></p>
 </footer>
+<script src="../download.js" defer></script>
 </body>
 </html>

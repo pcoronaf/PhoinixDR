@@ -7,7 +7,7 @@ inglés; esta guía indica entre paréntesis los textos que verá en pantalla.
 
 ## Inicio
 
-- **Windows:** ejecute `PhoinixDR-windows-x64-portable.exe`. No se instala
+- **Windows:** ejecute `PhoinixDR-<versión>-windows-x64-portable.exe`. No se instala
   nada (véase [Versión portable para Windows](../release/windows-portable.md)).
   Para escanear un disco físico o una memoria USB, haga clic derecho en el
   ejecutable y elija *Ejecutar como administrador*; las imágenes de disco

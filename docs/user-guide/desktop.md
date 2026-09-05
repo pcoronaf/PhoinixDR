@@ -6,7 +6,7 @@ recover. It never writes to the source.
 
 ## Starting
 
-- **Windows:** run `PhoinixDR-windows-x64-portable.exe`. Nothing is
+- **Windows:** run `PhoinixDR-<version>-windows-x64-portable.exe`. Nothing is
   installed (see [Windows portable release](../release/windows-portable.md)).
   To scan a physical disk or a USB stick, right-click the executable and
   choose *Run as administrator*; disk images do not need that.

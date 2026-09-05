@@ -3,12 +3,14 @@
 ## Download (Windows)
 
 1. Open the [latest release](https://github.com/pcoronaf/PhoinixDR/releases/latest).
-2. Download `PhoinixDR-windows-x64-portable.exe` (desktop application) and,
+2. Download `PhoinixDR-<version>-windows-x64-portable.exe` (desktop
+   application; the file name carries the release number, for example
+   `PhoinixDR-0.1.2-windows-x64-portable.exe`) and,
    if you want the command line, `phoinix-windows-x64.exe`.
 3. Optionally check the download against `SHA256SUMS.txt`:
 
    ```powershell
-   Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256
+   Get-FileHash .\PhoinixDR-<version>-windows-x64-portable.exe -Algorithm SHA256
    ```
 
 4. Run it. Nothing is installed; the executable needs only Windows 10

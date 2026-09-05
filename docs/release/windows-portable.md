@@ -15,7 +15,7 @@ component.
 
 | artefact | content | dependencies |
 |---|---|---|
-| `PhoinixDR-windows-x64-portable.exe` | the desktop application: the Tauri shell with the React front-end embedded at compile time and the whole recovery engine linked in | WebView2 (part of Windows), the Visual C++ runtime DLLs that ship with Windows |
+| `PhoinixDR-<version>-windows-x64-portable.exe` | the desktop application: the Tauri shell with the React front-end embedded at compile time and the whole recovery engine linked in | WebView2 (part of Windows), the Visual C++ runtime DLLs that ship with Windows |
 | `phoinix-windows-x64.exe` | the command-line application | none beyond Windows itself |
 
 - The front-end assets are compiled into the executable
@@ -53,8 +53,19 @@ build would look for a local dev server instead). The
 published `SHA256SUMS.txt` lets users verify what they downloaded:
 
 ```powershell
-Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256
+Get-FileHash .\PhoinixDR-<version>-windows-x64-portable.exe -Algorithm SHA256
 ```
+
+## Version
+
+The desktop executable carries the release number in its file name
+(`PhoinixDR-0.1.2-windows-x64-portable.exe` for release 0.1.2) and in its
+Windows version resource: right-click the file, *Properties*, *Details*
+shows *Product name* PhoinixDR, *File version* and *Product version*. The
+Tauri build derives the resource from `tauri.conf.json`, and the release
+workflow refuses to publish when the tag, the workspace version in
+`Cargo.toml` and the version resource disagree. The application shows the
+same version next to the author in its top bar.
 
 ## Other platforms
 

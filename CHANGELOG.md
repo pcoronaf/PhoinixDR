@@ -4,6 +4,16 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## 0.1.2
+
+- The Windows portable desktop executable is published as
+  `PhoinixDR-<version>-windows-x64-portable.exe`, so the downloaded file
+  says which release it is; the version also appears in the executable's
+  file properties. The release workflow checks that the tag, the
+  workspace version and the executable's version resource agree. The
+  website resolves the current file name through the GitHub API; the
+  command-line and Linux asset names are unchanged.
+
 ## 0.1.1
 
 - Fixed: the Windows portable executable and the Linux desktop binary of

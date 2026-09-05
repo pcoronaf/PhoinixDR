@@ -6,7 +6,7 @@
 Lost data lives again. Recover lost files. Understand your chances.</p>
 
 <p align="center">
-  <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">Download for Windows</a> ·
+  <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">Download for Windows</a> ·
   <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">Other platforms</a> ·
   <a href="https://pcoronaf.github.io/PhoinixDR/">Website</a> ·
   <a href="docs/README.md">Documentation</a> ·
@@ -51,7 +51,8 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 The standard Windows release is a **single portable executable**: no
 installation, no separately installed dependencies, only the WebView2
 runtime that ships with Windows 10 (21H2+) and Windows 11
-([requirement REL-001](docs/release/windows-portable.md)). Get it from the
+([requirement REL-001](docs/release/windows-portable.md)). Get
+`PhoinixDR-<version>-windows-x64-portable.exe` from the
 [latest release](https://github.com/pcoronaf/PhoinixDR/releases/latest)
 together with the command-line `phoinix.exe`, the Linux tarball and
 `SHA256SUMS.txt`. Run it as administrator to scan physical disks; disk
