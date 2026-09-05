@@ -47,8 +47,10 @@ reducen la confianza sin cambiar la probabilidad. Véase el
 
 Leer `\\.\PhysicalDriveN` (Windows) o `/dev/sdX` (Linux) es una operación
 privilegiada en ambos sistemas, así que escanear un dispositivo
-directamente implica iniciar PhoinixDR como administrador (o con `sudo`)
-y recuperar en un solo paso. La alternativa es crear primero una imagen
+directamente implica ejecutar PhoinixDR como administrador (o con `sudo`)
+y recuperar en un solo paso. No hace falta iniciarlo así: cuando un
+dispositivo aparece como no accesible, el botón **Restart as
+administrator** pide la elevación al sistema y reinicia PhoinixDR elevado. La alternativa es crear primero una imagen
 del dispositivo con una herramienta de adquisición y abrir la imagen en
 PhoinixDR, que entonces no necesita elevación; la necesita la herramienta
 de adquisición. Véase

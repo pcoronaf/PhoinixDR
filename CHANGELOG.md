@@ -6,6 +6,11 @@ GitHub Releases.
 
 ## Unreleased
 
+- Desktop: a **Restart as administrator** button appears when a device is
+  not accessible (and on the home page when no device can be listed). It
+  requests elevation through the system prompt (UAC on Windows, polkit on
+  Linux) and starts an elevated copy of PhoinixDR, so users no longer need
+  to find *Run as administrator* themselves.
 - Desktop: the evidence panel of the results view scales with the window
   width instead of a fixed 380 px, long reasons wrap, and on narrow windows
   it moves below the file list.

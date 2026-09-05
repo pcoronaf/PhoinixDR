@@ -161,6 +161,7 @@ export default function App() {
       <main>
         {view.name === "home" && (
           <Home
+            api={api}
             info={info}
             sessions={sessions}
             onPhysical={() => loadDevices(false)}
@@ -177,7 +178,7 @@ export default function App() {
           />
         )}
         {view.name === "devices" && (
-          <SourcePicker devices={devices} removableOnly={view.removable} loading={devicesLoading} error={devicesError} onChoose={(d) => inspect(d.path)} onBack={() => setView({ name: "home" })} onRefresh={() => loadDevices(view.removable)} />
+          <SourcePicker api={api} info={info} devices={devices} removableOnly={view.removable} loading={devicesLoading} error={devicesError} onChoose={(d) => inspect(d.path)} onBack={() => setView({ name: "home" })} onRefresh={() => loadDevices(view.removable)} />
         )}
         {view.name === "setup" && <ScanSetup api={api} source={view.source} onScan={startScan} onBack={() => setView({ name: "home" })} />}
         {view.name === "scanning" && (

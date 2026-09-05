@@ -44,6 +44,8 @@ h3 { font-size: 15px; margin: 0 0 6px; }
 .center { text-align: center; padding: 24px; }
 .error { color: var(--bad); }
 .warn { background: var(--warn-bg); padding: 8px 12px; border-radius: 6px; }
+.elevate p { margin: 4px 0; }
+.elevate-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .danger { background: var(--danger-bg); padding: 8px 12px; border-radius: 6px; }
 .banner { background: var(--warn-bg); padding: 8px 16px; border-bottom: 1px solid var(--line); }
 button { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }

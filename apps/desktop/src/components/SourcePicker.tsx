@@ -1,7 +1,11 @@
-import type { DeviceInfo } from "../types";
+import type { Api } from "../api";
+import type { AppInfo, DeviceInfo } from "../types";
+import { ElevateNotice } from "./ElevateNotice";
 import { formatBytesSi } from "../lib/format";
 
 interface Props {
+  api: Api;
+  info: AppInfo | null;
   devices: DeviceInfo[];
   removableOnly: boolean;
   loading: boolean;
@@ -11,7 +15,7 @@ interface Props {
   onRefresh: () => void;
 }
 
-export function SourcePicker({ devices, removableOnly, loading, error, onChoose, onBack, onRefresh }: Props) {
+export function SourcePicker({ api, info, devices, removableOnly, loading, error, onChoose, onBack, onRefresh }: Props) {
   const shown = devices.filter((d) => (removableOnly ? d.removable !== false : true));
   const blocked = shown.some((d) => !d.accessible);
   return (
@@ -26,12 +30,7 @@ export function SourcePicker({ devices, removableOnly, loading, error, onChoose,
       {loading && <p className="muted">Enumerating devices…</p>}
       {error && <p className="error">{error}</p>}
       {!loading && shown.length === 0 && <p className="muted">No devices found.</p>}
-      {blocked && (
-        <p className="warn">
-          Some devices are not accessible from this process: reading a disk or USB stick directly requires administrator rights.
-          Close PhoinixDR and start it again with <em>Run as administrator</em> (Windows) or <code>sudo</code> (Linux). Disk images do not need this.
-        </p>
-      )}
+      {blocked && <ElevateNotice api={api} info={info} context="devices" />}
       <div className="cards">
         {shown.map((d) => (
           <button key={d.id} className="card" disabled={!d.accessible} onClick={() => onChoose(d)}>

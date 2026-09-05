@@ -28,6 +28,8 @@ export type Unlisten = () => void;
 export interface Api {
   isDemo: boolean;
   appInfo(): Promise<AppInfo>;
+  /** Starts an elevated copy of PhoinixDR; resolves to whether this instance is about to exit. */
+  relaunchElevated(): Promise<boolean>;
   listDevices(): Promise<DeviceInfo[]>;
   inspectSource(path: string): Promise<SourceInfo>;
   findPartitions(path: string): Promise<PartitionCandidate[]>;
@@ -65,6 +67,7 @@ async function tauriApi(): Promise<Api> {
   return {
     isDemo: false,
     appInfo: () => invoke<AppInfo>("app_info"),
+    relaunchElevated: () => invoke<boolean>("relaunch_elevated"),
     listDevices: () => invoke<DeviceInfo[]>("list_devices"),
     inspectSource: (path) => invoke<SourceInfo>("inspect_source", { path }),
     findPartitions: (path) => invoke<PartitionCandidate[]>("find_partitions", { path }),
@@ -128,6 +131,9 @@ function demoApi(): Api {
   return {
     isDemo: true,
     appInfo: async () => demo.demoAppInfo,
+    relaunchElevated: async () => {
+      throw new Error("Not available in the browser demo.");
+    },
     listDevices: async () => demo.demoDevices,
     inspectSource: async (path) => demo.demoSource(path),
     findPartitions: async (path) => {

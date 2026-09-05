@@ -29,7 +29,7 @@ export const demoDevices: DeviceInfo[] = [
     vendor: null,
     model: "ADATA SU800NS38",
     serial: "2K27",
-    accessible: true,
+    accessible: false, // the demo mimics a session without administrator rights
   },
   {
     id: "d2",
@@ -218,7 +218,7 @@ export function demoRecover(ids: string[], rows: CandidateSummary[], destination
   });
 }
 
-export const demoAppInfo: AppInfo = { version: "0.1.0-demo", author: "@pcoronaf", disclaimer: "PhoinixDR is provided “as is” and is used entirely at your own risk. Data recovery is inherently uncertain, and improper use may result in permanent data loss or damage. Always work from a copy or disk image when possible and recover files to a different storage device.", sessions_dir: "(browser demo)", device_access: true };
+export const demoAppInfo: AppInfo = { version: "0.1.0-demo", author: "@pcoronaf", disclaimer: "PhoinixDR is provided “as is” and is used entirely at your own risk. Data recovery is inherently uncertain, and improper use may result in permanent data loss or damage. Always work from a copy or disk image when possible and recover files to a different storage device.", sessions_dir: "(browser demo)", device_access: true, elevated: false, platform: "windows" };
 
 export function demoPartitions(path: string): PartitionCandidate[] {
   const listed: PartitionCandidate = {

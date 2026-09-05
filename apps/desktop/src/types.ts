@@ -357,4 +357,8 @@ export interface AppInfo {
   disclaimer?: string;
   sessions_dir: string;
   device_access: boolean;
+  /** Whether the process already runs with administrator rights. */
+  elevated?: boolean;
+  /** "windows", "linux" or "macos". */
+  platform?: string;
 }

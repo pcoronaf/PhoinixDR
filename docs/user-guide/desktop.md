@@ -21,10 +21,11 @@ scan sessions.
 PhoinixDR can work on the device itself or on an image of it. Pick one
 before you start; the desktop guide below applies to both:
 
-1. **Directly from the device, in one step.** Start PhoinixDR *as
-   administrator* (Windows: right-click, *Run as administrator*; Linux:
-   `sudo`), choose *Physical disk* or *Removable device*, scan and
-   recover. Fastest; PhoinixDR only ever reads from the device.
+1. **Directly from the device, in one step.** Choose *Physical disk* or
+   *Removable device*; when the device shows as not accessible, press
+   **Restart as administrator** and accept the system prompt (or start
+   PhoinixDR elevated yourself: Windows right-click, *Run as
+   administrator*; Linux `sudo`). Then scan and recover. Fastest; PhoinixDR only ever reads from the device.
 2. **From a disk image.** First make an image of the device with an
    imaging tool (FTK Imager or Arsenal Image Mounter on Windows, `dd`
    or `ewfacquire` on Linux) and then open the image file in PhoinixDR
@@ -46,9 +47,14 @@ a different disk than the one you are recovering from.
 | **Disk image** | a file: RAW/dd, split RAW, E01 (and split E01), SMART, VHD, VHDX, VMDK |
 
 A device that cannot be opened is shown greyed as *Not accessible from
-this process*, and the page explains the fix: close PhoinixDR and start it
-again with *Run as administrator* (Windows) or `sudo` (Linux). Disk
-images never need elevation.
+this process*, and a notice offers **Restart as administrator**: PhoinixDR
+asks the system for elevation (the Windows UAC prompt, the polkit password
+dialog on Linux) and starts an elevated copy of itself. On Windows the
+current window closes as soon as the new one starts; on Linux it stays
+open until the new window appears. Declining the prompt leaves the current
+window as it was. The same notice appears on the home page when no device
+can be listed at all. Starting the executable with *Run as administrator*
+or `sudo` yourself works too. Disk images never need elevation.
 
 ## 2. Scan setup
 

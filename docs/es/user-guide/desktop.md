@@ -23,10 +23,11 @@ lista las sesiones de escaneo recientes.
 PhoinixDR puede trabajar sobre el propio dispositivo o sobre una imagen de
 este. Elija una antes de empezar; el resto de esta guía vale para ambas:
 
-1. **Directamente desde el dispositivo, en un solo paso.** Inicie
-   PhoinixDR *como administrador* (Windows: clic derecho, *Ejecutar como
-   administrador*; Linux: `sudo`), elija *Physical disk* o *Removable
-   device*, escanee y recupere. Es lo más rápido; PhoinixDR solo lee del
+1. **Directamente desde el dispositivo, en un solo paso.** Elija *Physical
+   disk* o *Removable device*; cuando el dispositivo aparezca como no
+   accesible, pulse **Restart as administrator** y acepte el aviso del
+   sistema (o inicie PhoinixDR elevado usted mismo: Windows clic derecho,
+   *Ejecutar como administrador*; Linux `sudo`). Después escanee y recupere. Es lo más rápido; PhoinixDR solo lee del
    dispositivo.
 2. **Desde una imagen de disco.** Cree primero una imagen del dispositivo
    con una herramienta de adquisición (FTK Imager o Arsenal Image Mounter
@@ -49,10 +50,16 @@ recupere a un disco distinto del que está recuperando.
 | **Disk image** (imagen de disco) | un archivo: RAW/dd, RAW dividida, E01 (y E01 dividida), SMART, VHD, VHDX, VMDK |
 
 Un dispositivo que no puede abrirse aparece atenuado como *Not accessible
-from this process* (no accesible desde este proceso), y la página explica
-la solución: cierre PhoinixDR y vuelva a iniciarlo con *Ejecutar como
-administrador* (Windows) o `sudo` (Linux). Las imágenes de disco nunca
-necesitan elevación.
+from this process* (no accesible desde este proceso), y un aviso ofrece
+**Restart as administrator** (reiniciar como administrador): PhoinixDR
+pide la elevación al sistema (el aviso UAC de Windows, el diálogo de
+contraseña de polkit en Linux) e inicia una copia elevada de sí mismo. En
+Windows la ventana actual se cierra en cuanto arranca la nueva; en Linux
+permanece abierta hasta que aparece la nueva ventana. Si rechaza el aviso,
+la ventana actual sigue como estaba. El mismo aviso aparece en la página de
+inicio cuando no se puede listar ningún dispositivo. También puede iniciar
+usted mismo el ejecutable con *Ejecutar como administrador* o `sudo`. Las
+imágenes de disco nunca necesitan elevación.
 
 ## 2. Configuración del escaneo
 

@@ -43,8 +43,10 @@ likelihood. See the [health model](recovery/health-model.md).
 
 Reading `\\.\PhysicalDriveN` (Windows) or `/dev/sdX` (Linux) is a
 privileged operation on both systems, so scanning a device directly means
-starting PhoinixDR as administrator (or with `sudo`) and recovering in one
-step. The alternative is to image the device first with an imaging tool
+running PhoinixDR as administrator (or with `sudo`) and recovering in one
+step. You do not have to start it that way: when a device shows as not
+accessible, the **Restart as administrator** button asks the system for
+elevation and restarts PhoinixDR elevated. The alternative is to image the device first with an imaging tool
 and open the image in PhoinixDR, which then needs no elevation; the
 imaging tool needs it instead. See
 [two ways to recover](getting-started.md#two-ways-to-recover).

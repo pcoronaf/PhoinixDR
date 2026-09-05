@@ -1,8 +1,11 @@
+import type { Api } from "../api";
 import type { AppInfo, SessionSummary } from "../types";
+import { ElevateNotice } from "./ElevateNotice";
 import { DISCLAIMER, formatUnix, fsLabel } from "../lib/format";
 import logo from "../assets/logo.png";
 
 interface Props {
+  api: Api;
   info: AppInfo | null;
   sessions: SessionSummary[];
   onPhysical: () => void;
@@ -12,7 +15,7 @@ interface Props {
   onBrowseSession: () => void;
 }
 
-export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenSession, onBrowseSession }: Props) {
+export function Home({ api, info, sessions, onPhysical, onRemovable, onImage, onOpenSession, onBrowseSession }: Props) {
   return (
     <div className="home">
       <div className="hero">
@@ -36,9 +39,7 @@ export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenS
           <span>RAW/DD, E01, split RAW, VHD, VHDX and VMDK image files</span>
         </button>
       </div>
-      {info && !info.device_access && (
-        <p className="warn">Devices cannot be enumerated: run PhoinixDR with administrative privileges to scan physical disks. Disk images work without them.</p>
-      )}
+      {info && !info.device_access && <ElevateNotice api={api} info={info} context="home" />}
       <div className="row-between">
         <h2>Recent sessions</h2>
         <button className="link" onClick={onBrowseSession}>Open a session file…</button>

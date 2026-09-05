@@ -51,6 +51,10 @@ pub struct AppInfo {
     pub sessions_dir: PathBuf,
     /// Whether the process can enumerate devices at all.
     pub device_access: bool,
+    /// Whether the process already runs with administrative rights.
+    pub elevated: bool,
+    /// The operating system (`windows`, `linux`, `macos`).
+    pub platform: &'static str,
 }
 
 /// Lists block devices.
@@ -280,7 +284,27 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
         disclaimer: phoinix_core::DISCLAIMER.to_owned(),
         sessions_dir: state.workspace.sessions_dir().to_path_buf(),
         device_access: state.workspace.devices().is_ok(),
+        elevated: crate::elevate::is_elevated(),
+        platform: std::env::consts::OS,
     }
+}
+
+/// Starts an elevated copy of PhoinixDR through the operating system's
+/// consent prompt (UAC on Windows, polkit on Linux). Returns whether this
+/// instance is about to exit: on Windows it closes once the elevated copy
+/// has started; on Linux it stays open because `pkexec` cannot report the
+/// outcome before the user answers the prompt.
+#[tauri::command]
+pub fn relaunch_elevated(app: AppHandle) -> Result<bool, String> {
+    let exits = crate::elevate::relaunch_elevated()?;
+    if exits {
+        // Let the reply reach the front-end before this instance goes away.
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            app.exit(0);
+        });
+    }
+    Ok(exits)
 }
 
 /// Runs the structure search (lost partitions); progress arrives as

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod commands;
+mod elevate;
 mod state;
 
 use tauri::Manager;
@@ -45,6 +46,7 @@ pub fn run() {
             commands::recover,
             commands::verify_source,
             commands::app_info,
+            commands::relaunch_elevated,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

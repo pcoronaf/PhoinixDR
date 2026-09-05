@@ -94,10 +94,11 @@ mke2fs, ewfacquire y qemu-img, y permisos de root para los montajes loop).
 PhoinixDR puede trabajar sobre el propio dispositivo o sobre una imagen de
 este. Elija una antes de empezar:
 
-1. **Directamente desde el dispositivo, en un solo paso.** Inicie
-   PhoinixDR *como administrador* (Windows: clic derecho, *Ejecutar como
-   administrador*; Linux: `sudo`), elija *Physical disk* o *Removable
-   device*, escanee y recupere. Es lo más rápido; PhoinixDR solo lee del
+1. **Directamente desde el dispositivo, en un solo paso.** Elija *Physical
+   disk* o *Removable device*; cuando el dispositivo aparezca como no
+   accesible, pulse **Restart as administrator** y acepte el aviso del
+   sistema (o inicie PhoinixDR elevado usted mismo: Windows clic derecho,
+   *Ejecutar como administrador*; Linux `sudo`). Después escanee y recupere. Es lo más rápido; PhoinixDR solo lee del
    dispositivo.
 2. **Desde una imagen de disco.** Cree primero una imagen del dispositivo
    con una herramienta de adquisición (FTK Imager o Arsenal Image Mounter
