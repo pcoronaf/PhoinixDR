@@ -8,6 +8,9 @@ GitHub Releases.
 
 - Windows portable release requirement (REL-001) and the release workflow
   that produces single-executable builds with SHA-256 sums.
+- Disclaimer ("provided as is, used at your own risk") in the README,
+  the website, the desktop application, the CLI help and output, and
+  recovery reports.
 - Attribution "by @pcoronaf" in the CLI (`--version`, `--help`), the
   desktop application and recovery reports.
 - Official PhoinixDR logo ("Lost data lives again") in the README, the

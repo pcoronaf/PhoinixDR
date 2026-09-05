@@ -136,3 +136,5 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .case-grid input { width: 100%; box-sizing: border-box; }
 .byline { font-size: 12px; font-weight: 400; margin-left: 8px; }
 .topbar .byline { margin-left: 12px; }
+.disclaimer { font-size: 12px; color: var(--muted); border-left: 3px solid var(--line); padding: 4px 10px; margin: 10px 0; max-width: 760px; }
+.hero .disclaimer { margin: 10px auto 0; text-align: left; }

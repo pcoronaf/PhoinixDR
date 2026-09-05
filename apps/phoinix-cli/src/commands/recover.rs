@@ -121,6 +121,9 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     {
         eprintln!("warning: {w}");
     }
+    if !args.json {
+        eprintln!("{}", phoinix_core::DISCLAIMER);
+    }
 
     let mut reports = Vec::new();
     let mut entries: Vec<(Option<RecoveryCandidate>, Option<String>)> = Vec::new();

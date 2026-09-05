@@ -64,3 +64,4 @@ section.block h2 { margin-top: 0; font-size: 1.7rem; }
 .dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .dl .card code { display: block; margin-top: 8px; word-break: break-all; }
 @media (max-width: 720px) { .two { grid-template-columns: 1fr; } .hero h1 { font-size: 2.2rem; } .demo .row { grid-template-columns: 1.4fr 1fr 0.6fr; font-size: 0.85rem; } }
+.foot .disclaimer { max-width: 820px; margin: 0 auto 12px; font-size: 0.85rem; }

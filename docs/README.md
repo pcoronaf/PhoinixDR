@@ -7,6 +7,7 @@
 - [Command-line guide](user-guide/cli.md)
 - [FAQ](faq.md)
 - [Changelog](../CHANGELOG.md)
+- [Disclaimer](disclaimer.md)
 
 ## About the project
 

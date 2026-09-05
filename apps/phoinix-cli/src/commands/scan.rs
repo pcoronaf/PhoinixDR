@@ -220,6 +220,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         ),
     }
     outln!("Recovery figures are estimates. Use `phoinix explain <source> <ID>` for the evidence.");
+    outln!("{}", phoinix_core::DISCLAIMER);
     Ok(())
 }
 

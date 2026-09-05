@@ -392,6 +392,8 @@ impl RecoveryReport {
                 bytes_si(s.bytes_written)
             ),
         );
+        line(&mut out, String::new());
+        line(&mut out, format!("*{}*", phoinix_core::DISCLAIMER));
         out
     }
 
@@ -443,12 +445,13 @@ impl RecoveryReport {
         }
         let s = &self.summary;
         out.push_str(&format!(
-            "</tbody></table>\n<h2>Summary</h2>\n<p>{} requested, {} recovered, {} partial, {} failed, {} written.</p>\n</body></html>\n",
+            "</tbody></table>\n<h2>Summary</h2>\n<p>{} requested, {} recovered, {} partial, {} failed, {} written.</p>\n<p class=\"disclaimer\"><em>{}</em></p>\n</body></html>\n",
             s.requested,
             s.recovered,
             s.partial,
             s.failed,
-            bytes_si(s.bytes_written)
+            bytes_si(s.bytes_written),
+            esc(phoinix_core::DISCLAIMER)
         ));
         out
     }

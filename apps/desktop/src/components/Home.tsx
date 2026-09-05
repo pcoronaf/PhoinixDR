@@ -1,5 +1,5 @@
 import type { AppInfo, SessionSummary } from "../types";
-import { formatUnix, fsLabel } from "../lib/format";
+import { DISCLAIMER, formatUnix, fsLabel } from "../lib/format";
 import logo from "../assets/logo.png";
 
 interface Props {
@@ -19,6 +19,7 @@ export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenS
         <img className="logo" src={logo} alt="PhoinixDR — Lost data lives again" />
         <p className="byline muted">by @pcoronaf</p>
         <p className="muted">Open-source, evidence-driven data recovery. Nothing is written to the source, ever.</p>
+        <p className="disclaimer">{info?.disclaimer ?? DISCLAIMER}</p>
       </div>
       <h2>Recover files from</h2>
       <div className="choices">

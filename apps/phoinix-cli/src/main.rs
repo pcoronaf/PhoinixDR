@@ -13,6 +13,13 @@ mod source;
 use clap::{Parser, Subcommand};
 
 /// PHOINIX — open-source, evidence-driven data recovery.
+/// Text after `--help`: attribution and the disclaimer.
+const AFTER_HELP: &str = concat!(
+    "Disclaimer: ",
+    "PhoinixDR is provided \u{201c}as is\u{201d} and is used entirely at your own risk. Data recovery is inherently uncertain, and improper use may result in permanent data loss or damage. Always work from a copy or disk image when possible and recover files to a different storage device.",
+    "\n\nPhoinixDR by @pcoronaf — https://github.com/pcoronaf/PhoinixDR"
+);
+
 /// Version string shown by `--version`.
 const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " by @pcoronaf");
 
@@ -22,7 +29,7 @@ const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " by @pcoronaf");
     version = VERSION,
     about = "PhoinixDR — open-source, evidence-driven data recovery, by @pcoronaf",
     long_about = "PhoinixDR — open-source, evidence-driven data recovery.\n\nBy @pcoronaf. Nothing is ever written to the source. Every recovery figure is backed by evidence you can print with `explain`.",
-    after_help = "PhoinixDR by @pcoronaf — https://github.com/pcoronaf/PhoinixDR"
+    after_help = AFTER_HELP
 )]
 struct Cli {
     /// Increase log verbosity (-v: info, -vv: debug, -vvv: trace). Filenames

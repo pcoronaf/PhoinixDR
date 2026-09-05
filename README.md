@@ -213,6 +213,11 @@ filesystem, and the recovery writer refuses destinations that appear to live
 on the source device. See [SECURITY.md](SECURITY.md) for the threat model and
 how to report vulnerabilities.
 
+## Disclaimer
+
+PhoinixDR is provided “as is” and is used entirely at your own risk. Data recovery is inherently uncertain, and improper use may result in permanent data loss or damage. Always work from a copy or disk image when possible and recover files to a different storage device.
+See [docs/disclaimer.md](docs/disclaimer.md).
+
 ## Community
 
 [Issues](https://github.com/pcoronaf/PhoinixDR/issues) ·

@@ -45,6 +45,8 @@ pub struct AppInfo {
     pub version: String,
     /// Author attribution.
     pub author: String,
+    /// The disclaimer.
+    pub disclaimer: String,
     /// Where sessions are stored.
     pub sessions_dir: PathBuf,
     /// Whether the process can enumerate devices at all.
@@ -275,6 +277,7 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         author: "@pcoronaf".to_owned(),
+        disclaimer: phoinix_core::DISCLAIMER.to_owned(),
         sessions_dir: state.workspace.sessions_dir().to_path_buf(),
         device_access: state.workspace.devices().is_ok(),
     }

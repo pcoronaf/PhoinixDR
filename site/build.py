@@ -61,6 +61,7 @@ def layout(title: str, body: str, depth: int) -> str:
 {body}
 </main>
 <footer class="foot">
+  <p class="disclaimer">PhoinixDR is provided “as is” and is used entirely at your own risk. Data recovery is inherently uncertain, and improper use may result in permanent data loss or damage. Always work from a copy or disk image when possible and recover files to a different storage device. <a href="{rel}docs/disclaimer.html">Read the disclaimer</a>.</p>
   <p>PhoinixDR · Open Source Data Recovery · by <a href="https://github.com/pcoronaf">@pcoronaf</a> · MIT OR Apache-2.0 ·
   <a href="{rel}docs/about/vibecoded.html">Yes, PHOINIX is vibecoded</a> ·
   <a href="{rel}docs/about/origin.html">Where PHOINIX came from</a></p>

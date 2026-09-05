@@ -73,6 +73,9 @@ export function fsLabel(fs: string): string {
 }
 
 /** Whether PhoinixDR has an undelete engine for the filesystem. */
+export const DISCLAIMER =
+  "PhoinixDR is provided “as is” and is used entirely at your own risk. Data recovery is inherently uncertain, and improper use may result in permanent data loss or damage. Always work from a copy or disk image when possible and recover files to a different storage device.";
+
 export function hasEngine(fs: string): boolean {
   return ["ntfs", "fat12", "fat16", "fat32", "ex-fat", "ext"].includes(fs);
 }

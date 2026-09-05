@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Api } from "../api";
 import type { AcquisitionInfo, CandidateSummary, DestinationInfo, RecoverEvent, RecoverItem } from "../types";
-import { formatBytes } from "../lib/format";
+import { DISCLAIMER, formatBytes } from "../lib/format";
 
 interface Props {
   api: Api;
@@ -152,6 +152,7 @@ export function RecoverDialog({ api, rows, ids, acquisition, onClose }: Props) {
               </div>
             </fieldset>
             {error && <p className="error">{error}</p>}
+            <p className="disclaimer">{DISCLAIMER}</p>
             <div className="actions">
               <button className="primary" disabled={blocked} onClick={start}>Recover</button>
             </div>
