@@ -43,3 +43,36 @@ export function percent(done: number, total: number | null): string {
   if (!total) return "";
   return `${Math.min(100, Math.floor((done / total) * 100))}%`;
 }
+
+/** User-facing name of a filesystem type identifier. */
+export function fsLabel(fs: string): string {
+  switch (fs) {
+    case "ntfs":
+      return "NTFS";
+    case "fat12":
+      return "FAT12";
+    case "fat16":
+      return "FAT16";
+    case "fat32":
+      return "FAT32";
+    case "ex-fat":
+      return "exFAT";
+    case "ext":
+      return "ext2/3/4";
+    case "hfs":
+      return "HFS";
+    case "hfs-plus":
+      return "HFS+";
+    case "apfs":
+      return "APFS";
+    case "unknown":
+      return "unknown";
+    default:
+      return fs;
+  }
+}
+
+/** Whether PhoinixDR has an undelete engine for the filesystem. */
+export function hasEngine(fs: string): boolean {
+  return ["ntfs", "fat12", "fat16", "fat32", "ex-fat"].includes(fs);
+}

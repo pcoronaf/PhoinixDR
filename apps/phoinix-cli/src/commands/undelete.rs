@@ -31,6 +31,18 @@ pub struct SourceArgs {
     /// Skip content examination (faster; lowers assessment confidence).
     #[arg(long)]
     pub no_content: bool,
+    /// Use the volume starting at this byte offset of the source (a lost
+    /// partition found by `phoinix partitions`) instead of a table entry.
+    #[arg(long = "at", conflicts_with_all = ["partition", "lost"])]
+    pub volume_offset: Option<u64>,
+    /// Length in bytes of the volume selected with --at (default: to the end
+    /// of the source).
+    #[arg(long = "length", requires = "volume_offset")]
+    pub volume_length: Option<u64>,
+    /// Use candidate number N of `phoinix partitions` (runs the structure search
+    /// again and mounts the candidate virtually, repairs included).
+    #[arg(long, conflicts_with = "partition")]
+    pub lost: Option<usize>,
 }
 
 /// Carving arguments shared by scan/explain/recover (`explain` and
@@ -105,12 +117,46 @@ impl Session {
     /// that can only carve.
     pub fn open_any(args: &SourceArgs) -> anyhow::Result<Self> {
         let opened = source::open(&args.source)?;
-        let selected = source::select_volume(&opened, args.partition, None)?;
-        let detection = standard_probes().detect(&*selected.reader);
+        let reader: Arc<dyn BlockReader> = if let Some(index) = args.lost {
+            let candidates = crate::commands::partitions::search_with_progress(
+                &opened.reader,
+                Some(&opened.table),
+                &phoinix_partition_recovery::SearchOptions::default(),
+            )?;
+            let candidate = index
+                .checked_sub(1)
+                .and_then(|i| candidates.get(i))
+                .with_context(|| {
+                    format!(
+                        "lost partition candidate #{index} does not exist ({} found)",
+                        candidates.len()
+                    )
+                })?;
+            tracing::info!(
+                start = candidate.start,
+                length = candidate.length,
+                "lost partition mounted"
+            );
+            candidate
+                .open(opened.reader.clone())
+                .context("mounting the candidate")?
+        } else if let Some(offset) = args.volume_offset {
+            let length = args
+                .volume_length
+                .unwrap_or_else(|| opened.reader.len().saturating_sub(offset));
+            let range = phoinix_core::ByteRange { offset, length };
+            Arc::new(
+                phoinix_block::SubrangeReader::new(opened.reader.clone(), range)
+                    .with_context(|| format!("opening {length} bytes at offset {offset}"))?,
+            )
+        } else {
+            let selected = source::select_volume(&opened, args.partition, None)?;
+            tracing::info!(partition = ?selected.partition, offset = selected.offset, "volume selected");
+            selected.reader
+        };
+        let detection = standard_probes().detect(&*reader);
         let filesystem = detection.filesystem();
         let storage = storage_evidence(&args.source);
-        tracing::info!(partition = ?selected.partition, offset = selected.offset, %filesystem, "volume selected");
-        let reader = selected.reader.clone();
         let (engine, space): (
             Option<Arc<dyn DeletedFileProvider>>,
             Arc<dyn AllocationView>,

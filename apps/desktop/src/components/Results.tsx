@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../api";
 import type { CandidateSummary, Preview, RecoveryCandidate, SessionSummary } from "../types";
 import { applyFilters, buildTree, CATEGORY_LABEL, CATEGORY_ORDER, DEFAULT_FILTERS, sortRows, typeOptions, type Filters, type SortKey, type TreeNode } from "../lib/filters";
-import { formatBytes, formatDate } from "../lib/format";
+import { formatBytes, formatDate, fsLabel } from "../lib/format";
 import { HealthBadge } from "./HealthBadge";
 
 interface Props {
@@ -41,7 +41,7 @@ export function Results({ api, session, rows, advanced, onRecover, onNewScan }: 
       <aside className="tree">
         <div className="tree-head">
           <strong>{session.source.split(/[\\/]/).pop()}</strong>
-          <span className="muted">{session.filesystem} · {session.mode === "deep" ? "deep" : "quick"} scan{session.complete ? "" : " (partial)"}</span>
+          <span className="muted">{fsLabel(session.filesystem)} · {session.mode === "deep" ? "deep" : "quick"} scan{session.complete ? "" : " (partial)"}{session.partition === null && session.source ? "" : ""}</span>
         </div>
         <Tree node={tree} depth={0} active={filters.folder} onPick={(key) => setFilters((f) => ({ ...f, folder: f.folder === key ? null : key }))} />
         {session.carving && (

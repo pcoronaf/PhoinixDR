@@ -13,11 +13,12 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 ```
 
 > **Status:** early engineering preview. The repository implements milestones
-> M0–M8 of the technical specification: the read-only block layer, MBR/GPT
+> M0–M9 of the technical specification: the read-only block layer, MBR/GPT
 > discovery, native NTFS, FAT12/16/32 and exFAT readers with undelete, deep
-> scan (signature carving of unallocated space), evidence-based recovery
-> health, a verified recovery writer, the `phoinix` CLI and a desktop
-> application (Tauri 2 + React) with sessions, previews and recovery.
+> scan (signature carving of unallocated space), lost-partition recovery
+> (virtual mounts, no table writes), evidence-based recovery health, a
+> verified recovery writer, the `phoinix` CLI and a desktop application
+> (Tauri 2 + React) with sessions, previews and recovery.
 
 ## Principles
 
@@ -39,6 +40,7 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md), the
 [NTFS reader notes](docs/ntfs/reader.md), the
 [FAT/exFAT engine notes](docs/fat/reader.md), the
 [deep scan / carving notes](docs/carving/deep-scan.md), the
+[lost-partition recovery notes](docs/partition/recovery.md), the
 [desktop architecture](docs/desktop/architecture.md), the
 [health model](docs/recovery/health-model.md), the
 [undelete corpora](docs/ntfs/undelete-corpus.md) and the
@@ -59,6 +61,7 @@ crates/phoinix-fs-exfat native exFAT reader and undelete engine
 crates/phoinix-health   recovery evidence model, scoring and explanations
 crates/phoinix-carve    deep scan: signature carving with structural assembly
 crates/phoinix-recovery recovery writer with destination safety and SHA-256 verification
+crates/phoinix-partition-recovery  lost-partition search: boot sectors and superblocks, virtual mounts
 crates/phoinix-session  application service layer: scans with progress, sessions, recovery, previews
 apps/desktop            desktop application: Tauri 2 shell (src-tauri) + React/TypeScript front-end
 tests/fixtures          compressed disk-image fixtures with ground-truth manifests
@@ -113,6 +116,11 @@ phoinix scan disk.img --deleted
 # (--carve-all for the whole volume; works on raw sources without a filesystem).
 phoinix scan disk.img --deep
 phoinix scan disk.img --deep --carve-types jpeg,pdf,docx
+
+# Lost partitions: find volumes by their structures, then scan one virtually.
+phoinix partitions disk.img
+phoinix scan disk.img --lost 2
+phoinix recover disk.img --lost 2 64 --output /mnt/recovery
 
 # Explain the evidence behind a candidate's score (carved files are c<offset>).
 phoinix explain disk.img 64

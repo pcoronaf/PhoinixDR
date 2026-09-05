@@ -4,6 +4,7 @@ import type {
   AppInfo,
   CandidateSummary,
   DeviceInfo,
+  PartitionCandidate,
   Preview,
   RecoverItem,
   RecoveryCandidate,
@@ -56,7 +57,7 @@ export function demoSource(path: string): SourceInfo {
     sector_size: 512,
     scheme: "Mbr",
     volumes: [
-      { partition: 1, offset: 1_048_576, length: 16_356_737_024, type_description: "FAT32 (LBA)", filesystem: "Fat32", confidence: 92, supported: true },
+      { partition: 1, offset: 1_048_576, length: 16_356_737_024, type_description: "FAT32 (LBA)", filesystem: "fat32", confidence: 92, supported: true },
     ],
     diagnostics: [],
   };
@@ -111,7 +112,7 @@ export function demoSession(request: ScanRequest, count: number): SessionSummary
     file: null,
     source: request.source,
     partition: request.partition,
-    filesystem: "Fat32",
+    filesystem: "fat32",
     mode: request.mode,
     started: Math.floor(Date.now() / 1000) - 30,
     finished: Math.floor(Date.now() / 1000),
@@ -126,7 +127,7 @@ export function demoSession(request: ScanRequest, count: number): SessionSummary
 export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void): void {
   const volume = demoSource(request.source).volumes[0]!;
   emit({ kind: "phase", phase: "opening" });
-  emit({ kind: "started", session_id: "demo-session", filesystem: "Fat32", volume });
+  emit({ kind: "started", session_id: "demo-session", filesystem: "fat32", volume });
   emit({ kind: "phase", phase: "metadata" });
   let i = 0;
   const tick = (): void => {
@@ -161,7 +162,7 @@ export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void): vo
 export function demoDetail(row: CandidateSummary): RecoveryCandidate {
   return {
     id: row.id,
-    filesystem: "Fat32",
+    filesystem: "fat32",
     filesystem_object: { filesystem: "fat", entry_offset: Number(row.reference) || 0 },
     original_name: row.name,
     original_path: row.path,
@@ -218,3 +219,44 @@ export function demoRecover(ids: string[], rows: CandidateSummary[], destination
 }
 
 export const demoAppInfo: AppInfo = { version: "0.1.0-demo", sessions_dir: "(browser demo)", device_access: true };
+
+export function demoPartitions(path: string): PartitionCandidate[] {
+  const listed: PartitionCandidate = {
+    start: 1_048_576,
+    length: 16_356_737_024,
+    readable_length: 16_356_737_024,
+    filesystem: "fat32",
+    label: "STICK",
+    serial: "1A2B-3C4D",
+    cluster_size: 8192,
+    sector_size: 512,
+    found_via: "primary_boot_sector",
+    primary_structure_valid: true,
+    backup_structure_valid: true,
+    geometry_consistent: true,
+    engine_verified: true,
+    root_entries: 14,
+    relation: { kind: "listed", index: 1 },
+    repairs: [],
+    evidence: [{ supports: true, description: `FAT32 boot sector on ${path}` }, { supports: true, description: "the backup boot sector at sector 6 matches" }],
+    confidence: 99,
+  };
+  const lost: PartitionCandidate = {
+    ...listed,
+    start: 8_589_934_592,
+    length: 4_294_967_296,
+    readable_length: 4_294_967_296,
+    filesystem: "ntfs",
+    label: null,
+    serial: "3A1F00C9B2E4D511",
+    cluster_size: 4096,
+    found_via: "backup_boot_sector",
+    primary_structure_valid: false,
+    root_entries: null,
+    relation: { kind: "lost" },
+    repairs: [{ offset: 0, bytes: [], description: "backup boot sector substituted for the destroyed primary" }],
+    evidence: [{ supports: true, description: "found through the backup boot sector; the primary boot sector is missing or damaged" }, { supports: true, description: "the $MFT lies where the boot sector says" }],
+    confidence: 84,
+  };
+  return [listed, lost];
+}

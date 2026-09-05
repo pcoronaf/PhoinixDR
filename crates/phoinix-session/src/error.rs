@@ -3,6 +3,7 @@
 use phoinix_carve::CarveError;
 use phoinix_device::DeviceError;
 use phoinix_fs::FsError;
+use phoinix_partition_recovery::PartitionRecoveryError;
 use phoinix_recovery::RecoveryError;
 use phoinix_volume::VolumeError;
 
@@ -12,6 +13,9 @@ pub enum SessionError {
     /// Device access failed.
     #[error(transparent)]
     Device(#[from] DeviceError),
+    /// Block I/O failed.
+    #[error(transparent)]
+    Block(#[from] phoinix_block::BlockError),
     /// Partition table could not be read.
     #[error(transparent)]
     Volume(#[from] VolumeError),
@@ -21,6 +25,9 @@ pub enum SessionError {
     /// Carving failed.
     #[error(transparent)]
     Carve(#[from] CarveError),
+    /// The structure search failed.
+    #[error(transparent)]
+    Partitions(#[from] PartitionRecoveryError),
     /// Recovery failed.
     #[error(transparent)]
     Recovery(#[from] RecoveryError),

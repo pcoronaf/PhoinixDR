@@ -1,36 +1,91 @@
-import { useState } from "react";
-import type { ScanMode, ScanRequest, SourceInfo } from "../types";
-import { formatBytesSi } from "../lib/format";
+import { useEffect, useState } from "react";
+import type { Api } from "../api";
+import type { PartitionCandidate, ScanMode, ScanRequest, SourceInfo, VolumeRange } from "../types";
+import { formatBytesSi, fsLabel, hasEngine, percent } from "../lib/format";
 
 interface Props {
+  api: Api;
   source: SourceInfo;
   onScan: (request: ScanRequest) => void;
   onBack: () => void;
 }
 
+function relationText(c: PartitionCandidate): string {
+  switch (c.relation.kind) {
+    case "listed":
+      return `partition ${c.relation.index}`;
+    case "lost":
+      return "lost partition";
+    case "inside_partition":
+      return `inside partition ${c.relation.index}`;
+    case "nested":
+      return "nested (probably an image file)";
+    case "overlapping":
+      return "overlaps another candidate";
+    default:
+      return "";
+  }
+}
+
 const BUILTIN_TYPES = ["jpeg", "png", "gif", "bmp", "pdf", "zip", "sqlite", "riff", "mp4", "7z"];
 
-export function ScanSetup({ source, onScan, onBack }: Props) {
+export function ScanSetup({ api, source, onScan, onBack }: Props) {
   const supported = source.volumes.find((v) => v.supported) ?? source.volumes[0] ?? null;
   const [partition, setPartition] = useState<number | null>(supported?.partition ?? null);
+  const [lost, setLost] = useState<PartitionCandidate[] | null>(null);
+  const [lostChoice, setLostChoice] = useState<number | null>(null);
+  const [searching, setSearching] = useState<{ done: number; total: number } | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    api.onSearchEvent((e) => {
+      if (e.kind === "progress") setSearching({ done: e.done, total: e.total });
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [api]);
+
+  const searchLost = async (): Promise<void> => {
+    setSearching({ done: 0, total: 0 });
+    setSearchError(null);
+    try {
+      const found = await api.findPartitions(source.path);
+      setLost(found);
+      const firstLost = found.findIndex((c) => c.relation.kind === "lost");
+      setLostChoice(firstLost >= 0 ? firstLost : null);
+    } catch (e) {
+      setSearchError(String(e));
+    }
+    setSearching(null);
+  };
   const [mode, setMode] = useState<ScanMode>("quick");
   const [examine, setExamine] = useState(true);
   const [wholeVolume, setWholeVolume] = useState(false);
   const [types, setTypes] = useState<string[]>([]);
+  const chosenLost = lostChoice !== null && lost ? (lost[lostChoice] ?? null) : null;
   const volume = source.volumes.find((v) => v.partition === partition) ?? supported;
-  const needsDeep = volume ? !volume.supported : true;
+  const needsDeep = chosenLost ? !hasEngine(chosenLost.filesystem) : volume ? !volume.supported : true;
 
   const toggleType = (t: string): void =>
     setTypes((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
-  const submit = (): void =>
+  const submit = (): void => {
+    const range: VolumeRange | null = chosenLost
+      ? { offset: chosenLost.start, length: chosenLost.readable_length, repairs: chosenLost.repairs }
+      : null;
     onScan({
       source: source.path,
-      partition,
+      partition: range ? null : partition,
+      volume: range,
       mode: needsDeep ? "deep" : mode,
       examine_content: examine,
       carve: { whole_volume: wholeVolume, types, min_size: 0, alignment: 0 },
     });
+  };
 
   return (
     <div className="panel">
@@ -47,7 +102,7 @@ export function ScanSetup({ source, onScan, onBack }: Props) {
               <input type="radio" name="partition" checked={partition === v.partition} onChange={() => setPartition(v.partition)} />
               <span>
                 <strong>{v.partition !== null ? `Partition ${v.partition}` : "Whole source"}</strong> · {v.type_description} · {formatBytesSi(v.length)} ·{" "}
-                {v.filesystem === "Unknown" ? "no recognised filesystem" : `${v.filesystem} (${v.confidence}%)`}
+                {v.filesystem === "unknown" ? "no recognised filesystem" : `${fsLabel(v.filesystem)} (${v.confidence}%)`}
                 {!v.supported && <span className="muted"> · deep scan only</span>}
               </span>
             </label>
@@ -57,9 +112,38 @@ export function ScanSetup({ source, onScan, onBack }: Props) {
       {source.volumes.length === 1 && volume && (
         <p>
           Volume: {volume.type_description} · {formatBytesSi(volume.length)} ·{" "}
-          {volume.filesystem === "Unknown" ? "no recognised filesystem" : `${volume.filesystem} (${volume.confidence}% confidence)`}
+          {volume.filesystem === "unknown" ? "no recognised filesystem" : `${fsLabel(volume.filesystem)} (${volume.confidence}% confidence)`}
         </p>
       )}
+      <fieldset>
+        <legend>Lost partitions</legend>
+        <p className="muted">Searches the whole source for filesystem structures independently of the partition table. Nothing is written; a found volume is mounted virtually, with its backup boot sector standing in when the primary is destroyed.</p>
+        {searching ? (
+          <p>Searching… {percent(searching.done, searching.total || null)}</p>
+        ) : (
+          <button type="button" onClick={searchLost}>{lost ? "Search again" : "Search for lost partitions"}</button>
+        )}
+        {searchError && <p className="error">{searchError}</p>}
+        {lost && lost.length === 0 && <p className="muted">No filesystem structures found.</p>}
+        {lost && lost.length > 0 && (
+          <div>
+            <label className="option">
+              <input type="radio" name="lost" checked={lostChoice === null} onChange={() => setLostChoice(null)} />
+              <span>Use the partition table (above)</span>
+            </label>
+            {lost.map((c, i) => (
+              <label key={`${c.start}-${c.filesystem}`} className="option">
+                <input type="radio" name="lost" checked={lostChoice === i} onChange={() => setLostChoice(i)} />
+                <span>
+                  <strong>{fsLabel(c.filesystem)}</strong>{c.label ? ` “${c.label}”` : ""} · {formatBytesSi(c.length)} at offset {c.start.toLocaleString()} · {relationText(c)} · confidence {c.confidence}%
+                  {c.repairs.length > 0 && <span className="muted"> · {c.repairs[0]?.description}</span>}
+                  {c.relation.kind !== "lost" && c.relation.kind !== "listed" && <span className="warn"> {c.evidence.filter((e) => !e.supports).map((e) => e.description).join("; ")}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </fieldset>
       <fieldset>
         <legend>Mode</legend>
         <label className="option">
@@ -96,7 +180,7 @@ export function ScanSetup({ source, onScan, onBack }: Props) {
         </label>
       </fieldset>
       <div className="actions">
-        <button className="primary" onClick={submit} disabled={!volume}>Scan</button>
+        <button className="primary" onClick={submit} disabled={!volume && !chosenLost}>Scan{chosenLost ? " the lost partition" : ""}</button>
       </div>
     </div>
   );

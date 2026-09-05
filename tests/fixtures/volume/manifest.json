@@ -6,20 +6,105 @@
       "scheme": "mbr",
       "mbr_disk_signature": 305441741,
       "partitions": [
-        { "index": 1, "start_lba": 2048,  "end_lba": 18431, "type": { "scheme": "mbr", "value": 7 }, "bootable": true,  "logical": false, "filesystem": "ntfs" },
-        { "index": 2, "start_lba": 18432, "end_lba": 34815, "type": { "scheme": "mbr", "value": 6 }, "bootable": false, "logical": false, "filesystem": "fat16" },
-        { "index": 3, "start_lba": 34816, "end_lba": 98303, "type": { "scheme": "mbr", "value": 5 }, "bootable": false, "logical": false, "filesystem": null },
-        { "index": 5, "start_lba": 36864, "end_lba": 53247, "type": { "scheme": "mbr", "value": 1 }, "bootable": false, "logical": true,  "filesystem": "fat12" },
-        { "index": 6, "start_lba": 55296, "end_lba": 71679, "type": { "scheme": "mbr", "value": 7 }, "bootable": false, "logical": true,  "filesystem": "ntfs" }
+        {
+          "index": 1,
+          "start_lba": 2048,
+          "end_lba": 18431,
+          "type": {
+            "scheme": "mbr",
+            "value": 7
+          },
+          "bootable": true,
+          "logical": false,
+          "filesystem": "ntfs"
+        },
+        {
+          "index": 2,
+          "start_lba": 18432,
+          "end_lba": 34815,
+          "type": {
+            "scheme": "mbr",
+            "value": 6
+          },
+          "bootable": false,
+          "logical": false,
+          "filesystem": "fat16"
+        },
+        {
+          "index": 3,
+          "start_lba": 34816,
+          "end_lba": 98303,
+          "type": {
+            "scheme": "mbr",
+            "value": 5
+          },
+          "bootable": false,
+          "logical": false,
+          "filesystem": null
+        },
+        {
+          "index": 5,
+          "start_lba": 36864,
+          "end_lba": 53247,
+          "type": {
+            "scheme": "mbr",
+            "value": 1
+          },
+          "bootable": false,
+          "logical": true,
+          "filesystem": "fat12"
+        },
+        {
+          "index": 6,
+          "start_lba": 55296,
+          "end_lba": 71679,
+          "type": {
+            "scheme": "mbr",
+            "value": 7
+          },
+          "bootable": false,
+          "logical": true,
+          "filesystem": "ntfs"
+        }
       ]
     },
     "gpt-basic.img.gz": {
       "size": 50331648,
       "scheme": "gpt",
       "partitions": [
-        { "index": 1, "start_lba": 2048,  "end_lba": 18431, "type": { "scheme": "gpt", "value": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" }, "name": "EFI System",          "filesystem": "fat16" },
-        { "index": 2, "start_lba": 18432, "end_lba": 20479, "type": { "scheme": "gpt", "value": "e3c9e316-0b5c-4db8-817d-f92df00215ae" }, "name": "Microsoft reserved",  "filesystem": null },
-        { "index": 3, "start_lba": 20480, "end_lba": 96000, "type": { "scheme": "gpt", "value": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7" }, "name": "Données",             "filesystem": "ntfs" }
+        {
+          "index": 1,
+          "start_lba": 2048,
+          "end_lba": 18431,
+          "type": {
+            "scheme": "gpt",
+            "value": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+          },
+          "name": "EFI System",
+          "filesystem": "fat16"
+        },
+        {
+          "index": 2,
+          "start_lba": 18432,
+          "end_lba": 20479,
+          "type": {
+            "scheme": "gpt",
+            "value": "e3c9e316-0b5c-4db8-817d-f92df00215ae"
+          },
+          "name": "Microsoft reserved",
+          "filesystem": null
+        },
+        {
+          "index": 3,
+          "start_lba": 20480,
+          "end_lba": 96000,
+          "type": {
+            "scheme": "gpt",
+            "value": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7"
+          },
+          "name": "Donn\u00e9es",
+          "filesystem": "ntfs"
+        }
       ]
     },
     "ntfs-bare.img.gz": {
@@ -27,6 +112,16 @@
       "scheme": "none",
       "partitions": [],
       "whole_source_filesystem": "ntfs"
+    },
+    "ext4-bare.img.gz": {
+      "size": 16777216,
+      "scheme": "none",
+      "partitions": [],
+      "whole_source_filesystem": "ext",
+      "block_size": 1024,
+      "blocks_per_group": 8192,
+      "label": "PHXEXT4",
+      "uuid": "0b0b0b0b-1111-4222-8333-444444444444"
     }
   }
 }

@@ -14,10 +14,11 @@ use phoinix_fs_exfat::{ExFatProbe, ExfatUndelete, ExfatVolume};
 use phoinix_fs_fat::{FatProbe, FatUndelete, FatVolume};
 use phoinix_fs_ntfs::{NtfsProbe, NtfsUndelete, NtfsVolume};
 use phoinix_health::{DeviceKind, StorageEvidence};
+use phoinix_partition_recovery::{PartitionCandidate, SearchOptions, find_partitions, open_range};
 use phoinix_volume::{PartitionScheme, PartitionTable, read_partition_table};
 
 use crate::SessionError;
-use crate::dto::{SourceInfo, VolumeInfo};
+use crate::dto::{SourceInfo, VolumeInfo, VolumeRange};
 
 /// Every probe PhoinixDR ships.
 #[must_use]
@@ -108,6 +109,61 @@ fn volume_info(
         filesystem,
         confidence: detection.best.as_ref().map_or(0, |b| b.confidence),
         supported: has_engine(filesystem),
+        lost: false,
+        repairs: Vec::new(),
+    }
+}
+
+/// Runs the structure search over the whole source.
+///
+/// # Errors
+///
+/// Returns [`SessionError`] if the source cannot be read.
+pub fn search_partitions(
+    path: &Path,
+    options: &SearchOptions,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<Vec<PartitionCandidate>, SessionError> {
+    let opened = open(path)?;
+    let mut sink = |p: &phoinix_carve::ScanProgress| progress(p.bytes_scanned, p.bytes_total);
+    Ok(find_partitions(
+        &opened.reader,
+        Some(&opened.table),
+        options,
+        &mut sink,
+    )?)
+}
+
+/// How to pick the volume of a source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VolumeChoice {
+    /// The first volume with an engine, or the only one.
+    Auto,
+    /// A partition of the table.
+    Partition(u32),
+    /// An explicit byte range with optional repairs.
+    Range(VolumeRange),
+}
+
+impl VolumeChoice {
+    /// The choice a scan request expresses.
+    #[must_use]
+    pub fn from_request(partition: Option<u32>, volume: Option<&VolumeRange>) -> Self {
+        match (volume, partition) {
+            (Some(r), _) => Self::Range(r.clone()),
+            (None, Some(p)) => Self::Partition(p),
+            (None, None) => Self::Auto,
+        }
+    }
+
+    /// The choice that reopens an already selected volume.
+    #[must_use]
+    pub fn reopen(info: &VolumeInfo) -> Self {
+        Self::Range(VolumeRange {
+            offset: info.offset,
+            length: info.length,
+            repairs: info.repairs.clone(),
+        })
     }
 }
 
@@ -185,6 +241,45 @@ pub fn open_volume(
     partition: Option<u32>,
     examine_content: bool,
 ) -> Result<OpenVolume, SessionError> {
+    let choice = partition.map_or(VolumeChoice::Auto, VolumeChoice::Partition);
+    open_volume_with(path, &choice, examine_content)
+}
+
+/// Opens `path` and the volume `choice` names, building its engines.
+///
+/// # Errors
+///
+/// Returns [`SessionError`] if the source or the volume cannot be opened.
+pub fn open_volume_with(
+    path: &Path,
+    choice: &VolumeChoice,
+    examine_content: bool,
+) -> Result<OpenVolume, SessionError> {
+    if let VolumeChoice::Range(range) = choice {
+        let opened = open(path)?;
+        let reader = open_range(
+            opened.reader.clone(),
+            phoinix_core::ByteRange {
+                offset: range.offset,
+                length: range.length,
+            },
+            &range.repairs,
+        )?;
+        let mut info = volume_info(
+            None,
+            range.offset,
+            range.length,
+            "explicit range".to_owned(),
+            &*reader,
+        );
+        info.lost = true;
+        info.repairs = range.repairs.clone();
+        return build_engines(path, info, reader, examine_content);
+    }
+    let partition = match choice {
+        VolumeChoice::Partition(p) => Some(*p),
+        _ => None,
+    };
     let info = inspect(path)?;
     let opened = open(path)?;
     let chosen = match partition {
@@ -219,6 +314,16 @@ pub fn open_volume(
         }
         None => opened.reader.clone(),
     };
+    build_engines(path, chosen, reader, examine_content)
+}
+
+/// Builds the engines of an opened volume.
+fn build_engines(
+    path: &Path,
+    chosen: VolumeInfo,
+    reader: Arc<dyn BlockReader>,
+    examine_content: bool,
+) -> Result<OpenVolume, SessionError> {
     let storage = storage_evidence(path);
     let (engine, space): (
         Option<Arc<dyn DeletedFileProvider>>,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CandidateSummary } from "../types";
 import { applyFilters, buildTree, DEFAULT_FILTERS, sortRows, typeOptions } from "./filters";
+import { formatBytes, fsLabel, hasEngine } from "./format";
 
 function row(over: Partial<CandidateSummary>): CandidateSummary {
   return {
@@ -67,5 +68,22 @@ describe("tree, types and sorting", () => {
   it("sorts by likelihood and size", () => {
     expect(sortRows(rows, "likelihood", false).map((r) => r.likelihood)).toEqual([95, 85, 40, 0]);
     expect(sortRows(rows, "size", true).map((r) => r.size)).toEqual([null, 5, 20, 300]);
+  });
+});
+
+describe("format helpers", () => {
+  it("labels filesystem identifiers as serialised by the core", () => {
+    expect(fsLabel("ntfs")).toBe("NTFS");
+    expect(fsLabel("ex-fat")).toBe("exFAT");
+    expect(fsLabel("hfs-plus")).toBe("HFS+");
+    expect(fsLabel("something")).toBe("something");
+    expect(hasEngine("fat32")).toBe(true);
+    expect(hasEngine("ext")).toBe(false);
+  });
+  it("formats sizes", () => {
+    expect(formatBytes(null)).toBe("–");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1536)).toBe("1.5 KiB");
+    expect(formatBytes(185_713_708)).toBe("177 MiB");
   });
 });

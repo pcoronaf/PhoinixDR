@@ -7,6 +7,7 @@ use phoinix_carve::CarveReport;
 use phoinix_core::{CandidateId, FileSystemType};
 use phoinix_fs::RecoveryCandidate;
 use phoinix_health::{CandidateSource, HealthCategory};
+use phoinix_partition_recovery::{PartitionCandidate, Repair};
 use phoinix_recovery::RecoveryResult;
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +28,61 @@ pub struct VolumeInfo {
     pub confidence: u8,
     /// Whether PhoinixDR has an undelete engine for the filesystem.
     pub supported: bool,
+    /// The volume came from the structure search rather than the table.
+    #[serde(default)]
+    pub lost: bool,
+    /// Substitutions applied on mount (backup structures standing in for
+    /// destroyed primaries), from the structure search.
+    #[serde(default)]
+    pub repairs: Vec<Repair>,
+}
+
+/// An explicit byte range of the source to use as the volume, typically
+/// a lost partition found by the structure search.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VolumeRange {
+    /// Byte offset inside the source.
+    pub offset: u64,
+    /// Length in bytes.
+    pub length: u64,
+    /// Repairs to overlay on mount.
+    #[serde(default)]
+    pub repairs: Vec<Repair>,
+}
+
+impl VolumeRange {
+    /// The range of a partition candidate, repairs included.
+    #[must_use]
+    pub fn from_candidate(c: &PartitionCandidate) -> Self {
+        Self {
+            offset: c.start,
+            length: c.readable_length,
+            repairs: c.repairs.clone(),
+        }
+    }
+}
+
+/// Events emitted while the structure search runs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SearchEvent {
+    /// Bytes read so far.
+    Progress {
+        /// Bytes scanned.
+        done: u64,
+        /// Bytes in total.
+        total: u64,
+    },
+    /// The search finished.
+    Finished {
+        /// Candidates in start order.
+        candidates: Vec<PartitionCandidate>,
+    },
+    /// The search failed.
+    Failed {
+        /// Error text.
+        message: String,
+    },
 }
 
 /// What is known about a source before scanning.
@@ -84,6 +140,10 @@ pub struct ScanRequest {
     /// Partition index (default: first supported volume).
     #[serde(default)]
     pub partition: Option<u32>,
+    /// An explicit volume range (a lost partition); takes precedence over
+    /// `partition`.
+    #[serde(default)]
+    pub volume: Option<VolumeRange>,
     /// Quick or deep.
     #[serde(default)]
     pub mode: ScanMode,

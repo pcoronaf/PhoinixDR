@@ -40,6 +40,7 @@ checks.
 | `app_info` | – | version, sessions directory, device access |
 | `list_devices` | – | `DeviceInfo[]` |
 | `inspect_source` | `path` | `SourceInfo` |
+| `find_partitions` | `path`, `verify?` | `PartitionCandidate[]`; `search-event` while running |
 | `start_scan` | `ScanRequest` | starts; `scan-event` (`ScanEvent`) then `scan-complete` |
 | `cancel_scan` | – | whether a scan was running |
 | `list_sessions` / `load_session` / `current_session` | – / `path` | `SessionSummary` |
@@ -57,9 +58,11 @@ data directory (`app_info.sessions_dir`).
 1. **Home**: physical disk, removable device or disk image; recent
    sessions.
 2. **Source**: devices with size, bus, medium, accessibility.
-3. **Scan**: volume, Quick Scan / Deep Scan (deep is forced when no
-   filesystem is recognised), deep-scan options (whole volume, file
-   types), content examination.
+3. **Scan**: volume, "Search for lost partitions" (structure search with
+   progress; candidates with status, confidence and repair; a chosen
+   candidate is scanned as a virtual mount), Quick Scan / Deep Scan (deep
+   is forced when no filesystem is recognised), deep-scan options (whole
+   volume, file types), content examination.
 4. **Scanning**: phase, progress (records; bytes for carving), candidates
    so far, cancel.
 5. **Results**: folder tree, table (name, health badge with confidence on

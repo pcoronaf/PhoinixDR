@@ -6,6 +6,7 @@ import type {
   CandidateSummary,
   DestinationInfo,
   DeviceInfo,
+  PartitionCandidate,
   Preview,
   RecoverEvent,
   RecoverItem,
@@ -14,6 +15,7 @@ import type {
   ScanCompletion,
   ScanEvent,
   ScanRequest,
+  SearchEvent,
   SessionSummary,
   SourceInfo,
 } from "./types";
@@ -26,6 +28,8 @@ export interface Api {
   appInfo(): Promise<AppInfo>;
   listDevices(): Promise<DeviceInfo[]>;
   inspectSource(path: string): Promise<SourceInfo>;
+  findPartitions(path: string): Promise<PartitionCandidate[]>;
+  onSearchEvent(cb: (e: SearchEvent) => void): Promise<Unlisten>;
   startScan(request: ScanRequest): Promise<void>;
   cancelScan(): Promise<boolean>;
   listSessions(): Promise<SessionSummary[]>;
@@ -58,6 +62,8 @@ async function tauriApi(): Promise<Api> {
     appInfo: () => invoke<AppInfo>("app_info"),
     listDevices: () => invoke<DeviceInfo[]>("list_devices"),
     inspectSource: (path) => invoke<SourceInfo>("inspect_source", { path }),
+    findPartitions: (path) => invoke<PartitionCandidate[]>("find_partitions", { path }),
+    onSearchEvent: on<SearchEvent>("search-event"),
     startScan: (request) => invoke<void>("start_scan", { request }),
     cancelScan: () => invoke<boolean>("cancel_scan"),
     listSessions: () => invoke<SessionSummary[]>("list_sessions"),
@@ -88,6 +94,7 @@ async function tauriApi(): Promise<Api> {
 function demoApi(): Api {
   let rows: CandidateSummary[] = [];
   const scanListeners = new Set<(e: ScanEvent) => void>();
+  const searchListeners = new Set<(e: SearchEvent) => void>();
   const completeListeners = new Set<(e: ScanCompletion) => void>();
   const recoverListeners = new Set<(e: RecoverEvent) => void>();
   let lastRequest: ScanRequest | null = null;
@@ -96,6 +103,20 @@ function demoApi(): Api {
     appInfo: async () => demo.demoAppInfo,
     listDevices: async () => demo.demoDevices,
     inspectSource: async (path) => demo.demoSource(path),
+    findPartitions: async (path) => {
+      const total = 16_357_785_600;
+      for (let done = 0; done < total; done += total / 4) {
+        searchListeners.forEach((cb) => cb({ kind: "progress", done, total }));
+        await new Promise((r) => window.setTimeout(r, 120));
+      }
+      const candidates = demo.demoPartitions(path);
+      searchListeners.forEach((cb) => cb({ kind: "finished", candidates }));
+      return candidates;
+    },
+    onSearchEvent: async (cb) => {
+      searchListeners.add(cb);
+      return () => searchListeners.delete(cb);
+    },
     startScan: async (request) => {
       rows = [];
       lastRequest = request;

@@ -36,6 +36,9 @@ enum Command {
     /// Native NTFS reader commands.
     #[command(subcommand)]
     Ntfs(commands::ntfs::Command),
+    /// Find volumes by their filesystem structures, independently of the
+    /// partition table (lost-partition recovery).
+    Partitions(commands::partitions::Args),
     /// Scan a source for recoverable files and assess their health.
     Scan(commands::scan::Args),
     /// Explain the evidence behind a candidate's recovery health.
@@ -65,6 +68,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Read(args) => commands::read::run(args),
         Command::Inspect(args) => commands::inspect::run(args),
         Command::Ntfs(cmd) => commands::ntfs::run(cmd),
+        Command::Partitions(args) => commands::partitions::run(args),
         Command::Scan(args) => commands::scan::run(args),
         Command::Explain(args) => commands::explain::run(args),
         Command::Recover(args) => commands::recover::run(args),

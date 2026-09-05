@@ -11,7 +11,7 @@ use phoinix_recovery::{RecoveryRequest, RecoveryWriter, check_destination};
 use crate::SessionError;
 use crate::dto::{DestinationInfo, RecoverEvent, RecoverItem, RecoverRequest};
 use crate::session::ScanSession;
-use crate::source::open_volume;
+use crate::source::{VolumeChoice, open_volume_with};
 
 /// Assesses a destination for `source`.
 #[must_use]
@@ -48,7 +48,11 @@ pub fn recover(
             })
         })
         .collect::<Result<_, _>>()?;
-    let volume = open_volume(&session.source, session.volume.partition, false)?;
+    let volume = open_volume_with(
+        &session.source,
+        &VolumeChoice::reopen(&session.volume),
+        false,
+    )?;
     let mut req = RecoveryRequest::new(&request.destination);
     req.preserve_tree = request.preserve_tree;
     req.preserve_timestamps = request.preserve_timestamps;

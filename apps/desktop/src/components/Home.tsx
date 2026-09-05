@@ -1,5 +1,5 @@
 import type { AppInfo, SessionSummary } from "../types";
-import { formatUnix } from "../lib/format";
+import { formatUnix, fsLabel } from "../lib/format";
 
 interface Props {
   info: AppInfo | null;
@@ -51,7 +51,7 @@ export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenS
             {sessions.map((s) => (
               <tr key={s.id}>
                 <td className="mono">{s.source}{s.partition !== null ? ` (partition ${s.partition})` : ""}</td>
-                <td>{s.filesystem}</td>
+                <td>{fsLabel(s.filesystem)}</td>
                 <td>{s.mode === "deep" ? "Deep" : "Quick"}{s.complete ? "" : " (partial)"}</td>
                 <td>{formatUnix(s.started)}</td>
                 <td>{s.candidates}</td>

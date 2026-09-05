@@ -410,6 +410,7 @@ dependencies = [
  "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
+ "phoinix-partition-recovery",
  "phoinix-recovery",
  "phoinix-volume",
  "serde",
@@ -529,6 +530,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "phoinix-partition-recovery"
+version = "0.1.0"
+dependencies = [
+ "phoinix-block",
+ "phoinix-carve",
+ "phoinix-core",
+ "phoinix-fs",
+ "phoinix-fs-exfat",
+ "phoinix-fs-fat",
+ "phoinix-fs-ntfs",
+ "phoinix-health",
+ "phoinix-integration-tests",
+ "phoinix-volume",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "phoinix-recovery"
 version = "0.1.0"
 dependencies = [
@@ -558,6 +580,7 @@ dependencies = [
  "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
+ "phoinix-partition-recovery",
  "phoinix-recovery",
  "phoinix-volume",
  "serde",

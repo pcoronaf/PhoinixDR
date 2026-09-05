@@ -10,6 +10,7 @@ use std::sync::atomic::Ordering;
 use phoinix_core::CandidateId;
 use phoinix_device::DeviceInfo;
 use phoinix_fs::RecoveryCandidate;
+use phoinix_partition_recovery::{PartitionCandidate, SearchOptions};
 use phoinix_session::dto::{
     CandidateSummary, DestinationInfo, Preview, RecoverItem, RecoverRequest, ScanRequest,
     SessionSummary, SourceInfo,
@@ -245,4 +246,29 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
         sessions_dir: state.workspace.sessions_dir().to_path_buf(),
         device_access: state.workspace.devices().is_ok(),
     }
+}
+
+/// Runs the structure search (lost partitions); progress arrives as
+/// `search-event`. Returns the candidates in start order.
+#[tauri::command]
+pub async fn find_partitions(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    verify: Option<bool>,
+) -> Result<Vec<PartitionCandidate>, String> {
+    let workspace = state.workspace.clone();
+    let options = SearchOptions {
+        verify: verify.unwrap_or(true),
+        ..Default::default()
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let handle = workspace.start_partition_search(PathBuf::from(path), options);
+        for event in handle.events.iter() {
+            let _ = app.emit("search-event", &event);
+        }
+        handle.wait().map_err(String::from)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

@@ -174,7 +174,7 @@ export default function App() {
         {view.name === "devices" && (
           <SourcePicker devices={devices} removableOnly={view.removable} loading={devicesLoading} error={devicesError} onChoose={(d) => inspect(d.path)} onBack={() => setView({ name: "home" })} onRefresh={() => loadDevices(view.removable)} />
         )}
-        {view.name === "setup" && <ScanSetup source={view.source} onScan={startScan} onBack={() => setView({ name: "home" })} />}
+        {view.name === "setup" && <ScanSetup api={api} source={view.source} onScan={startScan} onBack={() => setView({ name: "home" })} />}
         {view.name === "scanning" && (
           <ScanProgress
             state={progress}

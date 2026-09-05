@@ -31,6 +31,7 @@ fn fs_from_name(name: &str) -> FileSystemType {
         "fat12" => FileSystemType::Fat12,
         "fat16" => FileSystemType::Fat16,
         "fat32" => FileSystemType::Fat32,
+        "ext" => FileSystemType::Ext,
         other => panic!("unknown filesystem name {other}"),
     }
 }
@@ -39,7 +40,7 @@ fn fs_from_name(name: &str) -> FileSystemType {
 fn fixtures_match_manifest() {
     let m = manifest("volume/manifest.json");
     let images = m["images"].as_object().unwrap();
-    assert_eq!(images.len(), 3);
+    assert_eq!(images.len(), 4);
     for (name, expected) in images {
         let reader: Arc<dyn BlockReader> = Arc::new(fixture_reader(&format!("volume/{name}")));
         assert_eq!(

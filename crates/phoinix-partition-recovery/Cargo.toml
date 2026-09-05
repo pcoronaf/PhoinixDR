@@ -1,6 +1,6 @@
 [package]
-name = "phoinix-cli"
-description = "PHOINIX command-line application"
+name = "phoinix-partition-recovery"
+description = "Lost-partition search: filesystem structures found independently of the partition table"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,35 +8,24 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "phoinix"
-path = "src/main.rs"
-
 [dependencies]
 phoinix-core = { workspace = true }
 phoinix-block = { workspace = true }
-phoinix-device = { workspace = true }
 phoinix-volume = { workspace = true }
 phoinix-fs = { workspace = true }
 phoinix-fs-ntfs = { workspace = true }
 phoinix-fs-fat = { workspace = true }
 phoinix-fs-exfat = { workspace = true }
-phoinix-health = { workspace = true }
 phoinix-carve = { workspace = true }
-phoinix-partition-recovery = { workspace = true }
-phoinix-recovery = { workspace = true }
-anyhow = { workspace = true }
-clap = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
-flate2 = "1"
-sha2 = { workspace = true }
-hex = { workspace = true }
-tempfile = { workspace = true }
+phoinix-integration-tests = { path = "../../tests/integration" }
+serde_json = { workspace = true }
+phoinix-health = { workspace = true }
 
 [lints]
 workspace = true

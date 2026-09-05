@@ -1,7 +1,8 @@
 // DTOs mirroring crates/phoinix-session/src/dto.rs (JSON shapes are the contract).
 
+// Serialised in kebab-case by phoinix-core.
 export type FileSystemType =
-  | "Ntfs" | "Fat12" | "Fat16" | "Fat32" | "ExFat" | "Ext" | "Hfs" | "HfsPlus" | "Apfs" | "Unknown";
+  | "ntfs" | "fat12" | "fat16" | "fat32" | "ex-fat" | "ext" | "hfs" | "hfs-plus" | "apfs" | "unknown";
 
 export type HealthCategory =
   | "Unrecoverable" | "VeryPoor" | "Poor" | "Good" | "VeryGood" | "Excellent" | "Unknown";
@@ -26,6 +27,12 @@ export interface DeviceInfo {
   accessible: boolean;
 }
 
+export interface Repair {
+  offset: number;
+  bytes: number[];
+  description: string;
+}
+
 export interface VolumeInfo {
   partition: number | null;
   offset: number;
@@ -34,7 +41,50 @@ export interface VolumeInfo {
   filesystem: FileSystemType;
   confidence: number;
   supported: boolean;
+  lost?: boolean;
+  repairs?: Repair[];
 }
+
+export interface VolumeRange {
+  offset: number;
+  length: number;
+  repairs: Repair[];
+}
+
+export type FoundVia = "primary_boot_sector" | "backup_boot_sector" | "superblock" | "backup_superblock";
+
+export type PartitionRelation =
+  | { kind: "listed"; index: number }
+  | { kind: "lost" }
+  | { kind: "inside_partition"; index: number }
+  | { kind: "nested"; within: number }
+  | { kind: "overlapping"; with: number };
+
+export interface PartitionCandidate {
+  start: number;
+  length: number;
+  readable_length: number;
+  filesystem: FileSystemType;
+  label: string | null;
+  serial: string | null;
+  cluster_size: number | null;
+  sector_size: number;
+  found_via: FoundVia;
+  primary_structure_valid: boolean;
+  backup_structure_valid: boolean | null;
+  geometry_consistent: boolean;
+  engine_verified: boolean | null;
+  root_entries: number | null;
+  relation: PartitionRelation;
+  repairs: Repair[];
+  evidence: { supports: boolean; description: string }[];
+  confidence: number;
+}
+
+export type SearchEvent =
+  | { kind: "progress"; done: number; total: number }
+  | { kind: "finished"; candidates: PartitionCandidate[] }
+  | { kind: "failed"; message: string };
 
 export interface SourceInfo {
   path: string;
@@ -58,6 +108,7 @@ export interface CarveSettings {
 export interface ScanRequest {
   source: string;
   partition: number | null;
+  volume?: VolumeRange | null;
   mode: ScanMode;
   examine_content: boolean;
   carve: CarveSettings;

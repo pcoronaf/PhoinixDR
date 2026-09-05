@@ -46,6 +46,7 @@ fn request(source: &Path, mode: ScanMode) -> ScanRequest {
     ScanRequest {
         source: source.to_path_buf(),
         partition: None,
+        volume: None,
         mode,
         examine_content: true,
         carve: CarveSettings::default(),
@@ -322,4 +323,92 @@ fn recovery_and_previews_through_the_workspace() {
         ..req
     };
     assert!(ws.recover(&bad, &mut |_| {}).is_err());
+}
+
+#[test]
+fn lost_partitions_are_found_mounted_and_scanned() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::new(dir.path().join("sessions"));
+    // A raw area holding the NTFS undelete corpus 2 MiB in, no partition
+    // table, and its primary boot sector destroyed.
+    let corpus = {
+        let gz =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/ntfs/undelete.img.gz");
+        let mut d = flate2::read::GzDecoder::new(std::fs::File::open(gz).unwrap());
+        let mut v = Vec::new();
+        d.read_to_end(&mut v).unwrap();
+        v
+    };
+    let mut image = vec![0u8; 2 * 1024 * 1024];
+    image.extend_from_slice(&corpus);
+    for b in &mut image[2 * 1024 * 1024..2 * 1024 * 1024 + 512] {
+        *b = 0;
+    }
+    let img = dir.path().join("raw.bin");
+    std::fs::write(&img, &image).unwrap();
+    // The plain inspection sees no usable filesystem.
+    let info = ws.inspect(&img).unwrap();
+    assert!(!info.volumes.iter().any(|v| v.supported), "{info:?}");
+    // The structure search finds the volume and prepares the repair.
+    let handle = ws.start_partition_search(
+        img.clone(),
+        phoinix_partition_recovery::SearchOptions::default(),
+    );
+    let events: Vec<_> = handle.events.iter().collect();
+    let found = handle.wait().unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, phoinix_session::dto::SearchEvent::Progress { .. }))
+    );
+    assert!(
+        matches!(events.last().unwrap(), phoinix_session::dto::SearchEvent::Finished { candidates } if candidates.len() == found.len())
+    );
+    let ntfs = found
+        .iter()
+        .find(|c| c.filesystem == FileSystemType::Ntfs)
+        .unwrap();
+    assert_eq!(ntfs.start, 2 * 1024 * 1024);
+    assert_eq!(ntfs.repairs.len(), 1);
+    // Scan the lost volume through the request's range: the corpus files
+    // are found as if the partition were listed.
+    let request = ScanRequest {
+        source: img.clone(),
+        partition: None,
+        volume: Some(phoinix_session::dto::VolumeRange::from_candidate(ntfs)),
+        mode: ScanMode::Quick,
+        examine_content: true,
+        carve: CarveSettings::default(),
+    };
+    let outcome = ws.scan(&request, &mut |_| {});
+    outcome.result.as_ref().unwrap();
+    let mut session = outcome.session.unwrap();
+    assert!(session.volume.lost && session.volume.repairs.len() == 1);
+    assert_eq!(session.volume.filesystem, FileSystemType::Ntfs);
+    assert!(
+        session.candidates.len() >= 5,
+        "{}",
+        session.candidates.len()
+    );
+    // Persisted sessions keep the range and repairs, so recovery reopens
+    // the same virtual mount.
+    let path = ws.save_session(&mut session, None).unwrap();
+    let loaded = ws.load_session(&path).unwrap();
+    assert_eq!(loaded.volume.repairs, ntfs.repairs);
+    let exact = loaded
+        .candidates
+        .iter()
+        .find(|c| c.health.category >= HealthCategory::VeryGood)
+        .unwrap();
+    let req = RecoverRequest {
+        candidates: vec![exact.id],
+        destination: dir.path().join("out"),
+        preserve_tree: false,
+        preserve_timestamps: false,
+        hash: true,
+        overwrite: false,
+        allow_same_device: false,
+    };
+    let items = ws.recover(&req, &mut |_| {}).unwrap();
+    assert!(items[0].result.as_ref().unwrap().complete, "{:?}", items[0]);
 }

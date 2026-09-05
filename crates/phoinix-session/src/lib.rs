@@ -31,4 +31,4 @@ mod workspace;
 pub use error::SessionError;
 pub use scan::ScanOutcome;
 pub use session::ScanSession;
-pub use workspace::{ScanHandle, Workspace};
+pub use workspace::{ScanHandle, SearchHandle, Workspace};

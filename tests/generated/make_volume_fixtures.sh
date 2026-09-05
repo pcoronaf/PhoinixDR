@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the partition-table fixtures under tests/fixtures/volume.
 #
-# Requires: sfdisk, sgdisk, mkntfs (ntfs-3g), mkfs.vfat (dosfstools), gzip.
+# Requires: sfdisk, sgdisk, mkntfs (ntfs-3g), mkfs.vfat (dosfstools), mke2fs, gzip.
 # The images are mostly zeros and compress to a few dozen kilobytes.
 #
 # Usage: tests/generated/make_volume_fixtures.sh [output-dir]
@@ -65,6 +65,13 @@ disk="$work/ntfs-bare.img"
 truncate -s "$(mib 16)" "$disk"
 mkntfs -F -q -s 512 -c 4096 -L BARE "$disk" >/dev/null 2>&1
 gzip -9 -n -c "$disk" > "$out/ntfs-bare.img.gz"
+
+# --- ext4-bare: an ext4 volume with 1 KiB blocks (two block groups, so a
+# backup superblock exists at block 8193) for partition recovery tests ---
+disk="$work/ext4-bare.img"
+truncate -s "$(mib 16)" "$disk"
+mke2fs -q -t ext4 -b 1024 -L PHXEXT4 -U 0b0b0b0b-1111-4222-8333-444444444444 "$disk"
+gzip -9 -n -c "$disk" > "$out/ext4-bare.img.gz"
 
 echo "fixtures written to $out"
 ls -l "$out"

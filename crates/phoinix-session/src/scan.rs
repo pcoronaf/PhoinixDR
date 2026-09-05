@@ -10,7 +10,7 @@ use phoinix_health::CandidateSource;
 use crate::SessionError;
 use crate::dto::{CandidateSummary, ScanEvent, ScanMode, ScanPhase, ScanRequest};
 use crate::session::{ScanSession, now};
-use crate::source::{OpenVolume, open_volume};
+use crate::source::{OpenVolume, VolumeChoice, open_volume_with};
 
 /// Candidates per `ScanEvent::Candidates` batch.
 pub const BATCH: usize = 64;
@@ -39,7 +39,8 @@ pub fn run_scan(
     sink(ScanEvent::Phase {
         phase: ScanPhase::Opening,
     });
-    let volume = match open_volume(&request.source, request.partition, request.examine_content) {
+    let choice = VolumeChoice::from_request(request.partition, request.volume.as_ref());
+    let volume = match open_volume_with(&request.source, &choice, request.examine_content) {
         Ok(v) => v,
         Err(e) => {
             sink(ScanEvent::Failed {

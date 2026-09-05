@@ -355,3 +355,102 @@ fn deep_scan_carves_orphans_and_recovers_them() {
     assert!(!ok);
     assert!(err.contains("failed"), "{err}");
 }
+
+#[test]
+fn partitions_are_found_and_lost_volumes_are_scanned() {
+    let dir = tempfile::tempdir().unwrap();
+    // A raw area: 1 MiB of zeros, the NTFS undelete corpus with its primary
+    // boot sector destroyed, then the FAT32 corpus.
+    let ntfs = std::fs::read(fixture("ntfs/undelete.img.gz", dir.path())).unwrap();
+    let fat = std::fs::read(fixture("fat/fat32.img.gz", dir.path())).unwrap();
+    let mut image = vec![0u8; 1024 * 1024];
+    let ntfs_start = image.len();
+    image.extend_from_slice(&ntfs);
+    for b in &mut image[ntfs_start..ntfs_start + 512] {
+        *b = 0;
+    }
+    image.extend(std::iter::repeat_n(0, 1024 * 1024));
+    let fat_start = image.len();
+    image.extend_from_slice(&fat);
+    let raw = dir.path().join("raw.bin");
+    std::fs::write(&raw, &image).unwrap();
+    let raw_s = raw.to_str().unwrap();
+
+    // Without the search there is nothing to scan.
+    let (ok, _, err) = phoinix(&["scan", raw_s]);
+    assert!(!ok);
+    assert!(err.contains("no undelete engine"), "{err}");
+
+    let (ok, out, err) = phoinix(&["partitions", raw_s]);
+    assert!(ok, "{err}");
+    assert!(out.contains("NTFS") && out.contains("FAT32"), "{out}");
+    assert!(out.contains("backup boot sector"), "{out}");
+    assert!(out.contains("LOST"), "{out}");
+    let (ok, out, _) = phoinix(&["partitions", raw_s, "--json"]);
+    assert!(ok);
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let candidates = json["candidates"].as_array().unwrap();
+    assert_eq!(candidates.len(), 2, "{out}");
+    let ntfs_c = candidates
+        .iter()
+        .find(|c| c["filesystem"] == "ntfs")
+        .unwrap();
+    assert_eq!(ntfs_c["start"].as_u64().unwrap(), ntfs_start as u64);
+    assert_eq!(ntfs_c["found_via"], "backup_boot_sector");
+    assert_eq!(ntfs_c["relation"]["kind"], "lost");
+    assert_eq!(ntfs_c["repairs"].as_array().unwrap().len(), 1);
+    let ntfs_index = candidates
+        .iter()
+        .position(|c| c["filesystem"] == "ntfs")
+        .unwrap()
+        + 1;
+    let fat_c = candidates
+        .iter()
+        .find(|c| c["filesystem"] == "fat32")
+        .unwrap();
+    assert_eq!(fat_c["start"].as_u64().unwrap(), fat_start as u64);
+
+    // --lost mounts the candidate with its repair: the corpus is scannable
+    // and a candidate recovers byte-exactly.
+    let (ok, out, err) = phoinix(&["scan", raw_s, "--lost", &ntfs_index.to_string(), "--json"]);
+    assert!(ok, "{err}");
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(json["filesystem"], "NTFS");
+    let rows = json["candidates"].as_array().unwrap();
+    assert!(rows.len() >= 5, "{out}");
+    let best = rows
+        .iter()
+        .find(|c| c["health"]["category"] == "excellent")
+        .unwrap();
+    let reference = best["filesystem_object"]["record"]
+        .as_u64()
+        .unwrap()
+        .to_string();
+    let dest = dir.path().join("lost-out");
+    let (ok, out, err) = phoinix(&[
+        "recover",
+        raw_s,
+        "--lost",
+        &ntfs_index.to_string(),
+        &reference,
+        "--output",
+        dest.to_str().unwrap(),
+    ]);
+    assert!(ok, "{err}");
+    assert!(out.contains("SHA-256"), "{out}");
+
+    // --at addresses the FAT32 volume by offset (its boot sector is intact).
+    let (ok, out, err) = phoinix(&[
+        "scan",
+        raw_s,
+        "--at",
+        &fat_start.to_string(),
+        "--length",
+        &fat.len().to_string(),
+    ]);
+    assert!(ok, "{err}");
+    assert!(out.contains("FAT32 volume"), "{out}");
+    let (ok, _, err) = phoinix(&["scan", raw_s, "--lost", "9"]);
+    assert!(!ok);
+    assert!(err.contains("does not exist"), "{err}");
+}

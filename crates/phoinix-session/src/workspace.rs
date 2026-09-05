@@ -15,12 +15,13 @@ use phoinix_health::CandidateSource;
 use crate::SessionError;
 use crate::dto::{
     DestinationInfo, Preview, RecoverEvent, RecoverItem, RecoverRequest, ScanEvent, ScanRequest,
-    SessionSummary, SourceInfo,
+    SearchEvent, SessionSummary, SourceInfo,
 };
 use crate::scan::ScanOutcome;
 use crate::session::{EXTENSION, ScanSession};
-use crate::source::{inspect, open_volume};
+use crate::source::{VolumeChoice, inspect, open_volume_with, search_partitions};
 use crate::{preview, recover, scan};
+use phoinix_partition_recovery::{PartitionCandidate, SearchOptions};
 
 /// A running scan.
 pub struct ScanHandle {
@@ -51,6 +52,23 @@ impl ScanHandle {
                     "the scan was already collected".into(),
                 )),
             },
+        }
+    }
+}
+
+/// A running structure search.
+pub struct SearchHandle {
+    /// Events, in order; the last one is `Finished` or `Failed`.
+    pub events: Receiver<SearchEvent>,
+    join: Option<JoinHandle<Result<Vec<PartitionCandidate>, SessionError>>>,
+}
+
+impl SearchHandle {
+    /// Waits for the search.
+    pub fn wait(mut self) -> Result<Vec<PartitionCandidate>, SessionError> {
+        match self.join.take().map(JoinHandle::join) {
+            Some(Ok(r)) => r,
+            _ => Err(SessionError::Invalid("the search thread failed".into())),
         }
     }
 }
@@ -94,6 +112,50 @@ impl Workspace {
     /// See [`inspect`].
     pub fn inspect(&self, path: &Path) -> Result<SourceInfo, SessionError> {
         inspect(path)
+    }
+
+    /// Runs the structure search (lost partitions) synchronously.
+    ///
+    /// # Errors
+    ///
+    /// See [`search_partitions`].
+    pub fn find_partitions(
+        &self,
+        path: &Path,
+        options: &SearchOptions,
+        progress: &mut dyn FnMut(u64, u64),
+    ) -> Result<Vec<PartitionCandidate>, SessionError> {
+        search_partitions(path, options, progress)
+    }
+
+    /// Starts the structure search on a background thread.
+    #[must_use]
+    pub fn start_partition_search(&self, path: PathBuf, options: SearchOptions) -> SearchHandle {
+        let (tx, rx) = channel();
+        let join = std::thread::Builder::new()
+            .name("phoinix-partition-search".into())
+            .spawn(move || {
+                let progress_tx = tx.clone();
+                let mut progress = |done: u64, total: u64| {
+                    let _ = progress_tx.send(SearchEvent::Progress { done, total });
+                };
+                let result = search_partitions(&path, &options, &mut progress);
+                match &result {
+                    Ok(candidates) => {
+                        let _ = tx.send(SearchEvent::Finished {
+                            candidates: candidates.clone(),
+                        });
+                    }
+                    Err(e) => {
+                        let _ = tx.send(SearchEvent::Failed {
+                            message: e.to_string(),
+                        });
+                    }
+                }
+                result
+            })
+            .ok();
+        SearchHandle { events: rx, join }
     }
 
     /// Starts a scan on a background thread.
@@ -239,7 +301,11 @@ impl Workspace {
         let candidate = session
             .candidate(id)
             .ok_or_else(|| SessionError::NotFound(format!("candidate {id} not found")))?;
-        let volume = open_volume(&session.source, session.volume.partition, false)?;
+        let volume = open_volume_with(
+            &session.source,
+            &VolumeChoice::reopen(&session.volume),
+            false,
+        )?;
         let carver;
         let provider: &dyn DeletedFileProvider =
             if candidate.evidence.source == CandidateSource::FileCarving {
