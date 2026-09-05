@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoinixDR · Recuperación de datos de código abierto</title>
+<meta name="description" content="PhoinixDR recupera archivos perdidos de volúmenes NTFS, FAT, exFAT y EXT, imágenes de disco y particiones perdidas, y le dice qué probabilidad tiene cada archivo de estar intacto. Código abierto, solo lectura por diseño, por @pcoronaf.">
+<link rel="icon" href="../assets/favicon.png">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="../assets/logo-mark.png" alt="" width="28" height="28"> PhoinixDR</a>
+  <nav>
+    <a href="docs/index.html">Documentación</a>
+    <a href="docs/user-guide/desktop.html">Guía de usuario</a>
+    <a href="download.html">Descargar</a>
+    <a href="community.html">Comunidad</a>
+    <a href="https://github.com/pcoronaf/PhoinixDR">GitHub</a>
+    <a class="lang" href="../index.html" hreflang="en">English</a>
+  </nav>
+</header>
+<main>
+  <section class="hero">
+    <div class="logo-panel"><img src="../assets/logo.png" alt="PhoinixDR — Lost data lives again"></div>
+    <div class="tag">Recuperación de datos de código abierto</div>
+    <p class="lead">Recupere archivos perdidos.<br>Conozca sus posibilidades.</p>
+    <p class="sub">Recuperación basada en evidencia desde discos, memorias USB, tarjetas SD e imágenes de disco. Nunca se escribe nada en la fuente.</p>
+    <div class="buttons">
+      <a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">Descargar para Windows</a>
+      <a class="btn" href="download.html">Otras plataformas</a>
+      <a class="btn" href="https://github.com/pcoronaf/PhoinixDR">Ver en GitHub</a>
+    </div>
+    <p class="note">Un único ejecutable, sin instalación. Windows 10 (21H2+) u 11. <a href="download.html">Sumas de comprobación y detalles</a>.</p>
+    <p class="note">PhoinixDR se proporciona «tal cual» y se utiliza enteramente bajo su propio riesgo. La recuperación de datos es incierta por naturaleza, y un uso inadecuado puede provocar la pérdida permanente de datos o daños. Siempre que sea posible, trabaje a partir de una copia o de una imagen de disco y recupere los archivos en un dispositivo de almacenamiento distinto.</p>
+  </section>
+
+  <section class="block">
+    <h2>Recupere archivos borrados</h2>
+    <div class="fs">
+      <span>NTFS</span><span>FAT12 / FAT16 / FAT32</span><span>exFAT</span><span>EXT2 / EXT3 / EXT4</span><span>… y cualquier volumen mediante tallado de archivos</span>
+    </div>
+    <p>Lectores nativos para cada sistema de archivos encuentran los registros borrados, reconstruyen nombres y rutas y, en ext3/ext4, rescatan las disposiciones desde el diario. Lo que no tiene un sistema de archivos reconocible se talla por firma.</p>
+  </section>
+
+  <section class="block two">
+    <div>
+      <h2>Sepa antes de recuperar</h2>
+      <p>PHOINIX no se limita a encontrar archivos borrados. Analiza la evidencia que determina si los datos originales siguen siendo recuperables.</p>
+      <p>Cada archivo lleva una <strong>probabilidad de recuperación</strong> y una <strong>confianza de la evaluación</strong>, y cada número viene con sus razones: ¿se conoce la disposición?, ¿se han reutilizado sus clústeres?, ¿el contenido sigue validándose como JPEG, PDF o ZIP?</p>
+      <p><a href="docs/recovery/health-model.html">Cómo funciona el modelo de salud →</a></p>
+    </div>
+    <div class="demo">
+      <div class="row"><span>propuesta.docx</span><span class="good">Excellent</span><span class="good">98%</span></div>
+      <div class="row"><span>familia.jpg</span><span class="good">Very good</span><span class="good">91%</span></div>
+      <div class="row"><span>archivo.zip</span><span class="mid">Poor</span><span class="mid">37%</span></div>
+      <div class="row"><span>borrada.jpg</span><span class="bad">Very poor</span><span class="bad">20%</span></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Un motor, todas las situaciones</h2>
+    <div class="cards">
+      <div class="card"><h3>Escaneo rápido</h3><p>Archivos borrados a través de los metadatos del sistema de archivos: nombres, rutas, fechas y disposiciones en segundos.</p></div>
+      <div class="card"><h3>Escaneo profundo</h3><p>Talla el espacio no asignado por firma y valida la estructura de cada archivo. Encuentra lo que los metadatos ya no describen.</p></div>
+      <div class="card"><h3>Recuperación de particiones</h3><p>Encuentra volúmenes perdidos por sus propias estructuras y los monta virtualmente. La tabla de particiones nunca se reescribe.</p></div>
+      <div class="card"><h3>Tallado de archivos</h3><p>JPEG, PNG, GIF, BMP, PDF, ZIP y Office, SQLite, RIFF, MP4, 7z, y sus propias firmas.</p></div>
+      <div class="card"><h3>Imágenes de disco</h3><p>RAW, RAW dividida, E01 y E01 dividida, VHD, VHDX, VMDK, con verificación de hashes e informes de caso para el trabajo forense.</p></div>
+      <div class="card"><h3>Línea de comandos</h3><p>El mismo motor que <code>phoinix</code>: automatizable, JSON en todas partes, puntuaciones explicables.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Código abierto por diseño</h2>
+    <p>Solo lectura respecto a la fuente, puntuaciones explicables, fixtures deterministas con verdad criptográfica, registros de decisión para cada elección de arquitectura. PHOINIX se construye a la vista de todos para que el código y las decisiones que hay detrás puedan inspeccionarse y cuestionarse. <a href="docs/about/vibecoded.html">Sí, PHOINIX está «vibecodeado»</a>, y deliberadamente; lea <a href="docs/about/origin.html">de dónde viene</a>.</p>
+    <div class="buttons" style="justify-content:flex-start">
+      <a class="btn" href="https://github.com/pcoronaf/PhoinixDR">Ver el código</a>
+      <a class="btn" href="docs/index.html">Documentación</a>
+      <a class="btn" href="community.html">Contribuir</a>
+    </div>
+  </section>
+</main>
+<footer class="foot">
+  <p class="disclaimer">PhoinixDR se proporciona «tal cual» y se utiliza enteramente bajo su propio riesgo. La recuperación de datos es incierta por naturaleza, y un uso inadecuado puede provocar la pérdida permanente de datos o daños. Siempre que sea posible, trabaje a partir de una copia o de una imagen de disco y recupere los archivos en un dispositivo de almacenamiento distinto. <a href="docs/disclaimer.html">Lea el aviso legal</a>.</p>
+  <p>PhoinixDR · Recuperación de datos de código abierto · by <a href="https://github.com/pcoronaf">@pcoronaf</a> · MIT OR Apache-2.0 ·
+  <a href="docs/about/vibecoded.html">Sí, PHOINIX está «vibecodeado»</a> ·
+  <a href="docs/about/origin.html">De dónde viene PHOINIX</a></p>
+</footer>
+</body>
+</html>

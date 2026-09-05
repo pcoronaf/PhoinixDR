@@ -6,6 +6,9 @@ GitHub Releases.
 
 ## Unreleased
 
+- Spanish documentation (docs/es) and website (`/es/`): guides, FAQ,
+  about pages, disclaimer and release requirement, with a language switch
+  and English fallback for untranslated pages.
 - Windows portable release requirement (REL-001) and the release workflow
   that produces single-executable builds with SHA-256 sums.
 - Disclaimer ("provided as is, used at your own risk") in the README,

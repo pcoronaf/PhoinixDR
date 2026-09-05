@@ -2,12 +2,12 @@
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    PhoinixDR Desktop (future)                 │
+│                    PhoinixDR Desktop (apps/desktop)          │
 │                    Tauri 2 + React/TS                       │
 └───────────────────────────┬─────────────────────────────────┘
-                            │ typed local IPC
+                            │ in-process service layer (phoinix-session, ADR-0010)
 ┌───────────────────────────▼─────────────────────────────────┐
-│                     phoinixd (future)                       │
+│           phoinixd (future out-of-process service)          │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐

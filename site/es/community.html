@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comunidad · PhoinixDR</title>
+<link rel="icon" href="../assets/favicon.png">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="../assets/logo-mark.png" alt="" width="28" height="28"> PhoinixDR</a>
+  <nav>
+    <a href="docs/index.html">Documentación</a>
+    <a href="docs/user-guide/desktop.html">Guía de usuario</a>
+    <a href="download.html">Descargar</a>
+    <a href="community.html">Comunidad</a>
+    <a href="https://github.com/pcoronaf/PhoinixDR">GitHub</a>
+    <a class="lang" href="../community.html" hreflang="en">English</a>
+  </nav>
+</header>
+<main class="doc">
+  <h1>Comunidad</h1>
+  <p>PhoinixDR lo desarrolla a la vista de todos <a href="https://github.com/pcoronaf">@pcoronaf</a>. Todo ocurre en GitHub (en inglés).</p>
+  <div class="cards">
+    <div class="card"><h3><a href="https://github.com/pcoronaf/PhoinixDR/issues">Incidencias</a></h3><p>Informes de errores y peticiones de funciones. Para una recuperación que salió mal, incluya la salida de <code>phoinix explain</code> y, cuando pueda, una imagen del volumen.</p></div>
+    <div class="card"><h3><a href="https://github.com/pcoronaf/PhoinixDR/discussions">Discusiones</a></h3><p>Preguntas, historias de recuperación, ideas y conversaciones de diseño.</p></div>
+    <div class="card"><h3><a href="docs/contributing.html">Contribuir</a></h3><p>Cómo está organizado el espacio de trabajo, las reglas de código (solo lectura, sin pánicos ante medios malformados, dependencias conservadoras) y cómo añadir un motor de sistema de archivos o una firma de tallado.</p></div>
+    <div class="card"><h3><a href="docs/security.html">Seguridad</a></h3><p>El modelo de amenazas y cómo notificar una vulnerabilidad de forma privada.</p></div>
+    <div class="card"><h3><a href="docs/code-of-conduct.html">Código de conducta</a></h3><p>Lo que esperamos unos de otros.</p></div>
+    <div class="card"><h3><a href="docs/testing/real-hardware.html">Probar en hardware real</a></h3><p>Un procedimiento repetible para probar PhoinixDR con sus propias memorias USB y discos y contar lo que observa.</p></div>
+  </div>
+  <h2>Formas de ayudar</h2>
+  <ul>
+    <li><strong>Pruébelo en un dispositivo real</strong> e informe tanto de los éxitos como de los fallos con la evidencia que PhoinixDR imprime.</li>
+    <li><strong>Aporte fixtures:</strong> imágenes de disco pequeñas con contenido conocido y escenarios de borrado hacen verificables los motores de recuperación.</li>
+    <li><strong>Revise la ingeniería:</strong> los analizadores de sistemas de archivos, el modelo de salud y los registros de decisión están pensados para ser cuestionados. Véase la <a href="docs/about/development-declaration.html">Declaración de desarrollo</a>.</li>
+    <li><strong>Documentación y traducciones.</strong> Esta versión en español agradece revisiones.</li>
+  </ul>
+  <h2>Hoja de ruta</h2>
+  <p>Los hitos M0 a M11 de la especificación técnica están implementados. A continuación: calibración del modelo de salud con corpus más grandes, HFS+/APFS, XFS/Btrfs, reensamblado de LVM y RAID. Siga el <a href="docs/changelog.html">registro de cambios</a>.</p>
+</main>
+<footer class="foot">
+  <p class="disclaimer">PhoinixDR se proporciona «tal cual» y se utiliza enteramente bajo su propio riesgo. La recuperación de datos es incierta por naturaleza, y un uso inadecuado puede provocar la pérdida permanente de datos o daños. Siempre que sea posible, trabaje a partir de una copia o de una imagen de disco y recupere los archivos en un dispositivo de almacenamiento distinto. <a href="docs/disclaimer.html">Lea el aviso legal</a>.</p>
+  <p>PhoinixDR · Recuperación de datos de código abierto · by <a href="https://github.com/pcoronaf">@pcoronaf</a> · MIT OR Apache-2.0 ·
+  <a href="docs/about/vibecoded.html">Sí, PHOINIX está «vibecodeado»</a> ·
+  <a href="docs/about/origin.html">De dónde viene PHOINIX</a></p>
+</footer>
+</body>
+</html>

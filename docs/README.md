@@ -1,5 +1,7 @@
 # PhoinixDR documentation
 
+[Versión en español](es/README.md)
+
 ## Start here
 
 - [Getting started](getting-started.md): download, build, first recovery

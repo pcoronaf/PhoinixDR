@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Descargar · PhoinixDR</title>
+<link rel="icon" href="../assets/favicon.png">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="../assets/logo-mark.png" alt="" width="28" height="28"> PhoinixDR</a>
+  <nav>
+    <a href="docs/index.html">Documentación</a>
+    <a href="docs/user-guide/desktop.html">Guía de usuario</a>
+    <a href="download.html">Descargar</a>
+    <a href="community.html">Comunidad</a>
+    <a href="https://github.com/pcoronaf/PhoinixDR">GitHub</a>
+    <a class="lang" href="../download.html" hreflang="en">English</a>
+  </nav>
+</header>
+<main class="doc">
+  <h1>Descargar</h1>
+  <p>Cada versión se publica en <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest">GitHub Releases</a> con un <code>SHA256SUMS.txt</code>. Los enlaces siguientes apuntan siempre a la última versión.</p>
+  <div class="dl">
+    <div class="card">
+      <h3>Windows · escritorio (portable)</h3>
+      <p>Un único ejecutable, sin instalación y sin dependencias instaladas por separado. Windows 10 (21H2 o posterior) o Windows 11, 64 bits; usa el entorno WebView2 incluido en Windows. Ejecútelo como administrador para escanear discos físicos.</p>
+      <p><a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">PhoinixDR-windows-x64-portable.exe</a></p>
+    </div>
+    <div class="card">
+      <h3>Windows · línea de comandos</h3>
+      <p>La herramienta <code>phoinix</code>: inspect, verify, scan, explain, recover, con salida JSON para automatizar.</p>
+      <p><a class="btn" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/phoinix-windows-x64.exe">phoinix-windows-x64.exe</a></p>
+    </div>
+    <div class="card">
+      <h3>Linux · x86-64</h3>
+      <p>Los dos ejecutables en un archivo tar. El binario de escritorio necesita WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code>, <code>libgtk-3-0</code>, <code>libayatana-appindicator3-1</code>). Los dispositivos requieren <code>sudo</code>.</p>
+      <p><a class="btn" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/phoinix-linux-x64.tar.gz">phoinix-linux-x64.tar.gz</a></p>
+    </div>
+    <div class="card">
+      <h3>Sumas de comprobación</h3>
+      <p>Compare la descarga con las sumas publicadas antes de ejecutarla.</p>
+      <code>Get-FileHash .\PhoinixDR-windows-x64-portable.exe -Algorithm SHA256</code>
+      <code>sha256sum -c SHA256SUMS.txt</code>
+      <p><a class="btn" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a></p>
+    </div>
+  </div>
+  <h2>Compilar desde el código fuente</h2>
+  <p>PhoinixDR es un espacio de trabajo de Rust con una capa de escritorio Tauri 2. La <a href="docs/getting-started.html">guía de primeros pasos</a> detalla los pasos para Windows y Linux; en macOS se compila la línea de comandos, pero el acceso a dispositivos aún no está admitido.</p>
+  <h2>Antes de empezar</h2>
+  <ul>
+    <li>Deje de usar el disco afectado. Cada escritura puede sobrescribir lo que quiere recuperar.</li>
+    <li>Recupere en un disco distinto. PhoinixDR rechaza un destino en el disco de origen.</li>
+    <li>Si la unidad está fallando, cree primero una imagen (<code>dd</code>, ewfacquire, FTK Imager) y trabaje sobre la imagen; PhoinixDR lee directamente imágenes RAW, E01, VHD, VHDX y VMDK.</li>
+  </ul>
+</main>
+<footer class="foot">
+  <p class="disclaimer">PhoinixDR se proporciona «tal cual» y se utiliza enteramente bajo su propio riesgo. La recuperación de datos es incierta por naturaleza, y un uso inadecuado puede provocar la pérdida permanente de datos o daños. Siempre que sea posible, trabaje a partir de una copia o de una imagen de disco y recupere los archivos en un dispositivo de almacenamiento distinto. <a href="docs/disclaimer.html">Lea el aviso legal</a>.</p>
+  <p>PhoinixDR · Recuperación de datos de código abierto · by <a href="https://github.com/pcoronaf">@pcoronaf</a> · MIT OR Apache-2.0 ·
+  <a href="docs/about/vibecoded.html">Sí, PHOINIX está «vibecodeado»</a> ·
+  <a href="docs/about/origin.html">De dónde viene PHOINIX</a></p>
+</footer>
+</body>
+</html>

@@ -11,7 +11,8 @@ Lost data lives again. Recover lost files. Understand your chances.</p>
   <a href="https://pcoronaf.github.io/PhoinixDR/">Website</a> ·
   <a href="docs/README.md">Documentation</a> ·
   <a href="docs/user-guide/desktop.md">User guide</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="docs/es/README.md">Documentación en español</a>
 </p>
 
 PhoinixDR (PHOINIX Data Recovery) is a data-recovery engine, command-line
