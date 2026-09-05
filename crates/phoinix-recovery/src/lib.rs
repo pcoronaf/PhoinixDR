@@ -10,8 +10,13 @@
 
 mod destination;
 mod names;
+mod report;
 mod writer;
 
 pub use destination::{DestinationCheck, check_destination};
 pub use names::{sanitize_component, sanitize_relative_path};
+pub use report::{
+    CaseMetadata, RecoveryReport, ReportFormat, ReportItem, ReportSource, ReportSummary,
+    ReportVolume,
+};
 pub use writer::{RecoveryError, RecoveryRequest, RecoveryResult, RecoveryWriter};

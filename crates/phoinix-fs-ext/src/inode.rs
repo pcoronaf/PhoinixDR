@@ -193,8 +193,8 @@ fn verify_checksum(number: u32, bytes: &[u8], sb: &Superblock, extra_isize: u16)
         0
     };
     let generation = v.u32_le(100).unwrap_or(0);
-    let mut crc = crate::crc32c::update(sb.csum_seed, &number.to_le_bytes());
-    crc = crate::crc32c::update(crc, &generation.to_le_bytes());
+    let mut crc = phoinix_core::crc32c::update(sb.csum_seed, &number.to_le_bytes());
+    crc = phoinix_core::crc32c::update(crc, &generation.to_le_bytes());
     let mut copy = bytes.to_vec();
     if let Some(s) = copy.get_mut(124..126) {
         s.copy_from_slice(&[0, 0]);
@@ -202,7 +202,7 @@ fn verify_checksum(number: u32, bytes: &[u8], sb: &Superblock, extra_isize: u16)
     if has_hi && let Some(s) = copy.get_mut(130..132) {
         s.copy_from_slice(&[0, 0]);
     }
-    crc = crate::crc32c::update(crc, &copy);
+    crc = phoinix_core::crc32c::update(crc, &copy);
     if has_hi {
         crc == (u32::from(hi) << 16 | u32::from(lo))
     } else {

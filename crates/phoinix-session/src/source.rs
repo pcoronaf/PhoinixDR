@@ -6,13 +6,14 @@ use std::sync::Arc;
 
 use phoinix_block::BlockReader;
 use phoinix_core::FileSystemType;
-use phoinix_device::{open_source, platform_enumerator};
+use phoinix_device::{open_source_described, platform_enumerator};
 use phoinix_fs::{AllocationView, DeletedFileProvider, FsError, ProbeRegistry, WholeSource};
 use phoinix_fs_exfat::{ExFatProbe, ExfatUndelete, ExfatVolume};
 use phoinix_fs_ext::{ExtProbe, ExtUndelete, ExtVolume};
 use phoinix_fs_fat::{FatProbe, FatUndelete, FatVolume};
 use phoinix_fs_ntfs::{NtfsProbe, NtfsUndelete, NtfsVolume};
 use phoinix_health::{DeviceKind, StorageEvidence};
+use phoinix_image::ContainerInfo;
 use phoinix_partition_recovery::{PartitionCandidate, SearchOptions, find_partitions, open_range};
 use phoinix_volume::{PartitionScheme, PartitionTable, read_partition_table};
 
@@ -79,6 +80,8 @@ pub struct OpenedSource {
     pub reader: Arc<dyn BlockReader>,
     /// Its partition table.
     pub table: PartitionTable,
+    /// The image container, for image files.
+    pub container: Option<ContainerInfo>,
 }
 
 /// Opens `path` and reads its partition table.
@@ -87,9 +90,22 @@ pub struct OpenedSource {
 ///
 /// Returns [`SessionError`] if the source cannot be opened or read.
 pub fn open(path: &Path) -> Result<OpenedSource, SessionError> {
-    let reader = open_source(path)?;
-    let table = read_partition_table(&*reader)?;
-    Ok(OpenedSource { reader, table })
+    let opened = open_source_described(path)?;
+    let table = read_partition_table(&*opened.reader)?;
+    Ok(OpenedSource {
+        reader: opened.reader,
+        table,
+        container: opened.container,
+    })
+}
+
+/// The container description of an image source, if it is one.
+#[must_use]
+pub fn container_of(path: &Path) -> Option<ContainerInfo> {
+    if is_device_path(path) {
+        return None;
+    }
+    open_source_described(path).ok().and_then(|o| o.container)
 }
 
 fn volume_info(
@@ -205,6 +221,7 @@ pub fn inspect(path: &Path) -> Result<SourceInfo, SessionError> {
         sector_size: reader.geometry().logical_sector_size,
         scheme: format!("{:?}", opened.table.scheme),
         volumes,
+        container: opened.container,
         diagnostics: opened
             .table
             .diagnostics

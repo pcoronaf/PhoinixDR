@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use phoinix_block::{BlockReader, SourceFingerprint};
 use phoinix_core::fmt::{bytes_si, grouped};
 use phoinix_fs::Detection;
+use phoinix_image::ContainerInfo;
 use phoinix_volume::{PartitionScheme, PartitionTable};
 use serde::Serialize;
 
@@ -27,6 +28,8 @@ pub struct Args {
 #[derive(Serialize)]
 struct Report {
     source: SourceReport,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    container: Option<ContainerInfo>,
     partition_table: PartitionTable,
     volumes: Vec<VolumeReport>,
 }
@@ -91,6 +94,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             physical_sector_size: reader.geometry().physical_sector_size,
             fingerprint,
         },
+        container: opened.container.clone().filter(ContainerInfo::is_container),
         partition_table: table.clone(),
         volumes,
     };
@@ -139,6 +143,11 @@ fn print_text(report: &Report) {
             "  Fingerprint:  {}",
             phoinix_block::to_hex(&fp.first_mib_sha256)
         );
+    }
+
+    if let Some(c) = &report.container {
+        outln!();
+        print_container(c);
     }
 
     let t = &report.partition_table;
@@ -274,5 +283,79 @@ fn print_text(report: &Report) {
             None => outln!("   FS:       unknown"),
         }
         outln!();
+    }
+}
+
+/// Prints the container section shared by `inspect` and `verify`.
+pub fn print_container(c: &ContainerInfo) {
+    outln!("Image container");
+    outln!("  Format:       {} ({})", c.format, c.variant);
+    if c.segments.len() > 1 {
+        outln!(
+            "  Segments:     {} files, {} … {}",
+            c.segments.len(),
+            c.segments
+                .first()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+            c.segments
+                .last()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
+        );
+    }
+    outln!(
+        "  Media size:   {} bytes ({}), {}-byte sectors",
+        grouped(c.size),
+        bytes_si(c.size),
+        c.sector_size
+    );
+    if let Some(u) = c.unit_size {
+        outln!(
+            "  Unit:         {} bytes per chunk/block",
+            grouped(u64::from(u))
+        );
+    }
+    if let Some(m) = &c.compression {
+        outln!("  Compression:  {m}");
+    }
+    if let Some(m) = &c.media_type {
+        outln!("  Media type:   {m}");
+    }
+    if let Some(id) = &c.identifier {
+        outln!("  Identifier:   {id}");
+    }
+    if let Some(md5) = &c.stored_hashes.md5 {
+        outln!("  Stored MD5:   {md5}");
+    }
+    if let Some(sha1) = &c.stored_hashes.sha1 {
+        outln!("  Stored SHA-1: {sha1}");
+    }
+    if let Some(n) = c.acquisition_errors {
+        outln!("  Read errors:  {n} sector ranges the imaging tool could not read");
+    }
+    if let Some(a) = &c.acquisition {
+        outln!("  Acquisition:");
+        let rows: [(&str, &Option<String>); 11] = [
+            ("case number", &a.case_number),
+            ("evidence number", &a.evidence_number),
+            ("description", &a.description),
+            ("examiner", &a.examiner),
+            ("notes", &a.notes),
+            ("acquired", &a.acquisition_date),
+            ("system date", &a.system_date),
+            ("software", &a.software_version),
+            ("operating system", &a.operating_system),
+            ("model", &a.model),
+            ("serial number", &a.serial_number),
+        ];
+        for (k, v) in rows {
+            if let Some(v) = v {
+                outln!("    {k:<17} {v}");
+            }
+        }
+    }
+    for d in &c.diagnostics {
+        outln!("  ⚠ {d}");
     }
 }

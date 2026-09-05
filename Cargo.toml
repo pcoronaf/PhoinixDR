@@ -11,6 +11,7 @@ members = [
     "crates/phoinix-fs-fat",
     "crates/phoinix-fs-exfat",
     "crates/phoinix-fs-ext",
+    "crates/phoinix-image",
     "crates/phoinix-health",
     "crates/phoinix-carve",
     "crates/phoinix-recovery",
@@ -43,6 +44,7 @@ phoinix-fs-ntfs = { path = "crates/phoinix-fs-ntfs" }
 phoinix-fs-fat = { path = "crates/phoinix-fs-fat" }
 phoinix-fs-exfat = { path = "crates/phoinix-fs-exfat" }
 phoinix-fs-ext = { path = "crates/phoinix-fs-ext" }
+phoinix-image = { path = "crates/phoinix-image" }
 phoinix-health = { path = "crates/phoinix-health" }
 phoinix-carve = { path = "crates/phoinix-carve" }
 phoinix-session = { path = "crates/phoinix-session" }
@@ -57,6 +59,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
 sha2 = "0.10"
+md-5 = "0.10"
+sha1 = "0.10"
+flate2 = "1"
 crc32fast = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 bitflags = { version = "2", features = ["serde"] }

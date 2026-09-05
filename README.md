@@ -13,13 +13,15 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 ```
 
 > **Status:** early engineering preview. The repository implements milestones
-> M0–M10 of the technical specification: the read-only block layer, MBR/GPT
+> M0–M11 of the technical specification: the read-only block layer, MBR/GPT
 > discovery, native NTFS, FAT12/16/32, exFAT and ext2/3/4 readers with
 > undelete (journal-assisted on ext3/ext4), deep
 > scan (signature carving of unallocated space), lost-partition recovery
-> (virtual mounts, no table writes), evidence-based recovery health, a
-> verified recovery writer, the `phoinix` CLI and a desktop application
-> (Tauri 2 + React) with sessions, previews and recovery.
+> (virtual mounts, no table writes), forensic and virtual-disk image
+> containers (E01, split E01, split RAW, VHD, VHDX, VMDK) with hash
+> verification and exportable recovery reports, evidence-based recovery
+> health, a verified recovery writer, the `phoinix` CLI and a desktop
+> application (Tauri 2 + React) with sessions, previews and recovery.
 
 ## Principles
 
@@ -60,6 +62,7 @@ crates/phoinix-fs-ntfs  native NTFS reader and undelete engine
 crates/phoinix-fs-fat   native FAT12/16/32 reader and undelete engine
 crates/phoinix-fs-exfat native exFAT reader and undelete engine
 crates/phoinix-fs-ext   native ext2/3/4 reader, jbd2 journal reader and undelete engine
+crates/phoinix-image    image containers (EWF/E01, split RAW, VHD, VHDX, VMDK) and hash verification
 crates/phoinix-health   recovery evidence model, scoring and explanations
 crates/phoinix-carve    deep scan: signature carving with structural assembly
 crates/phoinix-recovery recovery writer with destination safety and SHA-256 verification
@@ -149,7 +152,12 @@ ID   NAME                 SIZE      RECOVERY         CONF  PATH
 data" or "The JPEG image structure validates successfully".
 
 `scan`, `explain` and `recover` detect the volume's filesystem (NTFS, FAT12/16/32,
-exFAT or ext2/3/4) and use the matching engine. When a source contains a partition
+exFAT or ext2/3/4) and use the matching engine. Every command accepts a
+forensic or virtual-disk image (E01 and split E01, split RAW, VHD, VHDX,
+VMDK) in place of a RAW image; `phoinix verify` recomputes an image's
+hashes against the ones it stores, and `recover --report report.html`
+writes a recovery report with case metadata (`--case-number`,
+`--examiner`, …) and per-file SHA-256 digests. When a source contains a partition
 table they operate on the first supported partition by default; pass
 `--partition N` to choose another, or point them at a bare volume image.
 

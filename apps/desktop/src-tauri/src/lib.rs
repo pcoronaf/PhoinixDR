@@ -43,6 +43,7 @@ pub fn run() {
             commands::preview_candidate,
             commands::check_destination,
             commands::recover,
+            commands::verify_source,
             commands::app_info,
         ])
         .run(tauri::generate_context!());

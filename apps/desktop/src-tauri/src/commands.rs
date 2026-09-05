@@ -214,6 +214,35 @@ pub fn check_destination(
         .map_err(String::from)
 }
 
+/// Hashes a source and compares with the hashes its container stores;
+/// progress arrives as `verify-event`.
+#[tauri::command]
+pub async fn verify_source(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<phoinix_image::HashVerification, String> {
+    let workspace = state.workspace.clone();
+    let emitter = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut last = 0u64;
+        workspace
+            .verify_source(&PathBuf::from(path), &mut |done, total| {
+                if done.saturating_sub(last) >= 32 * 1024 * 1024 || done == total {
+                    last = done;
+                    let _ = emitter.emit(
+                        "verify-event",
+                        &serde_json::json!({ "done": done, "total": total }),
+                    );
+                }
+                true
+            })
+            .map_err(String::from)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Recovers candidates; progress arrives as `recover-event`.
 #[tauri::command]
 pub async fn recover(

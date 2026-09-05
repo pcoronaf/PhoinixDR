@@ -16,6 +16,7 @@
 
 pub mod arith;
 pub mod bytes;
+pub mod crc32c;
 pub mod fmt;
 mod fs_type;
 mod ids;

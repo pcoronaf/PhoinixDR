@@ -38,6 +38,36 @@ pub fn load_gz(relative: &str) -> Vec<u8> {
     data
 }
 
+/// Decompresses every `*.gz` file of the fixture directory `relative`
+/// into `dir`, keeping the names minus `.gz` (multi-file images keep
+/// their segment names side by side). Returns the paths written.
+///
+/// # Panics
+///
+/// Panics if the directory or a file cannot be read.
+#[must_use]
+pub fn unpack_dir(relative: &str, dir: &Path) -> Vec<PathBuf> {
+    let src = fixtures_dir().join(relative);
+    let mut out = Vec::new();
+    let mut entries: Vec<_> = std::fs::read_dir(&src)
+        .unwrap_or_else(|e| panic!("read {}: {e}", src.display()))
+        .map(|e| e.expect("directory entry").path())
+        .filter(|p| p.extension().is_some_and(|e| e == "gz"))
+        .collect();
+    entries.sort();
+    for gz in entries {
+        let name = gz.file_stem().expect("file name").to_owned();
+        let file = std::fs::File::open(&gz).expect("open fixture");
+        let mut decoder = flate2::read::GzDecoder::new(file);
+        let mut data = Vec::new();
+        decoder.read_to_end(&mut data).expect("decompress fixture");
+        let target = dir.join(name);
+        std::fs::write(&target, data).expect("write fixture");
+        out.push(target);
+    }
+    out
+}
+
 /// Loads a fixture image as an in-memory reader.
 #[must_use]
 pub fn fixture_reader(relative: &str) -> MemoryReader {

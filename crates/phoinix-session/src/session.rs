@@ -39,6 +39,9 @@ pub struct ScanSession {
     pub complete: bool,
     /// Carving statistics.
     pub carving: Option<CarveReport>,
+    /// The image container the source was, when it is an image.
+    #[serde(default)]
+    pub container: Option<phoinix_image::ContainerInfo>,
     /// The candidates with their full evidence.
     pub candidates: Vec<RecoveryCandidate>,
     /// Where the session was last saved.
@@ -69,6 +72,7 @@ impl ScanSession {
             finished: None,
             complete: false,
             carving: None,
+            container: None,
             candidates: Vec::new(),
             file: None,
         }

@@ -188,14 +188,14 @@ impl Superblock {
         let checksum = v.u32_le(0x3FC).unwrap_or(0);
         let checksum_ok = if feature_ro_compat & ro_compat::METADATA_CSUM != 0 {
             let head = bytes.get(..0x3FC).unwrap_or(&[]);
-            Some(crate::crc32c::update(!0, head) == checksum)
+            Some(phoinix_core::crc32c::update(!0, head) == checksum)
         } else {
             None
         };
         let csum_seed = if feature_incompat & incompat::CSUM_SEED != 0 {
             v.u32_le(0x270).unwrap_or(0)
         } else {
-            crate::crc32c::update(!0, &uuid)
+            phoinix_core::crc32c::update(!0, &uuid)
         };
         Ok(Self {
             inodes_count,

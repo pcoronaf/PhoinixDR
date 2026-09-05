@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Api } from "../api";
-import type { PartitionCandidate, ScanMode, ScanRequest, SourceInfo, VolumeRange } from "../types";
+import type { HashVerification, PartitionCandidate, ScanMode, ScanRequest, SourceInfo, VolumeRange } from "../types";
 import { formatBytesSi, fsLabel, hasEngine, percent } from "../lib/format";
 
 interface Props {
@@ -28,6 +28,93 @@ function relationText(c: PartitionCandidate): string {
 }
 
 const BUILTIN_TYPES = ["jpeg", "png", "gif", "bmp", "pdf", "zip", "sqlite", "riff", "mp4", "7z"];
+
+const FORMAT_LABELS: Record<string, string> = {
+  raw: "RAW image",
+  "split-raw": "split RAW image",
+  ewf: "EWF (E01) forensic image",
+  vhd: "VHD virtual disk",
+  vhdx: "VHDX virtual disk",
+  vmdk: "VMDK virtual disk",
+};
+
+function ContainerPanel({ api, source }: { api: Api; source: SourceInfo }) {
+  const c = source.container;
+  const [verifying, setVerifying] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<HashVerification | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    api.onVerifyEvent((e) => setVerifying({ done: e.done, total: e.total })).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [api]);
+  if (!c || c.format === "raw") return null;
+  const a = c.acquisition;
+  const verify = async (): Promise<void> => {
+    setVerifying({ done: 0, total: c.size });
+    setError(null);
+    setResult(null);
+    try {
+      setResult(await api.verifySource(source.path));
+    } catch (e) {
+      setError(String(e));
+    }
+    setVerifying(null);
+  };
+  const verdict = (ok: boolean | null, what: string): string | null =>
+    ok === null ? null : ok ? `stored ${what} matches` : `stored ${what} DOES NOT MATCH`;
+  return (
+    <fieldset>
+      <legend>Image container</legend>
+      <p>
+        <strong>{FORMAT_LABELS[c.format] ?? c.format}</strong> · {c.variant} · {formatBytesSi(c.size)} of media
+        {c.segments.length > 1 ? ` in ${c.segments.length} files` : ""}
+        {c.compression ? ` · ${c.compression}` : ""}
+        {c.media_type ? ` · ${c.media_type}` : ""}
+      </p>
+      {a && (
+        <p className="muted">
+          {[
+            a.case_number ? `case ${a.case_number}` : null,
+            a.evidence_number ? `evidence ${a.evidence_number}` : null,
+            a.description,
+            a.examiner ? `examiner ${a.examiner}` : null,
+            a.acquisition_date ? `acquired ${a.acquisition_date}` : null,
+            a.software_version ? `by ${a.software_version}${a.operating_system ? ` on ${a.operating_system}` : ""}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          {a.notes ? <><br />{a.notes}</> : null}
+        </p>
+      )}
+      {c.acquisition_errors !== null && c.acquisition_errors > 0 && <p className="warn">The imaging tool could not read {c.acquisition_errors} sector range(s); they read as zeros.</p>}
+      {c.diagnostics.map((d) => <p key={d} className="warn">{d}</p>)}
+      <div className="row-between">
+        <span className="mono muted">
+          {c.stored_hashes.md5 ? `MD5 ${c.stored_hashes.md5}` : ""}
+          {c.stored_hashes.sha1 ? ` SHA-1 ${c.stored_hashes.sha1}` : ""}
+          {!c.stored_hashes.md5 && !c.stored_hashes.sha1 ? "no stored hash" : ""}
+        </span>
+        {verifying ? (
+          <span>Hashing… {percent(verifying.done, verifying.total || null)}</span>
+        ) : (
+          <button type="button" onClick={verify}>{result ? "Verify again" : "Verify hashes"}</button>
+        )}
+      </div>
+      {error && <p className="error">{error}</p>}
+      {result && (
+        <div className={result.md5_matches === false || result.sha1_matches === false ? "danger" : "mono muted"}>
+          <p className="mono">MD5 {result.md5}<br />SHA-1 {result.sha1}<br />SHA-256 {result.sha256}</p>
+          <p>{[verdict(result.md5_matches, "MD5"), verdict(result.sha1_matches, "SHA-1")].filter(Boolean).join("; ") || "The container stores no hash to compare with; the computed hashes above document the source as read."}</p>
+        </div>
+      )}
+    </fieldset>
+  );
+}
 
 export function ScanSetup({ api, source, onScan, onBack }: Props) {
   const supported = source.volumes.find((v) => v.supported) ?? source.volumes[0] ?? null;
@@ -94,6 +181,7 @@ export function ScanSetup({ api, source, onScan, onBack }: Props) {
         <button className="link" onClick={onBack}>Back</button>
       </div>
       <p className="mono muted">{source.path} · {formatBytesSi(source.size)} · {source.scheme === "None" ? "no partition table" : `${source.scheme} partition table`}</p>
+      <ContainerPanel api={api} source={source} />
       {source.volumes.length > 1 && (
         <fieldset>
           <legend>Volume</legend>

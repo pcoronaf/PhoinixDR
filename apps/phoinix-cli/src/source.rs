@@ -7,12 +7,13 @@ use std::sync::Arc;
 use anyhow::Context;
 use phoinix_block::BlockReader;
 use phoinix_core::FileSystemType;
-use phoinix_device::open_source;
+use phoinix_device::open_source_described;
 use phoinix_fs::ProbeRegistry;
 use phoinix_fs_exfat::ExFatProbe;
 use phoinix_fs_ext::ExtProbe;
 use phoinix_fs_fat::FatProbe;
 use phoinix_fs_ntfs::NtfsProbe;
+use phoinix_image::ContainerInfo;
 use phoinix_volume::{PartitionScheme, PartitionTable, read_partition_table};
 
 /// Every probe PhoinixDR ships.
@@ -30,13 +31,20 @@ pub struct OpenedSource {
     pub reader: Arc<dyn BlockReader>,
     /// Its partition table (possibly `None` scheme for bare volumes).
     pub table: PartitionTable,
+    /// The image container, for image files.
+    pub container: Option<ContainerInfo>,
 }
 
 /// Opens `path` and reads its partition table.
 pub fn open(path: &Path) -> anyhow::Result<OpenedSource> {
-    let reader = open_source(path).with_context(|| format!("opening {}", path.display()))?;
-    let table = read_partition_table(&*reader).context("reading partition table")?;
-    Ok(OpenedSource { reader, table })
+    let opened =
+        open_source_described(path).with_context(|| format!("opening {}", path.display()))?;
+    let table = read_partition_table(&*opened.reader).context("reading partition table")?;
+    Ok(OpenedSource {
+        reader: opened.reader,
+        table,
+        container: opened.container,
+    })
 }
 
 /// A volume selected for filesystem work.
@@ -60,7 +68,7 @@ pub fn select_volume(
     partition: Option<u32>,
     wanted: Option<FileSystemType>,
 ) -> anyhow::Result<SelectedVolume> {
-    let OpenedSource { reader, table } = opened;
+    let OpenedSource { reader, table, .. } = opened;
     if let Some(index) = partition {
         let part = table
             .partitions

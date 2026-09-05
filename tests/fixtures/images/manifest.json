@@ -1,0 +1,103 @@
+{
+  "raw_size": 4194304,
+  "raw_sha256": "12d6637f93c4b4067a3f493435a4dfc62de88d6ebd69fab3baf9f5d89c9b31d5",
+  "raw_md5": "0ea824cc3ee46762ee75d7f54444be3f",
+  "raw_sha1": "8fb910bd85ca911d5be924e53cbbd6c35bbde2f5",
+  "files": [
+    "disk.vhdx",
+    "dyn.vhd",
+    "e01.E01",
+    "fixed.vhd",
+    "raw.001",
+    "raw.002",
+    "raw.003",
+    "raw.004",
+    "smart.s01",
+    "sparse.vmdk",
+    "split.E01",
+    "split.E02",
+    "split.E03",
+    "split.E04",
+    "split.E05",
+    "stream.vmdk",
+    "twogb-s001.vmdk",
+    "twogb.vmdk"
+  ],
+  "images": [
+    {
+      "open": "e01.E01",
+      "format": "ewf",
+      "variant": "E01 (EnCase/FTK)",
+      "segments": 1,
+      "stored_md5": true,
+      "acquisition": {
+        "case_number": "PHX-011",
+        "evidence_number": "EV-11",
+        "examiner": "Examiner Name",
+        "description": "FAT12 corpus",
+        "notes": "acquired for the M11 fixtures"
+      }
+    },
+    {
+      "open": "split.E03",
+      "format": "ewf",
+      "variant": "E01 (EnCase/FTK)",
+      "segments": 5,
+      "stored_md5": true,
+      "acquisition": {
+        "case_number": "PHX-012"
+      }
+    },
+    {
+      "open": "smart.s01",
+      "format": "ewf",
+      "variant": "S01 (SMART)",
+      "segments": 1,
+      "stored_md5": true
+    },
+    {
+      "open": "dyn.vhd",
+      "format": "vhd",
+      "variant": "dynamic",
+      "segments": 1,
+      "padded": true
+    },
+    {
+      "open": "fixed.vhd",
+      "format": "vhd",
+      "variant": "fixed",
+      "segments": 1,
+      "padded": true
+    },
+    {
+      "open": "disk.vhdx",
+      "format": "vhdx",
+      "variant": "dynamic",
+      "segments": 1
+    },
+    {
+      "open": "sparse.vmdk",
+      "format": "vmdk",
+      "variant": "monolithicSparse",
+      "segments": 1
+    },
+    {
+      "open": "stream.vmdk",
+      "format": "vmdk",
+      "variant": "streamOptimized",
+      "segments": 1
+    },
+    {
+      "open": "twogb.vmdk",
+      "format": "vmdk",
+      "variant": "twoGbMaxExtentSparse",
+      "segments": 2
+    },
+    {
+      "open": "raw.002",
+      "format": "split-raw",
+      "variant": "4 files",
+      "segments": 4
+    }
+  ]
+}

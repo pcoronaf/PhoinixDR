@@ -31,6 +31,10 @@ pub enum DeviceError {
     #[error(transparent)]
     Block(#[from] BlockError),
 
+    /// An image container could not be opened.
+    #[error(transparent)]
+    Image(#[from] phoinix_image::ImageError),
+
     /// An operating-system error.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

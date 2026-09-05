@@ -187,6 +187,111 @@ fn scan_explain_recover_vertical_slice() {
     assert!(err.contains("source image"), "{err}");
 }
 
+fn unpack_images(dir: &Path) -> PathBuf {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/images");
+    for entry in std::fs::read_dir(&src).unwrap() {
+        let gz = entry.unwrap().path();
+        if gz.extension().is_some_and(|e| e == "gz") {
+            let mut decoder = flate2::read::GzDecoder::new(std::fs::File::open(&gz).unwrap());
+            let mut data = Vec::new();
+            decoder.read_to_end(&mut data).unwrap();
+            std::fs::write(dir.join(gz.file_stem().unwrap()), data).unwrap();
+        }
+    }
+    dir.join("e01.E01")
+}
+
+#[test]
+fn e01_images_are_inspected_verified_scanned_and_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let e01 = unpack_images(dir.path());
+    let image = e01.to_str().unwrap();
+    // inspect: container section in text and JSON.
+    let (ok, out, err) = phoinix(&["inspect", image]);
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("Image container") && out.contains("PHX-011"),
+        "{out}"
+    );
+    assert!(out.contains("FAT12"), "{out}");
+    let (ok, out, _) = phoinix(&["inspect", image, "--json"]);
+    assert!(ok);
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(json["container"]["format"], "ewf");
+    assert_eq!(
+        json["container"]["acquisition"]["examiner"],
+        "Examiner Name"
+    );
+    // verify: stored MD5 matches; a damaged copy fails with a non-zero exit.
+    let (ok, out, err) = phoinix(&["verify", image, "--quiet"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("Stored MD5 matches"), "{out}");
+    let (ok, out, _) = phoinix(&["verify", image, "--json"]);
+    assert!(ok);
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(json["verification"]["md5_matches"], true);
+    let damaged = dir.path().join("damaged.E01");
+    let mut bytes = std::fs::read(&e01).unwrap();
+    let mid = bytes.len() / 2;
+    for b in &mut bytes[mid..mid + 64] {
+        *b ^= 0x5A;
+    }
+    std::fs::write(&damaged, bytes).unwrap();
+    let (ok, _, _) = phoinix(&["verify", damaged.to_str().unwrap(), "--quiet"]);
+    assert!(!ok, "a damaged image must fail verification");
+    // scan through the container, then recover with a report.
+    let (ok, out, _) = phoinix(&["scan", image, "--deleted", "--json"]);
+    assert!(ok);
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let cand = json["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| {
+            c["original_name"]
+                .as_str()
+                .unwrap()
+                .to_lowercase()
+                .ends_with("hoto.jpg")
+        })
+        .unwrap();
+    let id = cand["filesystem_object"]["entry_offset"]
+        .as_u64()
+        .unwrap()
+        .to_string();
+    let dest = dir.path().join("out");
+    let report = dir.path().join("report.md");
+    let (ok, out, err) = phoinix(&[
+        "recover",
+        image,
+        &id,
+        "--output",
+        dest.to_str().unwrap(),
+        "--report",
+        report.to_str().unwrap(),
+        "--examiner",
+        "CLI Test",
+        "--verify-source",
+    ]);
+    assert!(ok, "{err}");
+    assert!(out.contains("Report written to"), "{out}");
+    let md = std::fs::read_to_string(&report).unwrap();
+    assert!(md.contains("PHX-011") && md.contains("CLI Test"), "{md}");
+    assert!(md.contains("stored hashes match"), "{md}");
+    let sha = out
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("SHA-256 "))
+        .unwrap();
+    assert!(md.contains(sha), "{md}");
+    // The same scan works on the VMDK and the split RAW copies.
+    for name in ["stream.vmdk", "raw.001"] {
+        let path = dir.path().join(name);
+        let (ok, out, err) = phoinix(&["scan", path.to_str().unwrap(), "--deleted"]);
+        assert!(ok, "{name}: {err}");
+        assert!(out.contains("on the FAT12 volume"), "{name}: {out}");
+    }
+}
+
 #[test]
 fn scan_and_recover_on_ext() {
     let dir = tempfile::tempdir().unwrap();

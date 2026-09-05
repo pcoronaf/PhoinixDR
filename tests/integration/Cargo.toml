@@ -25,6 +25,9 @@ phoinix-fs-ext = { workspace = true }
 phoinix-health = { workspace = true }
 phoinix-carve = { workspace = true }
 phoinix-recovery = { workspace = true }
+phoinix-image = { workspace = true }
+phoinix-session = { workspace = true }
+phoinix-device = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 tempfile = { workspace = true }

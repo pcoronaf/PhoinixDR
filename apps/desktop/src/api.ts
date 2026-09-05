@@ -6,6 +6,7 @@ import type {
   CandidateSummary,
   DestinationInfo,
   DeviceInfo,
+  HashVerification,
   PartitionCandidate,
   Preview,
   RecoverEvent,
@@ -18,6 +19,7 @@ import type {
   SearchEvent,
   SessionSummary,
   SourceInfo,
+  VerifyEvent,
 } from "./types";
 import * as demo from "./demo";
 
@@ -39,12 +41,15 @@ export interface Api {
   preview(id: string): Promise<Preview>;
   checkDestination(destination: string): Promise<DestinationInfo>;
   recover(request: RecoverRequest): Promise<RecoverItem[]>;
+  verifySource(path: string): Promise<HashVerification>;
+  onVerifyEvent(cb: (e: VerifyEvent) => void): Promise<Unlisten>;
   onScanEvent(cb: (e: ScanEvent) => void): Promise<Unlisten>;
   onScanComplete(cb: (e: ScanCompletion) => void): Promise<Unlisten>;
   onRecoverEvent(cb: (e: RecoverEvent) => void): Promise<Unlisten>;
   pickImageFile(): Promise<string | null>;
   pickSessionFile(): Promise<string | null>;
   pickDirectory(): Promise<string | null>;
+  pickReportFile(): Promise<string | null>;
 }
 
 function inTauri(): boolean {
@@ -73,6 +78,8 @@ async function tauriApi(): Promise<Api> {
     preview: (id) => invoke<Preview>("preview_candidate", { id }),
     checkDestination: (destination) => invoke<DestinationInfo>("check_destination", { destination }),
     recover: (request) => invoke<RecoverItem[]>("recover", { request }),
+    verifySource: (path) => invoke<HashVerification>("verify_source", { path }),
+    onVerifyEvent: on<VerifyEvent>("verify-event"),
     onScanEvent: on<ScanEvent>("scan-event"),
     onScanComplete: on<ScanCompletion>("scan-complete"),
     onRecoverEvent: on<RecoverEvent>("recover-event"),
@@ -86,6 +93,18 @@ async function tauriApi(): Promise<Api> {
     },
     pickDirectory: async () => {
       const r = await dialog.open({ multiple: false, directory: true, title: "Choose the recovery destination" });
+      return typeof r === "string" ? r : null;
+    },
+    pickReportFile: async () => {
+      const r = await dialog.save({
+        title: "Save the recovery report",
+        defaultPath: "recovery-report.html",
+        filters: [
+          { name: "HTML report", extensions: ["html"] },
+          { name: "Markdown report", extensions: ["md"] },
+          { name: "JSON report", extensions: ["json"] },
+        ],
+      });
       return typeof r === "string" ? r : null;
     },
   };
@@ -148,9 +167,19 @@ function demoApi(): Api {
       recoverListeners.forEach((cb) => cb({ kind: "started", total: request.candidates.length, warning: null }));
       const items = demo.demoRecover(request.candidates, rows, request.destination);
       items.forEach((item, i) => recoverListeners.forEach((cb) => cb({ kind: "item", index: i + 1, total: items.length, item })));
-      recoverListeners.forEach((cb) => cb({ kind: "finished", items, failures: 0 }));
+      recoverListeners.forEach((cb) => cb({ kind: "finished", items, failures: 0, report: request.report ?? null }));
       return items;
     },
+    verifySource: async () => ({
+      bytes: 16_357_785_600,
+      md5: "0ea824cc3ee46762ee75d7f54444be3f",
+      sha1: "8fb910bd85ca911d5be924e53cbbd6c35bbde2f5",
+      sha256: "12d6637f93c4b4067a3f493435a4dfc62de88d6ebd69fab3baf9f5d89c9b31d5",
+      stored: { md5: null, sha1: null },
+      md5_matches: null,
+      sha1_matches: null,
+    }),
+    onVerifyEvent: async () => () => {},
     onScanEvent: async (cb) => {
       scanListeners.add(cb);
       return () => scanListeners.delete(cb);
@@ -166,6 +195,7 @@ function demoApi(): Api {
     pickImageFile: async () => window.prompt("Path of the disk image", "C:\\images\\stick.img"),
     pickSessionFile: async () => null,
     pickDirectory: async () => window.prompt("Destination directory", "D:\\recovered"),
+    pickReportFile: async () => window.prompt("Report file", "D:\\recovered\\report.html"),
   };
 }
 

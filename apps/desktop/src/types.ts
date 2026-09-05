@@ -86,6 +86,65 @@ export type SearchEvent =
   | { kind: "finished"; candidates: PartitionCandidate[] }
   | { kind: "failed"; message: string };
 
+export type ImageFormat = "raw" | "split-raw" | "ewf" | "vhd" | "vhdx" | "vmdk";
+
+export interface StoredHashes {
+  md5: string | null;
+  sha1: string | null;
+}
+
+export interface AcquisitionInfo {
+  case_number: string | null;
+  evidence_number: string | null;
+  description: string | null;
+  examiner: string | null;
+  notes: string | null;
+  acquisition_date: string | null;
+  system_date: string | null;
+  software_version: string | null;
+  operating_system: string | null;
+  model: string | null;
+  serial_number: string | null;
+}
+
+export interface ContainerInfo {
+  format: ImageFormat;
+  variant: string;
+  segments: string[];
+  size: number;
+  sector_size: number;
+  unit_size: number | null;
+  compression: string | null;
+  identifier: string | null;
+  media_type: string | null;
+  stored_hashes: StoredHashes;
+  acquisition: AcquisitionInfo | null;
+  acquisition_errors: number | null;
+  diagnostics: string[];
+}
+
+export interface HashVerification {
+  bytes: number;
+  md5: string;
+  sha1: string;
+  sha256: string;
+  stored: StoredHashes;
+  md5_matches: boolean | null;
+  sha1_matches: boolean | null;
+}
+
+export interface VerifyEvent {
+  done: number;
+  total: number;
+}
+
+export interface CaseMetadata {
+  case_number: string | null;
+  evidence_number: string | null;
+  examiner: string | null;
+  notes: string | null;
+}
+
 export interface SourceInfo {
   path: string;
   is_device: boolean;
@@ -93,6 +152,7 @@ export interface SourceInfo {
   sector_size: number;
   scheme: string;
   volumes: VolumeInfo[];
+  container?: ContainerInfo | null;
   diagnostics: string[];
 }
 
@@ -264,6 +324,9 @@ export interface RecoverRequest {
   hash: boolean;
   overwrite: boolean;
   allow_same_device: boolean;
+  case?: CaseMetadata | null;
+  report?: string | null;
+  verify_source?: boolean;
 }
 
 export interface RecoveryResult {
@@ -285,7 +348,8 @@ export interface RecoverItem {
 export type RecoverEvent =
   | { kind: "started"; total: number; warning: string | null }
   | { kind: "item"; index: number; total: number; item: RecoverItem }
-  | { kind: "finished"; items: RecoverItem[]; failures: number };
+  | { kind: "finished"; items: RecoverItem[]; failures: number; report?: string | null }
+  | { kind: "verifying"; done: number; total: number };
 
 export interface AppInfo {
   version: string;

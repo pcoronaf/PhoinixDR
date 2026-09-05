@@ -30,6 +30,7 @@ export default function App() {
   const [rows, setRows] = useState<CandidateSummary[]>([]);
   const [advanced, setAdvanced] = useState(false);
   const [recovering, setRecovering] = useState<string[] | null>(null);
+  const [lastSource, setLastSource] = useState<SourceInfo | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const rowsRef = useRef<CandidateSummary[]>([]);
 
@@ -107,7 +108,9 @@ export default function App() {
     if (!api) return;
     setBanner(null);
     try {
-      setView({ name: "setup", source: await api.inspectSource(path) });
+      const source = await api.inspectSource(path);
+      setLastSource(source);
+      setView({ name: "setup", source });
     } catch (e) {
       setBanner(`Could not open ${path}: ${String(e)}`);
     }
@@ -187,7 +190,7 @@ export default function App() {
         )}
         {view.name === "results" && <Results api={api} session={view.session} rows={rows} advanced={advanced} onRecover={(ids) => setRecovering(ids)} onNewScan={() => setView({ name: "home" })} />}
       </main>
-      {recovering && <RecoverDialog api={api} rows={rows} ids={recovering} onClose={() => setRecovering(null)} />}
+      {recovering && <RecoverDialog api={api} rows={rows} ids={recovering} acquisition={lastSource?.container?.acquisition ?? null} onClose={() => setRecovering(null)} />}
     </div>
   );
 }

@@ -114,6 +114,27 @@ impl Workspace {
         inspect(path)
     }
 
+    /// Hashes the whole source and compares with the hashes its container
+    /// stores. `progress` receives (done, total) and may return `false` to
+    /// cancel.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SessionError`] if the source cannot be read.
+    pub fn verify_source(
+        &self,
+        path: &Path,
+        progress: &mut dyn FnMut(u64, u64) -> bool,
+    ) -> Result<phoinix_image::HashVerification, SessionError> {
+        let opened = crate::source::open(path)?;
+        let stored = opened
+            .container
+            .as_ref()
+            .map(|c| c.stored_hashes.clone())
+            .unwrap_or_default();
+        Ok(phoinix_image::verify(&*opened.reader, &stored, progress)?)
+    }
+
     /// Runs the structure search (lost partitions) synchronously.
     ///
     /// # Errors

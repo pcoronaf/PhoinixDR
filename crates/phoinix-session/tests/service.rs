@@ -285,6 +285,9 @@ fn recovery_and_previews_through_the_workspace() {
         hash: true,
         overwrite: false,
         allow_same_device: false,
+        case: None,
+        report: None,
+        verify_source: false,
     };
     let mut events = Vec::new();
     let items = ws.recover(&req, &mut |e| events.push(e)).unwrap();
@@ -356,6 +359,9 @@ fn ext4_scan_recovers_through_the_journal() {
         hash: true,
         overwrite: false,
         allow_same_device: false,
+        case: None,
+        report: None,
+        verify_source: false,
     };
     let items = ws.recover(&req, &mut |_| {}).unwrap();
     let sha = m["files"]
@@ -455,6 +461,9 @@ fn lost_partitions_are_found_mounted_and_scanned() {
         hash: true,
         overwrite: false,
         allow_same_device: false,
+        case: None,
+        report: None,
+        verify_source: false,
     };
     let items = ws.recover(&req, &mut |_| {}).unwrap();
     assert!(items[0].result.as_ref().unwrap().complete, "{:?}", items[0]);

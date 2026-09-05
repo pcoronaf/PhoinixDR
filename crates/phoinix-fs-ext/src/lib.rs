@@ -20,7 +20,6 @@
 
 pub mod bitmap;
 pub mod blockmap;
-pub mod crc32c;
 pub mod dir;
 mod error;
 pub mod extent;

@@ -328,6 +328,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -411,6 +421,7 @@ dependencies = [
  "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
+ "phoinix-image",
  "phoinix-partition-recovery",
  "phoinix-recovery",
  "phoinix-volume",
@@ -438,6 +449,7 @@ version = "0.1.0"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
+ "phoinix-image",
  "serde",
  "tempfile",
  "thiserror",
@@ -524,6 +536,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "phoinix-image"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "hex",
+ "md-5",
+ "phoinix-block",
+ "phoinix-core",
+ "serde",
+ "sha1",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "phoinix-integration-tests"
 version = "0.1.0"
 dependencies = [
@@ -532,13 +561,16 @@ dependencies = [
  "phoinix-block",
  "phoinix-carve",
  "phoinix-core",
+ "phoinix-device",
  "phoinix-fs",
  "phoinix-fs-exfat",
  "phoinix-fs-ext",
  "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
+ "phoinix-image",
  "phoinix-recovery",
+ "phoinix-session",
  "phoinix-volume",
  "serde_json",
  "sha2",
@@ -576,7 +608,9 @@ dependencies = [
  "phoinix-device",
  "phoinix-fs",
  "phoinix-health",
+ "phoinix-image",
  "serde",
+ "serde_json",
  "sha2",
  "tempfile",
  "thiserror",
@@ -598,6 +632,7 @@ dependencies = [
  "phoinix-fs-fat",
  "phoinix-fs-ntfs",
  "phoinix-health",
+ "phoinix-image",
  "phoinix-partition-recovery",
  "phoinix-recovery",
  "phoinix-volume",
@@ -730,6 +765,17 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "sha1"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
 ]
 
 [[package]]

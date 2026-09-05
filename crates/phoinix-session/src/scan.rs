@@ -53,6 +53,7 @@ pub fn run_scan(
         }
     };
     let mut session = ScanSession::new(request.source.clone(), volume.info.clone(), request.mode);
+    session.container = crate::source::container_of(&request.source);
     sink(ScanEvent::Started {
         session_id: session.id.clone(),
         filesystem: volume.info.filesystem,

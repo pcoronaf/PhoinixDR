@@ -6,12 +6,15 @@ use std::path::Path;
 use phoinix_carve::CarveEngine;
 use phoinix_fs::{DeletedFileProvider, RecoveryCandidate};
 use phoinix_health::CandidateSource;
-use phoinix_recovery::{RecoveryRequest, RecoveryWriter, check_destination};
+use phoinix_image::HashVerification;
+use phoinix_recovery::{
+    RecoveryReport, RecoveryRequest, RecoveryWriter, ReportSource, ReportVolume, check_destination,
+};
 
 use crate::SessionError;
 use crate::dto::{DestinationInfo, RecoverEvent, RecoverItem, RecoverRequest};
 use crate::session::ScanSession;
-use crate::source::{VolumeChoice, open_volume_with};
+use crate::source::{VolumeChoice, container_of, is_device_path, open_volume_with};
 
 /// Assesses a destination for `source`.
 #[must_use]
@@ -85,6 +88,56 @@ pub fn recover(
         .and_then(|w| w.destination_check().warning());
     let total = candidates.len();
     sink(RecoverEvent::Started { total, warning });
+    // The report, when requested, describes the source as it is now.
+    let container = if request.report.is_some() || request.case.is_some() {
+        session
+            .container
+            .clone()
+            .or_else(|| container_of(&session.source))
+    } else {
+        None
+    };
+    let verification: Option<HashVerification> = if request.verify_source {
+        let stored = container
+            .as_ref()
+            .map(|c| c.stored_hashes.clone())
+            .unwrap_or_default();
+        let source = crate::source::open(&session.source)?;
+        Some(phoinix_image::verify(
+            &*source.reader,
+            &stored,
+            &mut |done, total| {
+                sink(RecoverEvent::Verifying { done, total });
+                true
+            },
+        )?)
+    } else {
+        None
+    };
+    let mut report = request.report.as_ref().map(|_| {
+        RecoveryReport::new(
+            request
+                .case
+                .clone()
+                .unwrap_or_default()
+                .with_acquisition_defaults(container.as_ref().and_then(|c| c.acquisition.as_ref())),
+            ReportSource {
+                path: session.source.display().to_string(),
+                size: container.as_ref().map_or(volume.reader.len(), |c| c.size),
+                sector_size: volume.reader.geometry().logical_sector_size,
+                is_device: is_device_path(&session.source),
+                container: container.clone(),
+                verification,
+            },
+            Some(ReportVolume {
+                partition: session.volume.partition,
+                offset: session.volume.offset,
+                length: session.volume.length,
+                filesystem: session.volume.filesystem.to_string(),
+            }),
+            &request.destination,
+        )
+    });
     let mut items = Vec::new();
     let mut failures = 0usize;
     for (i, c) in candidates.iter().enumerate() {
@@ -129,6 +182,14 @@ pub fn recover(
                 }
             }
         };
+        if let Some(r) = report.as_mut() {
+            let reference = c.filesystem_object.short_reference();
+            match (&item.result, &item.error) {
+                (Some(res), _) => r.push(&reference, Some(c), Ok(res)),
+                (None, Some(e)) => r.push(&reference, Some(c), Err(e)),
+                (None, None) => r.push(&reference, Some(c), Err("not attempted")),
+            }
+        }
         sink(RecoverEvent::Item {
             index: i + 1,
             total,
@@ -136,9 +197,16 @@ pub fn recover(
         });
         items.push(item);
     }
+    let written = match (&report, &request.report) {
+        (Some(r), Some(path)) => Some(r.write_to(path).map_err(|e| {
+            SessionError::Invalid(format!("writing the report to {}: {e}", path.display()))
+        })?),
+        _ => None,
+    };
     sink(RecoverEvent::Finished {
         items: items.clone(),
         failures,
+        report: written,
     });
     Ok(items)
 }

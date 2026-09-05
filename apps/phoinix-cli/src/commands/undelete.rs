@@ -97,6 +97,14 @@ pub struct Session {
     pub reader: Arc<dyn BlockReader>,
     /// The medium.
     pub storage: StorageEvidence,
+    /// The image container, for image files.
+    pub container: Option<phoinix_image::ContainerInfo>,
+    /// Partition index of the volume, if selected from the table.
+    pub partition: Option<u32>,
+    /// Byte offset of the volume inside the source.
+    pub volume_offset: u64,
+    /// Length of the whole source in bytes.
+    pub source_len: u64,
     no_content: bool,
 }
 
@@ -118,6 +126,8 @@ impl Session {
     /// that can only carve.
     pub fn open_any(args: &SourceArgs) -> anyhow::Result<Self> {
         let opened = source::open(&args.source)?;
+        let mut partition = None;
+        let volume_offset: u64;
         let reader: Arc<dyn BlockReader> = if let Some(index) = args.lost {
             let candidates = crate::commands::partitions::search_with_progress(
                 &opened.reader,
@@ -138,6 +148,7 @@ impl Session {
                 length = candidate.length,
                 "lost partition mounted"
             );
+            volume_offset = candidate.start;
             candidate
                 .open(opened.reader.clone())
                 .context("mounting the candidate")?
@@ -146,6 +157,7 @@ impl Session {
                 .volume_length
                 .unwrap_or_else(|| opened.reader.len().saturating_sub(offset));
             let range = phoinix_core::ByteRange { offset, length };
+            volume_offset = offset;
             Arc::new(
                 phoinix_block::SubrangeReader::new(opened.reader.clone(), range)
                     .with_context(|| format!("opening {length} bytes at offset {offset}"))?,
@@ -153,6 +165,8 @@ impl Session {
         } else {
             let selected = source::select_volume(&opened, args.partition, None)?;
             tracing::info!(partition = ?selected.partition, offset = selected.offset, "volume selected");
+            partition = selected.partition;
+            volume_offset = selected.offset;
             selected.reader
         };
         let detection = standard_probes().detect(&*reader);
@@ -220,6 +234,10 @@ impl Session {
             space,
             reader,
             storage,
+            container: opened.container,
+            partition,
+            volume_offset,
+            source_len: opened.reader.len(),
             no_content: args.no_content,
         })
     }

@@ -1,14 +1,17 @@
 //! `phoinix recover` — write candidates to a destination and verify.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use phoinix_core::fmt::grouped;
-use phoinix_recovery::{RecoveryRequest, RecoveryWriter};
+use phoinix_fs::{DeletedFileProvider, RecoveryCandidate};
+use phoinix_recovery::{
+    CaseMetadata, RecoveryReport, RecoveryRequest, RecoveryWriter, ReportSource, ReportVolume,
+};
 use serde::Serialize;
 
-use phoinix_fs::DeletedFileProvider;
-
 use crate::commands::undelete::{CarveArgs, Session, SourceArgs};
+use crate::commands::verify::hash_source;
 use crate::output::{self, outln};
 
 /// Arguments for `phoinix recover`.
@@ -41,6 +44,24 @@ pub struct Args {
     /// source. This can destroy the data you are trying to recover.
     #[arg(long)]
     allow_source_destination: bool,
+    /// Write a recovery report (`.json`, `.md` or `.html` by extension).
+    #[arg(long, value_name = "PATH")]
+    report: Option<PathBuf>,
+    /// Case number for the report (defaults to the image's acquisition header).
+    #[arg(long, value_name = "TEXT")]
+    case_number: Option<String>,
+    /// Evidence number for the report.
+    #[arg(long, value_name = "TEXT")]
+    evidence_number: Option<String>,
+    /// Examiner for the report.
+    #[arg(long, value_name = "TEXT")]
+    examiner: Option<String>,
+    /// Notes for the report.
+    #[arg(long, value_name = "TEXT")]
+    case_notes: Option<String>,
+    /// Hash the whole source and record the verification in the report.
+    #[arg(long)]
+    verify_source: bool,
     /// Emit JSON.
     #[arg(long)]
     json: bool,
@@ -102,6 +123,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     }
 
     let mut reports = Vec::new();
+    let mut entries: Vec<(Option<RecoveryCandidate>, Option<String>)> = Vec::new();
     let mut failures = 0usize;
     for reference in &args.candidates {
         let (engine, writer): (&dyn DeletedFileProvider, &RecoveryWriter<'_>) =
@@ -115,14 +137,16 @@ pub fn run(args: Args) -> anyhow::Result<()> {
                     (Some(e), Some(w)) => (e, w),
                     _ => {
                         failures += 1;
+                        let error = format!(
+                            "no undelete engine for {}; only carved references (c<offset>) can be recovered here",
+                            session.filesystem
+                        );
+                        entries.push((None, Some(error.clone())));
                         reports.push(Report {
                             candidate: reference.clone(),
                             name: String::new(),
                             result: None,
-                            error: Some(format!(
-                                "no undelete engine for {}; only carved references (c<offset>) can be recovered here",
-                                session.filesystem
-                            )),
+                            error: Some(error),
                         });
                         continue;
                     }
@@ -132,6 +156,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             Ok(o) => o,
             Err(e) => {
                 failures += 1;
+                entries.push((None, Some(e.to_string())));
                 reports.push(Report {
                     candidate: reference.clone(),
                     name: String::new(),
@@ -145,6 +170,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             Ok(c) => c,
             Err(e) => {
                 failures += 1;
+                entries.push((None, Some(e.to_string())));
                 reports.push(Report {
                     candidate: reference.clone(),
                     name: String::new(),
@@ -160,6 +186,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
                 if !result.complete {
                     failures += 1;
                 }
+                entries.push((Some(candidate), None));
                 reports.push(Report {
                     candidate: reference.clone(),
                     name,
@@ -169,6 +196,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             }
             Err(e) => {
                 failures += 1;
+                entries.push((Some(candidate), Some(e.to_string())));
                 reports.push(Report {
                     candidate: reference.clone(),
                     name,
@@ -178,9 +206,16 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             }
         }
     }
+    let report_path = match &args.report {
+        Some(path) => Some(write_report(&args, &session, &reports, &entries, path)?),
+        None => None,
+    };
     if args.json {
         output::print_json(&reports)?;
     } else {
+        if let Some(p) = &report_path {
+            outln!("Report written to {}", p.display());
+        }
         for r in &reports {
             match (&r.result, &r.error) {
                 (Some(res), _) => {
@@ -210,4 +245,68 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         reports.len()
     );
     Ok(())
+}
+
+/// Builds and writes the recovery report.
+fn write_report(
+    args: &Args,
+    session: &Session,
+    reports: &[Report],
+    entries: &[(Option<RecoveryCandidate>, Option<String>)],
+    path: &Path,
+) -> anyhow::Result<PathBuf> {
+    let verification = if args.verify_source {
+        let stored = session
+            .container
+            .as_ref()
+            .map(|c| c.stored_hashes.clone())
+            .unwrap_or_default();
+        let source = crate::source::open(&args.source.source)?;
+        Some(hash_source(&*source.reader, &stored, args.json)?)
+    } else {
+        None
+    };
+    let case = CaseMetadata {
+        case_number: args.case_number.clone(),
+        evidence_number: args.evidence_number.clone(),
+        examiner: args.examiner.clone(),
+        notes: args.case_notes.clone(),
+    }
+    .with_acquisition_defaults(
+        session
+            .container
+            .as_ref()
+            .and_then(|c| c.acquisition.as_ref()),
+    );
+    let mut report = RecoveryReport::new(
+        case,
+        ReportSource {
+            path: args.source.source.display().to_string(),
+            size: session.source_len,
+            sector_size: session.reader.geometry().logical_sector_size,
+            is_device: session.container.is_none(),
+            container: session
+                .container
+                .clone()
+                .filter(phoinix_image::ContainerInfo::is_container),
+            verification,
+        },
+        Some(ReportVolume {
+            partition: session.partition,
+            offset: session.volume_offset,
+            length: session.reader.len(),
+            filesystem: session.filesystem.to_string(),
+        }),
+        &args.output,
+    );
+    for (r, (candidate, error)) in reports.iter().zip(entries) {
+        match (&r.result, error) {
+            (Some(result), _) => report.push(&r.candidate, candidate.as_ref(), Ok(result)),
+            (None, Some(e)) => report.push(&r.candidate, candidate.as_ref(), Err(e)),
+            (None, None) => report.push(&r.candidate, candidate.as_ref(), Err("not written")),
+        }
+    }
+    report
+        .write_to(path)
+        .with_context(|| format!("writing the report to {}", path.display()))
 }

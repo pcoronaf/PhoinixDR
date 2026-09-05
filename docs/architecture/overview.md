@@ -21,6 +21,7 @@
 │  phoinix-fs-fat    native FAT12/16/32 reader + undelete     │
 │  phoinix-fs-exfat  native exFAT reader + undelete           │
 │  phoinix-fs-ext    native ext2/3/4 reader, journal, undelete│
+│  phoinix-image     E01/VHD/VHDX/VMDK containers, hashing     │
 │  phoinix-health    evidence, scoring, explanations          │
 │  phoinix-carve     deep scan: signature carving, assembly   │
 │  phoinix-partition-recovery  lost partitions, virtual mount │
@@ -35,7 +36,7 @@
 ```text
 phoinix-core
    ▲
-phoinix-block ◄── phoinix-device
+phoinix-block ◄── phoinix-image ◄── phoinix-device
    ▲
 phoinix-volume        phoinix-health
    ▲                       ▲
@@ -47,7 +48,7 @@ phoinix-partition-recovery (block, volume, engines' boot parsers, carve scanner)
 phoinix-session (composes engines, carve, partition recovery and recovery; no GUI dependency)
 apps/desktop/src-tauri (phoinix-session only; separate Cargo workspace)
    ▲
-phoinix-recovery (via phoinix-fs contracts only)
+phoinix-recovery (phoinix-fs contracts, phoinix-image for the report's container facts)
    ▲
 phoinix-cli
 ```

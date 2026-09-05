@@ -1,5 +1,6 @@
-//! CRC-32C (Castagnoli) as ext4 and jbd2 use it: a raw register update
-//! without pre- or post-inversion, seeded by the caller.
+//! CRC-32C (Castagnoli): a raw register update as ext4 and jbd2 use it,
+//! without pre- or post-inversion and seeded by the caller, plus the
+//! standard checksum (VHDX).
 
 #[allow(clippy::indexing_slicing, clippy::cast_possible_truncation)]
 const fn make_table() -> [u32; 256] {
@@ -34,7 +35,7 @@ pub fn update(mut crc: u32, data: &[u8]) -> u32 {
     crc
 }
 
-/// The standard CRC-32C of `data` (pre- and post-inverted), for tests.
+/// The standard CRC-32C of `data` (pre- and post-inverted).
 #[must_use]
 pub fn checksum(data: &[u8]) -> u32 {
     !update(!0, data)

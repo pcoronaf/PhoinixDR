@@ -30,6 +30,7 @@ phoinix-core = { path = "../../../crates/phoinix-core" }
 phoinix-device = { path = "../../../crates/phoinix-device" }
 phoinix-fs = { path = "../../../crates/phoinix-fs" }
 phoinix-session = { path = "../../../crates/phoinix-session" }
+phoinix-image = { path = "../../../crates/phoinix-image" }
 phoinix-partition-recovery = { path = "../../../crates/phoinix-partition-recovery" }
 
 [lints.rust]

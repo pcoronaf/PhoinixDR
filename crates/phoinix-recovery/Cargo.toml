@@ -13,7 +13,9 @@ phoinix-core = { workspace = true }
 phoinix-device = { workspace = true }
 phoinix-fs = { workspace = true }
 phoinix-health = { workspace = true }
+phoinix-image = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

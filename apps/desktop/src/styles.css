@@ -131,3 +131,5 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .dest { display: flex; gap: 8px; margin: 10px 0; }
 .dest input { flex: 1; }
 .recovered tr.bad td { color: var(--bad); }
+.case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.case-grid input { width: 100%; box-sizing: border-box; }

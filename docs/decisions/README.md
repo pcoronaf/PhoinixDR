@@ -18,3 +18,4 @@ consequences. A superseded record stays in place and links to its successor.
 | [0010](ADR-0010-desktop-mvp-in-process-engine.md) | Desktop MVP runs the engine in-process behind a service layer |
 | [0011](ADR-0011-virtual-mount-no-table-writes.md) | Lost partitions are mounted virtually; the partition table is never written |
 | [0012](ADR-0012-journal-as-metadata-source.md) | The filesystem journal is a metadata source, matched by generation and transaction |
+| [0013](ADR-0013-native-image-containers.md) | Image containers are read natively, not through libewf |

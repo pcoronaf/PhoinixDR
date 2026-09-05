@@ -7,7 +7,9 @@ use phoinix_carve::CarveReport;
 use phoinix_core::{CandidateId, FileSystemType};
 use phoinix_fs::RecoveryCandidate;
 use phoinix_health::{CandidateSource, HealthCategory};
+use phoinix_image::ContainerInfo;
 use phoinix_partition_recovery::{PartitionCandidate, Repair};
+use phoinix_recovery::CaseMetadata;
 use phoinix_recovery::RecoveryResult;
 use serde::{Deserialize, Serialize};
 
@@ -100,6 +102,9 @@ pub struct SourceInfo {
     pub scheme: String,
     /// Volumes with their detected filesystems.
     pub volumes: Vec<VolumeInfo>,
+    /// The image container (E01, VHD, …) for image files.
+    #[serde(default)]
+    pub container: Option<ContainerInfo>,
     /// Partition-table diagnostics.
     pub diagnostics: Vec<String>,
 }
@@ -335,6 +340,16 @@ pub struct RecoverRequest {
     /// Expert override for a destination on the source disk.
     #[serde(default)]
     pub allow_same_device: bool,
+    /// Case metadata for the report (unset fields fall back to the image's
+    /// acquisition header).
+    #[serde(default)]
+    pub case: Option<CaseMetadata>,
+    /// Where to write the recovery report (`.json`, `.md` or `.html`).
+    #[serde(default)]
+    pub report: Option<PathBuf>,
+    /// Hash the whole source and include the verification in the report.
+    #[serde(default)]
+    pub verify_source: bool,
 }
 
 /// Outcome of one candidate's recovery.
@@ -376,6 +391,16 @@ pub enum RecoverEvent {
         items: Vec<RecoverItem>,
         /// Number of failures or partial recoveries.
         failures: usize,
+        /// The report written, if one was requested.
+        #[serde(default)]
+        report: Option<PathBuf>,
+    },
+    /// Source hashing for the report is under way.
+    Verifying {
+        /// Bytes hashed.
+        done: u64,
+        /// Bytes in total.
+        total: u64,
     },
 }
 

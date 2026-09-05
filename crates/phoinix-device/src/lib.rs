@@ -11,8 +11,9 @@
 //! - [`DeviceInfo`] describes an enumerated device;
 //! - [`DeviceEnumerator`] lists devices and opens them read-only;
 //! - [`platform_enumerator`] returns the enumerator for the current OS;
-//! - [`open_source`] opens either a device path or an image file as a
-//!   [`BlockReader`].
+//! - [`open_source`] opens either a device path or an image file (RAW or
+//!   any container `phoinix-image` reads) as a [`BlockReader`];
+//! - [`open_source_described`] also returns the container description.
 
 #![deny(unsafe_code)]
 
@@ -28,7 +29,8 @@ pub mod windows;
 use std::path::Path;
 use std::sync::Arc;
 
-use phoinix_block::{BlockReader, RawImage};
+use phoinix_block::BlockReader;
+use phoinix_image::{ContainerInfo, open_image};
 
 pub use error::DeviceError;
 pub use identity::{DiskIdentity, disk_of_path, disk_of_source};
@@ -122,19 +124,46 @@ impl DeviceEnumerator for NoDevices {
     }
 }
 
+/// A source opened by [`open_source_described`].
+#[derive(Debug)]
+pub struct OpenedSource {
+    /// The media.
+    pub reader: Arc<dyn BlockReader>,
+    /// The container the media came from, for image files (`None` for a
+    /// device).
+    pub container: Option<ContainerInfo>,
+}
+
 /// Opens `path` read-only as a block source: a physical device when the path
-/// names one on this platform, otherwise a RAW image file.
+/// names one on this platform, otherwise an image file of any supported
+/// container (RAW, split RAW, EWF/E01, VHD, VHDX, VMDK).
 ///
 /// # Errors
 ///
 /// Returns [`DeviceError`] if the path cannot be opened.
 pub fn open_source(path: impl AsRef<Path>) -> Result<Arc<dyn BlockReader>, DeviceError> {
+    Ok(open_source_described(path)?.reader)
+}
+
+/// As [`open_source`], also returning what the image container says about
+/// itself.
+///
+/// # Errors
+///
+/// Returns [`DeviceError`] if the path cannot be opened.
+pub fn open_source_described(path: impl AsRef<Path>) -> Result<OpenedSource, DeviceError> {
     let path = path.as_ref();
     let enumerator = platform_enumerator();
     if enumerator.is_device_path(path) {
         tracing::info!(path = %path.display(), "opening block device read-only");
-        return enumerator.open_path_readonly(&DevicePath::from(path));
+        return Ok(OpenedSource {
+            reader: enumerator.open_path_readonly(&DevicePath::from(path))?,
+            container: None,
+        });
     }
-    let image = RawImage::open(path)?;
-    Ok(Arc::new(image))
+    let image = open_image(path)?;
+    Ok(OpenedSource {
+        reader: image.reader,
+        container: Some(image.info),
+    })
 }

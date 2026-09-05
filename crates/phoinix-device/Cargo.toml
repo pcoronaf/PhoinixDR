@@ -11,6 +11,7 @@ authors.workspace = true
 [dependencies]
 phoinix-core = { workspace = true }
 phoinix-block = { workspace = true }
+phoinix-image = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

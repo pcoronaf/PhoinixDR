@@ -9,3 +9,4 @@ pub mod read;
 pub mod recover;
 pub mod scan;
 pub mod undelete;
+pub mod verify;

@@ -105,6 +105,12 @@ impl<'a> ByteView<'a> {
         self.array::<4>(offset).map(u32::from_be_bytes)
     }
 
+    /// Reads a big-endian `u64`.
+    #[must_use]
+    pub fn u64_be(&self, offset: usize) -> Option<u64> {
+        self.array::<8>(offset).map(u64::from_be_bytes)
+    }
+
     /// Reads a little-endian `i64`.
     #[must_use]
     pub fn i64_le(&self, offset: usize) -> Option<i64> {

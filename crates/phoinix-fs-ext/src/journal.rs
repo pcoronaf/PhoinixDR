@@ -117,7 +117,7 @@ impl Journal {
             .slice(48, 16)
             .and_then(|b| b.try_into().ok())
             .unwrap_or(*fs_uuid);
-        let csum_seed = crate::crc32c::update(!0, &journal_uuid);
+        let csum_seed = phoinix_core::crc32c::update(!0, &journal_uuid);
         let mut logged: HashMap<u64, Vec<LoggedBlock>> = HashMap::new();
         let bs = u64::from(block_size);
         let total = u64::from(max_len)
@@ -191,8 +191,9 @@ impl Journal {
                             let copy = stream
                                 .read_at_vec(data * bs, usize::try_from(bs).ok()?)
                                 .ok()?;
-                            let mut c = crate::crc32c::update(csum_seed, &sequence.to_be_bytes());
-                            c = crate::crc32c::update(c, &copy);
+                            let mut c =
+                                phoinix_core::crc32c::update(csum_seed, &sequence.to_be_bytes());
+                            c = phoinix_core::crc32c::update(c, &copy);
                             Some(if tag_size == 16 {
                                 c == expected
                             } else {

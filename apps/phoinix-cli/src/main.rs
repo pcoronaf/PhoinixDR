@@ -45,6 +45,9 @@ enum Command {
     Explain(commands::explain::Args),
     /// Recover candidates to another filesystem and verify them.
     Recover(commands::recover::Args),
+    /// Hash a source and compare with the hashes stored in its image
+    /// container (E01).
+    Verify(commands::verify::Args),
 }
 
 fn init_tracing(verbosity: u8) {
@@ -67,6 +70,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Devices(args) => commands::devices::run(args),
         Command::Read(args) => commands::read::run(args),
         Command::Inspect(args) => commands::inspect::run(args),
+        Command::Verify(args) => commands::verify::run(args),
         Command::Ntfs(cmd) => commands::ntfs::run(cmd),
         Command::Partitions(args) => commands::partitions::run(args),
         Command::Scan(args) => commands::scan::run(args),
