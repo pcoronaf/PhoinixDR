@@ -1,0 +1,33 @@
+[package]
+name = "phoinix-session"
+description = "Application service layer: scans with progress, sessions, recovery and previews for front-ends"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+phoinix-core = { workspace = true }
+phoinix-block = { workspace = true }
+phoinix-device = { workspace = true }
+phoinix-volume = { workspace = true }
+phoinix-fs = { workspace = true }
+phoinix-fs-ntfs = { workspace = true }
+phoinix-fs-fat = { workspace = true }
+phoinix-fs-exfat = { workspace = true }
+phoinix-health = { workspace = true }
+phoinix-carve = { workspace = true }
+phoinix-recovery = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+flate2 = "1"
+
+[lints]
+workspace = true

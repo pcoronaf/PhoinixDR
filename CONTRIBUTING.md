@@ -31,6 +31,13 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 ```
 
+For changes under `apps/desktop` (its own Cargo workspace plus npm):
+
+```bash
+cd apps/desktop && npm ci && npm run typecheck && npm test && npm run build
+cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
+```
+
 CI runs the same commands on Linux and Windows.
 
 ## Architectural decisions

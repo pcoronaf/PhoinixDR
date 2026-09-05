@@ -1,0 +1,220 @@
+// Sample data for running the front-end in a plain browser (`npm run dev`
+// outside Tauri). Nothing here reaches production paths inside the app.
+import type {
+  AppInfo,
+  CandidateSummary,
+  DeviceInfo,
+  Preview,
+  RecoverItem,
+  RecoveryCandidate,
+  ScanEvent,
+  ScanRequest,
+  SessionSummary,
+  SourceInfo,
+} from "./types";
+
+export const demoDevices: DeviceInfo[] = [
+  {
+    id: "d1",
+    path: "\\\\.\\PhysicalDrive0",
+    display_name: "ADATA SU800NS38",
+    kind: "disk",
+    parent: null,
+    size: 512_110_190_592,
+    geometry: { logical_sector_size: 512, physical_sector_size: 512, alignment: null },
+    removable: false,
+    rotational: false,
+    bus: "sata",
+    vendor: null,
+    model: "ADATA SU800NS38",
+    serial: "2K27",
+    accessible: true,
+  },
+  {
+    id: "d2",
+    path: "\\\\.\\PhysicalDrive1",
+    display_name: "Generic Flash Disk",
+    kind: "disk",
+    parent: null,
+    size: 16_357_785_600,
+    geometry: { logical_sector_size: 512, physical_sector_size: null, alignment: null },
+    removable: true,
+    rotational: null,
+    bus: "usb",
+    vendor: "Generic",
+    model: "Flash Disk",
+    serial: "?8",
+    accessible: true,
+  },
+];
+
+export function demoSource(path: string): SourceInfo {
+  return {
+    path,
+    is_device: path.startsWith("\\\\.\\"),
+    size: 16_357_785_600,
+    sector_size: 512,
+    scheme: "Mbr",
+    volumes: [
+      { partition: 1, offset: 1_048_576, length: 16_356_737_024, type_description: "FAT32 (LBA)", filesystem: "Fat32", confidence: 92, supported: true },
+    ],
+    diagnostics: [],
+  };
+}
+
+const names: [string, string, string, number, number, number][] = [
+  ["Presentación Riesgos.pptx", "\\Presentación Riesgos.pptx", "pptx", 185_713_708, 95, 87],
+  ["ISACA-J-S-26-00003.pdf", "\\ISACA-J-S-26-00003.pdf", "pdf", 934_224, 79, 67],
+  ["composed.jpg", "\\photos\\composed.jpg", "jpeg", 363_520, 92, 72],
+  ["00-COMPLETE-BOOK.zip", "\\00-COMPLETE-BOOK.zip", "zip", 300_032, 59, 52],
+  ["notes.txt", "\\docs\\notes.txt", "(none)", 9_000, 59, 52],
+  ["e1214424-8ad3.bin", "\\SOURCES\\e1214424-8ad3.bin", "(none)", 316_416, 15, 62],
+];
+
+export const demoRows: CandidateSummary[] = names.map(([name, path, type, size, likelihood, confidence], i) => ({
+  id: `c${i}`,
+  name,
+  path,
+  path_uncertain: false,
+  size,
+  category: likelihood >= 95 ? "Excellent" : likelihood >= 80 ? "VeryGood" : likelihood >= 60 ? "Good" : likelihood >= 35 ? "Poor" : "VeryPoor",
+  likelihood,
+  confidence,
+  source: "filesystem_metadata",
+  type_id: type === "(none)" ? null : type,
+  type_name: type === "(none)" ? null : type.toUpperCase(),
+  modified: "2026-09-02T16:22:52Z",
+  reference: `${16777728 + i * 32}`,
+}));
+
+export const demoCarved: CandidateSummary[] = [
+  {
+    id: "k1",
+    name: "carved-000038411776.jpg",
+    path: null,
+    path_uncertain: true,
+    size: 22_219,
+    category: "VeryGood",
+    likelihood: 85,
+    confidence: 72,
+    source: "file_carving",
+    type_id: "jpeg",
+    type_name: "JPEG image",
+    modified: null,
+    reference: "c38411776",
+  },
+];
+
+export function demoSession(request: ScanRequest, count: number): SessionSummary {
+  return {
+    id: "demo-session",
+    file: null,
+    source: request.source,
+    partition: request.partition,
+    filesystem: "Fat32",
+    mode: request.mode,
+    started: Math.floor(Date.now() / 1000) - 30,
+    finished: Math.floor(Date.now() / 1000),
+    complete: true,
+    candidates: count,
+    from_metadata: demoRows.length,
+    carved: count - demoRows.length,
+    carving: request.mode === "deep" ? { bytes_scanned: 3_500_000, bytes_eligible: 3_500_000, hits: 3, nested_skipped: 0, rejected: 0, too_small: 0, candidates: 3, merged_into_metadata: 2 } : null,
+  };
+}
+
+export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void): void {
+  const volume = demoSource(request.source).volumes[0]!;
+  emit({ kind: "phase", phase: "opening" });
+  emit({ kind: "started", session_id: "demo-session", filesystem: "Fat32", volume });
+  emit({ kind: "phase", phase: "metadata" });
+  let i = 0;
+  const tick = (): void => {
+    if (i < demoRows.length) {
+      emit({ kind: "candidates", items: [demoRows[i]!] });
+      emit({ kind: "progress", phase: "metadata", done: i + 1, total: null, candidates: i + 1 });
+      i += 1;
+      window.setTimeout(tick, 150);
+      return;
+    }
+    if (request.mode === "deep") {
+      emit({ kind: "phase", phase: "carving" });
+      let done = 0;
+      const step = (): void => {
+        done += 700_000;
+        emit({ kind: "progress", phase: "carving", done: Math.min(done, 3_500_000), total: 3_500_000, candidates: demoRows.length + 3 });
+        if (done < 3_500_000) window.setTimeout(step, 120);
+        else {
+          emit({ kind: "phase", phase: "finishing" });
+          emit({ kind: "candidates", items: demoCarved });
+          emit({ kind: "finished", summary: demoSession(request, demoRows.length + demoCarved.length) });
+        }
+      };
+      window.setTimeout(step, 120);
+      return;
+    }
+    emit({ kind: "finished", summary: demoSession(request, demoRows.length) });
+  };
+  window.setTimeout(tick, 200);
+}
+
+export function demoDetail(row: CandidateSummary): RecoveryCandidate {
+  return {
+    id: row.id,
+    filesystem: "Fat32",
+    filesystem_object: { filesystem: "fat", entry_offset: Number(row.reference) || 0 },
+    original_name: row.name,
+    original_path: row.path,
+    path_uncertain: row.path_uncertain,
+    logical_size: row.size,
+    deleted: true,
+    timestamps: { created_iso: null, modified_iso: row.modified, accessed_iso: null },
+    evidence: {
+      source: row.source,
+      metadata: {},
+      extents: { resident: false, complete: true, extent_count: 1, total_clusters: 115, expected_clusters: 115, chain_known: false, heuristic: false, start_inferred: true },
+      allocation: { clusters_total: 115, clusters_free: 115, clusters_allocated: 0, clusters_unknown: 0, map_available: true },
+      content: {
+        detected_type: row.type_id ? { id: row.type_id, name: row.type_name ?? row.type_id, extension: row.type_id } : null,
+        expected_type: null,
+        validation: row.type_id === "pdf" ? { status: "Valid", checks: [{ name: "PDF header", passed: true, detail: "%PDF-1.4" }, { name: "End-of-file marker", passed: true, detail: "%%EOF present" }] } : null,
+        zero_block_ratio: 0,
+        bytes_examined: row.size ?? 0,
+      },
+      storage: { device_kind: "BlockDevice", rotational: null },
+      diagnostics: [{ severity: "warning", message: "The high word of the first cluster was cleared on deletion and the recorded cluster 8,241 is allocated to other data; cluster 73,777 was chosen among 1 free candidate sharing the low word because its content carries the signature of the type expected from the file name" }],
+    },
+    health: {
+      likelihood: row.likelihood,
+      confidence: row.confidence,
+      category: row.category,
+      reasons: [
+        { positive: true, text: "Valid deleted metadata record" },
+        { positive: true, text: "Original filename is available" },
+        { positive: true, text: "All 115 required clusters are currently free" },
+        { positive: false, text: "The recorded start cluster was untrustworthy; the start was inferred from free clusters and their content (heuristic)" },
+      ],
+    },
+  };
+}
+
+export function demoPreview(row: CandidateSummary): Preview {
+  if (row.type_id === "jpeg") {
+    return { kind: "unavailable", reason: "Image previews need the desktop application (demo mode)" };
+  }
+  return { kind: "text", text: `Demo preview of ${row.name}\n\n(the desktop application shows the reconstructed content here)`, truncated: false };
+}
+
+export function demoRecover(ids: string[], rows: CandidateSummary[], destination: string): RecoverItem[] {
+  return ids.map((id) => {
+    const r = rows.find((x) => x.id === id);
+    return {
+      id,
+      name: r?.name ?? id,
+      result: { output_path: `${destination}\\${r?.name ?? id}`, bytes_expected: r?.size ?? null, bytes_written: r?.size ?? 0, sha256: "acdc2332c2c7b929cd6308a831cc91bce777ca05adadeb7f9982b7a250e5ed2a", complete: true, diagnostics: [] },
+      error: null,
+    };
+  });
+}
+
+export const demoAppInfo: AppInfo = { version: "0.1.0-demo", sessions_dir: "(browser demo)", device_access: true };

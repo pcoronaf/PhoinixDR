@@ -1,0 +1,44 @@
+[package]
+name = "phoinix-desktop"
+description = "PhoinixDR desktop application (Tauri 2 shell over phoinix-session)"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/pcoronaf/PhoinixDR"
+authors = ["PHOINIX contributors"]
+
+# The desktop shell is its own workspace: the recovery core builds and tests
+# without any GUI toolchain (see docs/desktop/architecture.md).
+[workspace]
+
+[lib]
+name = "phoinix_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+phoinix-core = { path = "../../../crates/phoinix-core" }
+phoinix-device = { path = "../../../crates/phoinix-device" }
+phoinix-fs = { path = "../../../crates/phoinix-fs" }
+phoinix-session = { path = "../../../crates/phoinix-session" }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+cast_possible_truncation = "warn"

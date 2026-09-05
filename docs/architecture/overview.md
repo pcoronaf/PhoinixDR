@@ -22,6 +22,8 @@
 │  phoinix-fs-exfat  native exFAT reader + undelete           │
 │  phoinix-health    evidence, scoring, explanations          │
 │  phoinix-carve     deep scan: signature carving, assembly   │
+│  phoinix-session   service layer: scans, sessions, previews │
+│  apps/desktop      Tauri 2 shell + React front-end          │
 │  phoinix-recovery  recovery writer, safety, SHA-256         │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -39,6 +41,8 @@ phoinix-fs ◄───────────────┘
    ▲
 phoinix-fs-ntfs / phoinix-fs-fat / phoinix-fs-exfat
 phoinix-carve (phoinix-fs contracts + phoinix-health only)
+phoinix-session (composes engines, carve and recovery; no GUI dependency)
+apps/desktop/src-tauri (phoinix-session only; separate Cargo workspace)
    ▲
 phoinix-recovery (via phoinix-fs contracts only)
    ▲

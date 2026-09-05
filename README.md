@@ -13,11 +13,11 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 ```
 
 > **Status:** early engineering preview. The repository implements milestones
-> M0–M4, M7 and M8 of the technical specification: the read-only block layer,
-> MBR/GPT discovery, native NTFS, FAT12/16/32 and exFAT readers with undelete,
-> deep scan (signature carving of unallocated space), evidence-based recovery
-> health and a verified recovery writer, all exposed through `phoinix-cli`.
-> There is no desktop GUI yet.
+> M0–M8 of the technical specification: the read-only block layer, MBR/GPT
+> discovery, native NTFS, FAT12/16/32 and exFAT readers with undelete, deep
+> scan (signature carving of unallocated space), evidence-based recovery
+> health, a verified recovery writer, the `phoinix` CLI and a desktop
+> application (Tauri 2 + React) with sessions, previews and recovery.
 
 ## Principles
 
@@ -39,6 +39,7 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md), the
 [NTFS reader notes](docs/ntfs/reader.md), the
 [FAT/exFAT engine notes](docs/fat/reader.md), the
 [deep scan / carving notes](docs/carving/deep-scan.md), the
+[desktop architecture](docs/desktop/architecture.md), the
 [health model](docs/recovery/health-model.md), the
 [undelete corpora](docs/ntfs/undelete-corpus.md) and the
 [real-hardware test procedure](docs/testing/real-hardware.md).
@@ -58,6 +59,8 @@ crates/phoinix-fs-exfat native exFAT reader and undelete engine
 crates/phoinix-health   recovery evidence model, scoring and explanations
 crates/phoinix-carve    deep scan: signature carving with structural assembly
 crates/phoinix-recovery recovery writer with destination safety and SHA-256 verification
+crates/phoinix-session  application service layer: scans with progress, sessions, recovery, previews
+apps/desktop            desktop application: Tauri 2 shell (src-tauri) + React/TypeScript front-end
 tests/fixtures          compressed disk-image fixtures with ground-truth manifests
 tests/generated         scripts that build the fixtures deterministically
 tests/integration       end-to-end tests across crates
@@ -72,6 +75,20 @@ PhoinixDR is a standard Cargo workspace on stable Rust (edition 2024).
 cargo build --release
 cargo test --workspace
 ```
+
+## Desktop application
+
+```bash
+cd apps/desktop
+npm ci
+npm run tauri dev      # development window
+npm run tauri build    # installers under src-tauri/target/release/bundle
+```
+
+Linux needs the WebKitGTK development packages first
+(`libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`).
+Scanning physical disks requires an elevated process; disk images do not.
+See [`docs/desktop/architecture.md`](docs/desktop/architecture.md).
 
 ## Using the CLI
 

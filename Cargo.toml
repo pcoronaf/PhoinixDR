@@ -13,8 +13,12 @@ members = [
     "crates/phoinix-health",
     "crates/phoinix-carve",
     "crates/phoinix-recovery",
+    "crates/phoinix-session",
     "tests/integration",
 ]
+# The desktop shell is a separate workspace so that the core never needs a
+# GUI toolchain to build or test.
+exclude = ["apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -38,6 +42,7 @@ phoinix-fs-fat = { path = "crates/phoinix-fs-fat" }
 phoinix-fs-exfat = { path = "crates/phoinix-fs-exfat" }
 phoinix-health = { path = "crates/phoinix-health" }
 phoinix-carve = { path = "crates/phoinix-carve" }
+phoinix-session = { path = "crates/phoinix-session" }
 phoinix-recovery = { path = "crates/phoinix-recovery" }
 
 # External crates. Keep this list conservative (see CONTRIBUTING.md).

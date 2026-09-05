@@ -545,6 +545,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "phoinix-session"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "phoinix-block",
+ "phoinix-carve",
+ "phoinix-core",
+ "phoinix-device",
+ "phoinix-fs",
+ "phoinix-fs-exfat",
+ "phoinix-fs-fat",
+ "phoinix-fs-ntfs",
+ "phoinix-health",
+ "phoinix-recovery",
+ "phoinix-volume",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "phoinix-volume"
 version = "0.1.0"
 dependencies = [

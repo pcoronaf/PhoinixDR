@@ -15,3 +15,4 @@ consequences. A superseded record stays in place and links to its successor.
 | [0007](ADR-0007-no-source-writes-in-recovery-core.md) | No source writes in the recovery core |
 | [0008](ADR-0008-candidate-addressing-before-sessions.md) | Candidate addressing before a session database exists |
 | [0009](ADR-0009-carving-scope-and-dedup.md) | Carving scans free space by default and folds into metadata candidates |
+| [0010](ADR-0010-desktop-mvp-in-process-engine.md) | Desktop MVP runs the engine in-process behind a service layer |
