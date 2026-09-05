@@ -26,8 +26,11 @@ lista las sesiones de escaneo recientes.
 | **Removable device** (dispositivo extraíble) | memorias USB, tarjetas SD, discos externos |
 | **Disk image** (imagen de disco) | un archivo: RAW/dd, RAW dividida, E01 (y E01 dividida), SMART, VHD, VHDX, VMDK |
 
-Un dispositivo que no puede abrirse (faltan privilegios) aparece
-atenuado con el motivo.
+Un dispositivo que no puede abrirse aparece atenuado como *Not accessible
+from this process* (no accesible desde este proceso), y la página explica
+la solución: cierre PhoinixDR y vuelva a iniciarlo con *Ejecutar como
+administrador* (Windows) o `sudo` (Linux). Las imágenes de disco nunca
+necesitan elevación.
 
 ## 2. Configuración del escaneo
 
@@ -103,7 +106,7 @@ Seleccione filas y pulse **Recover**:
   archivo de imagen se rechaza siempre.
 - **Opciones:** recrear la estructura de carpetas original, aplicar las
   marcas de tiempo originales, verificar cada archivo con SHA-256.
-- **Report and case** (informe y caso): elija un archivo de informe
+- **Report and case (optional)** (informe y caso, opcional): elija un archivo de informe
   (`.html`, `.md` o `.json`), opcionalmente calcule el hash de toda la
   fuente para el informe, y rellene número de caso, número de evidencia,
   examinador y notas. Los campos se rellenan previamente con la cabecera de

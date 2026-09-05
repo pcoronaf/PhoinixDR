@@ -24,8 +24,10 @@ scan sessions.
 | **Removable device** | USB sticks, SD cards, external disks |
 | **Disk image** | a file: RAW/dd, split RAW, E01 (and split E01), SMART, VHD, VHDX, VMDK |
 
-A device that cannot be opened (missing privileges) is shown greyed with
-the reason.
+A device that cannot be opened is shown greyed as *Not accessible from
+this process*, and the page explains the fix: close PhoinixDR and start it
+again with *Run as administrator* (Windows) or `sudo` (Linux). Disk
+images never need elevation.
 
 ## 2. Scan setup
 
@@ -93,7 +95,7 @@ Select rows and press **Recover**:
   image file itself is always refused.
 - **Options:** recreate the original folder structure, apply original
   timestamps, verify every file with SHA-256.
-- **Report and case:** choose a report file (`.html`, `.md` or `.json`),
+- **Report and case (optional):** choose a report file (`.html`, `.md` or `.json`),
   optionally hash the whole source for it, and fill in case number,
   evidence number, examiner and notes. Fields are prefilled from the E01
   acquisition header when the source has one.

@@ -138,7 +138,7 @@ export function RecoverDialog({ api, rows, ids, acquisition, onClose }: Props) {
               <label className="option"><input type="checkbox" checked={hash} onChange={(e) => setHash(e.target.checked)} /><span>Verify every file with SHA-256</span></label>
             </fieldset>
             <fieldset>
-              <legend>Report and case</legend>
+              <legend>Report and case (optional)</legend>
               <div className="dest">
                 <input type="text" placeholder="Recovery report (.html, .md or .json); leave empty for none" value={report} onChange={(e) => setReport(e.target.value)} />
                 <button type="button" onClick={pickReport}>Choose…</button>
