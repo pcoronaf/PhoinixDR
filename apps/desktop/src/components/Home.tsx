@@ -1,5 +1,6 @@
 import type { AppInfo, SessionSummary } from "../types";
 import { formatUnix, fsLabel } from "../lib/format";
+import logo from "../assets/logo.png";
 
 interface Props {
   info: AppInfo | null;
@@ -15,7 +16,8 @@ export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenS
   return (
     <div className="home">
       <div className="hero">
-        <h1>PhoinixDR <span className="byline">by @pcoronaf</span></h1>
+        <img className="logo" src={logo} alt="PhoinixDR — Lost data lives again" />
+        <p className="byline muted">by @pcoronaf</p>
         <p className="muted">Open-source, evidence-driven data recovery. Nothing is written to the source, ever.</p>
       </div>
       <h2>Recover files from</h2>

@@ -35,7 +35,8 @@ main { max-width: var(--max); margin: 0 auto; padding: 24px; }
 main.doc { max-width: 880px; }
 main.doc img { max-width: 100%; }
 .hero { text-align: center; padding: 56px 0 32px; }
-.hero img { width: 128px; height: 128px; }
+.hero .logo-panel { display: inline-block; background: #fff; border-radius: 24px; padding: 8px 28px; margin-bottom: 8px; }
+.hero .logo-panel img { width: 300px; max-width: 80vw; display: block; }
 .hero h1 { margin: 12px 0 4px; font-size: 3rem; letter-spacing: 0.02em; }
 .hero .tag { color: var(--accent); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem; }
 .hero .lead { font-size: 1.5rem; color: var(--text); margin: 20px 0 8px; }

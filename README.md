@@ -1,11 +1,9 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="PhoinixDR logo" width="140" height="140">
+  <img src="assets/logo.png" alt="PhoinixDR — Lost data lives again" width="360">
 </p>
 
-<h1 align="center">PhoinixDR</h1>
-
 <p align="center"><strong>Open Source Data Recovery · by <a href="https://github.com/pcoronaf">@pcoronaf</a></strong><br>
-Recover lost files. Understand your chances.</p>
+Lost data lives again. Recover lost files. Understand your chances.</p>
 
 <p align="center">
   <a href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">Download for Windows</a> ·

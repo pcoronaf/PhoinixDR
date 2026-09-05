@@ -7,6 +7,7 @@ import { ScanSetup } from "./components/ScanSetup";
 import { ScanProgress, type ProgressState } from "./components/ScanProgress";
 import { Results } from "./components/Results";
 import { RecoverDialog } from "./components/RecoverDialog";
+import logoMark from "./assets/logo-mark.png";
 
 type View =
   | { name: "home" }
@@ -149,7 +150,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <button className="brand" onClick={() => setView({ name: "home" })} disabled={view.name === "scanning"}>PhoinixDR</button>
+        <button className="brand" onClick={() => setView({ name: "home" })} disabled={view.name === "scanning"}><img src={logoMark} alt="" width="22" height="22" /> PhoinixDR</button>
         <span className="crumb">{view.name === "home" ? "" : view.name === "devices" ? "Choose a source" : view.name === "setup" ? "Scan" : view.name === "scanning" ? "Scanning" : "Results"}</span>
         <span className="spacer" />
         {api.isDemo && <span className="tag">browser demo</span>}

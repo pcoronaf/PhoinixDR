@@ -32,7 +32,7 @@ html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); }
 .app { display: flex; flex-direction: column; height: 100%; }
 .topbar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.brand { font-weight: 700; font-size: 16px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; }
+.brand { font-weight: 700; font-size: 16px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 8px; }
 .crumb { color: var(--muted); }
 .spacer { flex: 1; }
 main { flex: 1; min-height: 0; overflow: auto; }
@@ -59,7 +59,8 @@ legend { color: var(--muted); padding: 0 6px; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .panel, .home { max-width: 900px; margin: 0 auto; padding: 20px 24px; }
-.hero { padding: 26px 0 8px; }
+.hero { padding: 26px 0 8px; text-align: center; }
+.hero .logo { width: 300px; max-width: 70vw; display: block; margin: 0 auto 4px; }
 .choices, .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .choice, .card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 14px 16px; }
 .choice strong, .card strong { font-size: 15px; }

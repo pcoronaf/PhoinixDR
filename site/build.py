@@ -48,7 +48,7 @@ def layout(title: str, body: str, depth: int) -> str:
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="{rel}index.html"><img src="{rel}assets/logo.svg" alt="" width="28" height="28"> PhoinixDR</a>
+  <a class="brand" href="{rel}index.html"><img src="{rel}assets/logo-mark.png" alt="" width="28" height="28"> PhoinixDR</a>
   <nav>
     <a href="{rel}docs/index.html">Documentation</a>
     <a href="{rel}docs/user-guide/desktop.html">User guide</a>

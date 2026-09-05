@@ -10,7 +10,8 @@ GitHub Releases.
   that produces single-executable builds with SHA-256 sums.
 - Attribution "by @pcoronaf" in the CLI (`--version`, `--help`), the
   desktop application and recovery reports.
-- Project logo; desktop icons regenerated from it.
+- Official PhoinixDR logo ("Lost data lives again") in the README, the
+  website, the desktop application and its icons.
 - Documentation: getting started, desktop and command-line guides, FAQ,
   Development Declaration, "Yes, PHOINIX is vibecoded", "Where PHOINIX
   Came From"; the GitHub Pages site and its build.
