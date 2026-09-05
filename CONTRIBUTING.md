@@ -1,4 +1,4 @@
-# Contributing to PHOINIX
+# Contributing to PhoinixDR
 
 Thank you for helping build an open, evidence-driven recovery platform.
 

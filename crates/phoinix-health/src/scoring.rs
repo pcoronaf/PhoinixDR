@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::evidence::RecoveryEvidence;
+use crate::evidence::{RecoveryEvidence, ZeroContentAssessment};
 use crate::health::{HealthCategory, HealthReason, RecoveryHealth};
 use crate::validate::ValidationStatus;
 
@@ -31,10 +31,12 @@ pub struct ScoringModel {
     pub cap_validation_damaged: u8,
     /// Cap when content validation reports the structure as invalid.
     pub cap_validation_invalid: u8,
-    /// Cap when a large share of sampled content is zero-filled.
-    pub cap_mostly_zero: u8,
-    /// Fraction of zero blocks above which content is considered wiped.
-    pub zero_ratio_threshold: f64,
+    /// Cap when zero-filled content contradicts the file's format.
+    pub cap_zero_contradicts_format: u8,
+    /// Cap when zero-filled content is suspicious for a recognised type.
+    pub cap_zero_suspicious: u8,
+    /// Confidence penalty when zero-filled content is ambiguous.
+    pub ambiguous_zero_confidence_penalty: u8,
     /// Bonus for a fully valid structure (within caps).
     pub bonus_valid_structure: u8,
     /// Penalty per fragment beyond the first, capped by `fragment_penalty_max`.
@@ -56,8 +58,9 @@ impl Default for ScoringModel {
             cap_no_allocation_map: 74,
             cap_validation_damaged: 59,
             cap_validation_invalid: 34,
-            cap_mostly_zero: 20,
-            zero_ratio_threshold: 0.5,
+            cap_zero_contradicts_format: 20,
+            cap_zero_suspicious: 59,
+            ambiguous_zero_confidence_penalty: 25,
             bonus_valid_structure: 3,
             fragment_penalty_per_extent: 1,
             fragment_penalty_max: 5,
@@ -150,6 +153,11 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
         s.likelihood -= 5;
     }
 
+    let empty = m.logical_size == Some(0);
+    if empty {
+        s.good("The file is empty: there is no content to recover beyond its metadata");
+    }
+
     // ---- unsupported content -------------------------------------------------
     if x.encrypted {
         s.bad("Content is EFS-encrypted and unusable without the keys");
@@ -238,23 +246,50 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
     }
 
     // ---- content ----------------------------------------------------------------
-    if let Some(ratio) = c.zero_block_ratio
-        && c.bytes_examined > 0
-    {
-        if ratio >= model.zero_ratio_threshold {
+    let zero_pct = c.zero_block_ratio.map_or(0, percent);
+    match c.zero_assessment {
+        None => {}
+        Some(ZeroContentAssessment::Expected) => {
+            if zero_pct > 0 {
+                s.good(format!(
+                    "{zero_pct}% of the sampled content is zero-filled, as expected for this file"
+                ));
+            }
+        }
+        Some(ZeroContentAssessment::Plausible) => {
+            if zero_pct > 0 {
+                s.good(format!("{zero_pct}% of the sampled content is zero-filled, which is consistent with its format"));
+            }
+        }
+        Some(ZeroContentAssessment::Suspicious) => {
             s.bad(format!(
-                "{}% of the sampled content is zero-filled although the filesystem reports the clusters as free; the medium may have discarded them",
-                percent(ratio)
+                "{zero_pct}% of the sampled content is zero-filled, which is unusual for this type"
             ));
-            s.cap_at(model.cap_mostly_zero);
-        } else if ratio > 0.0 && !x.sparse {
+            s.cap_at(model.cap_zero_suspicious);
+        }
+        Some(ZeroContentAssessment::ContradictsFormat) => {
+            let kind = c
+                .detected_type
+                .as_ref()
+                .or(c.expected_type.as_ref())
+                .map_or_else(|| "file".to_owned(), |t| t.name.clone());
             s.bad(format!(
-                "{}% of the sampled content is zero-filled",
-                percent(ratio)
+                "{zero_pct}% of the sampled content is zero-filled, which a {kind} cannot be; the clusters were probably discarded or reused even though the filesystem reports them as free"
+            ));
+            s.cap_at(model.cap_zero_contradicts_format);
+        }
+        Some(ZeroContentAssessment::Ambiguous) => {
+            s.bad(format!(
+                "{zero_pct}% of the sampled content is zero-filled; PHOINIX cannot tell wiped data from a legitimately zero-filled file of unknown type"
             ));
         }
     }
-    if let Some(v) = &c.validation {
+    if empty {
+        s.good("Content validation is not applicable to an empty file");
+    }
+    if let Some(v) = &c.validation
+        && !empty
+    {
         let type_name = c
             .detected_type
             .as_ref()
@@ -310,8 +345,11 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
         }
     }
 
+    if empty {
+        s.likelihood = s.likelihood.min(i32::from(model.resident_base));
+    }
     let likelihood = u8::try_from(s.likelihood.clamp(0, i32::from(s.cap))).unwrap_or(0);
-    let confidence = confidence(evidence);
+    let confidence = confidence(evidence, model);
     let mut reasons = s.positives;
     reasons.extend(s.negatives);
     RecoveryHealth {
@@ -324,7 +362,7 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
 
 /// Confidence reflects how much PHOINIX actually knows, independent of
 /// whether the news is good.
-fn confidence(e: &RecoveryEvidence) -> u8 {
+fn confidence(e: &RecoveryEvidence, model: &ScoringModel) -> u8 {
     let mut c: i32 = 100;
     if !e.metadata.valid_record {
         c -= 30;
@@ -332,6 +370,7 @@ fn confidence(e: &RecoveryEvidence) -> u8 {
     if !e.metadata.logical_size_available {
         c -= 10;
     }
+    let empty = e.metadata.logical_size == Some(0);
     if !e.extents.resident {
         if !e.extents.complete {
             c -= 25;
@@ -342,12 +381,17 @@ fn confidence(e: &RecoveryEvidence) -> u8 {
             c -= unknown_penalty(e.allocation.clusters_unknown, e.allocation.clusters_total);
         }
     }
-    match &e.content.validation {
-        Some(v) if v.status != ValidationStatus::Unknown => {}
-        _ => c -= 15,
-    }
-    if e.content.zero_block_ratio.is_none() {
-        c -= 5;
+    if !empty {
+        match &e.content.validation {
+            Some(v) if v.status != ValidationStatus::Unknown => {}
+            _ => c -= 15,
+        }
+        if e.content.zero_block_ratio.is_none() {
+            c -= 5;
+        }
+        if e.content.zero_assessment == Some(ZeroContentAssessment::Ambiguous) {
+            c -= i32::from(model.ambiguous_zero_confidence_penalty);
+        }
     }
     if e.storage.rotational.is_none() {
         c -= 3;
@@ -387,6 +431,7 @@ mod tests {
             original_parent_available: true,
             parent_reference_valid: true,
             logical_size_available: true,
+            logical_size: Some(409_600),
             timestamps_available: true,
         }
     }
@@ -526,20 +571,61 @@ mod tests {
     }
 
     #[test]
-    fn zeroed_content_with_free_clusters_scores_low() {
+    fn zeroed_content_contradicting_the_format_scores_low() {
         let mut e = non_resident(1, 100, 0);
         e.content.zero_block_ratio = Some(0.9);
-        e.content.validation = Some(ValidationResult {
-            status: ValidationStatus::Invalid,
-            checks: vec![ValidationCheck {
-                name: "ZIP end of central directory".into(),
-                passed: false,
-                detail: "not found".into(),
-            }],
+        e.content.expected_type = Some(crate::FileTypeDetection {
+            id: "zip".into(),
+            name: "ZIP archive".into(),
+            extension: "zip".into(),
         });
+        e.content.zero_assessment = Some(ZeroContentAssessment::ContradictsFormat);
         let h = score(&e, &ScoringModel::default());
         assert!(h.likelihood <= 20, "{h:?}");
-        assert!(h.reasons.iter().any(|r| r.text.contains("zero-filled")));
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| r.text.contains("ZIP archive cannot be"))
+        );
+    }
+
+    #[test]
+    fn ambiguous_zeros_lower_confidence_not_likelihood() {
+        let mut e = non_resident(1, 100, 0);
+        e.content.zero_block_ratio = Some(1.0);
+        e.content.zero_assessment = Some(ZeroContentAssessment::Ambiguous);
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood >= 85, "{h:?}");
+        assert!(h.confidence <= 60, "{h:?}");
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| !r.positive && r.text.contains("cannot tell"))
+        );
+        e.content.zero_assessment = Some(ZeroContentAssessment::Expected);
+        e.extents.sparse = true;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood >= 85 && h.confidence >= 75, "{h:?}");
+    }
+
+    #[test]
+    fn empty_file_is_excellent_with_validation_not_applicable() {
+        let mut e = non_resident(0, 0, 0);
+        e.metadata.logical_size = Some(0);
+        e.extents = ExtentEvidence {
+            resident: true,
+            complete: true,
+            ..Default::default()
+        };
+        e.allocation = AllocationEvidence {
+            map_available: true,
+            ..Default::default()
+        };
+        e.content = crate::evidence::ContentEvidence::default();
+        let h = score(&e, &ScoringModel::default());
+        assert_eq!(h.category, HealthCategory::Excellent, "{h:?}");
+        assert!(h.confidence >= 90, "{h:?}");
+        assert!(h.reasons.iter().any(|r| r.text.contains("not applicable")));
     }
 
     #[test]

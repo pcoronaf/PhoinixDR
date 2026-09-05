@@ -17,6 +17,9 @@ pub struct MetadataEvidence {
     pub parent_reference_valid: bool,
     /// The logical size is known.
     pub logical_size_available: bool,
+    /// The logical size itself, when known (zero means an empty file whose
+    /// content is trivially recoverable).
+    pub logical_size: Option<u64>,
     /// Timestamps were recovered.
     pub timestamps_available: bool,
 }
@@ -77,11 +80,37 @@ impl AllocationEvidence {
     }
 }
 
+/// What zero-filled content means for this candidate.
+///
+/// Zeros are not evidence of loss by themselves: sparse files, zero-filled
+/// binaries and pre-allocated files legitimately contain them. Whether they
+/// count against recovery depends on what the content was expected to be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZeroContentAssessment {
+    /// Zeros are expected here (sparse regions, empty files).
+    Expected,
+    /// Zeros are consistent with the recognised format or too few to matter.
+    Plausible,
+    /// A recognised type whose structure PHOINIX could not fully check reads
+    /// mostly as zeros.
+    Suspicious,
+    /// The zeros violate the structure the file's type (detected or implied
+    /// by its name) requires: strong negative evidence.
+    ContradictsFormat,
+    /// Unknown or raw content that is mostly zeros: wiped data and a
+    /// legitimately zero-filled file look identical, so only the confidence
+    /// is reduced.
+    Ambiguous,
+}
+
 /// Evidence from the content itself.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ContentEvidence {
     /// Detected file type, if any signature matched.
     pub detected_type: Option<FileTypeDetection>,
+    /// Type implied by the original filename's extension, if recognised.
+    pub expected_type: Option<FileTypeDetection>,
     /// Structural validation result, if a validator ran.
     pub validation: Option<ValidationResult>,
     /// Fraction of sampled content blocks that were entirely zero, if the
@@ -89,6 +118,10 @@ pub struct ContentEvidence {
     pub zero_block_ratio: Option<f64>,
     /// Bytes of content that were examined.
     pub bytes_examined: u64,
+    /// Whether the first block of content (where a signature lives) is zero.
+    pub head_is_zero: bool,
+    /// Interpretation of any zero-filled content.
+    pub zero_assessment: Option<ZeroContentAssessment>,
 }
 
 /// Kind of storage device the source lives on.

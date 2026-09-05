@@ -2,7 +2,7 @@
 
 ## Threat model
 
-PHOINIX parses arbitrary, possibly corrupted or deliberately malicious storage.
+PhoinixDR parses arbitrary, possibly corrupted or deliberately malicious storage.
 Every source — physical disk, partition, or image file — is treated as
 attacker-controlled input.
 

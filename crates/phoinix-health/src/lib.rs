@@ -37,4 +37,7 @@ pub use evidence::{
 };
 pub use health::{HealthCategory, HealthReason, RecoveryHealth};
 pub use scoring::{ScoringModel, score};
-pub use validate::{FileTypeDetection, ValidationCheck, ValidationResult, ValidationStatus};
+pub use validate::{
+    FileTypeDetection, ValidationCheck, ValidationResult, ValidationStatus, assess_zero_content,
+    expected_type_from_name,
+};

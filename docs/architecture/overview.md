@@ -1,8 +1,8 @@
-# PHOINIX architecture overview
+# PhoinixDR architecture overview
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    PHOINIX Desktop (future)                 │
+│                    PhoinixDR Desktop (future)                 │
 │                    Tauri 2 + React/TS                       │
 └───────────────────────────┬─────────────────────────────────┘
                             │ typed local IPC
@@ -11,7 +11,7 @@
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
-│                       PHOINIX Core                          │
+│                       PhoinixDR Core                          │
 │  phoinix-core      identifiers, ranges, checked arithmetic  │
 │  phoinix-block     read-only BlockReader, RAW, subranges    │
 │  phoinix-device    device enumeration, read-only access     │

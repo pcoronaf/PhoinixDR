@@ -165,6 +165,7 @@ def main():
         c.put("a/config.json", b'{"key": "' + gen("json", 88) + b'"}', "A", {"exact": True, "min": "excellent", "resident": True})
         c.put("a/small.bin", bytes(range(256)) + bytes(range(144)), "A", {"exact": True, "min": "excellent", "resident": True})
         c.put("a/ünïcödé 文件.txt", gen("unicode", 50), "A", {"exact": True, "min": "excellent", "resident": True})
+        c.put("a/empty.txt", b"", "A", {"exact": True, "min": "excellent", "empty": True})
         # B — contiguous non-resident
         c.put("b/64k.bin", gen("b64k", 65536), "B", {"exact": True, "min": "very good", "max_extents": 1})
         c.put("b/1mib.bin", gen("b1mib", 1 << 20), "B", {"exact": True, "min": "very good", "max_extents": 1})
@@ -177,8 +178,12 @@ def main():
         for pct in (1, 10, 25, 50, 100):
             size = (1 << 20) if pct == 1 else 256 * 1024
             c.put(f"d/realloc_{pct}.bin", gen(f"re{pct}", size), "D", {"exact": False, "allocated_percent": pct})
-        # G — zeroing simulation
-        c.put("g/wiped.jpg", jpg, "G", {"exact": False, "max": "very poor"})
+        # G — zeroing simulation: a JPEG (name implies a format) and a raw
+        # binary (ambiguous), both zeroed after deletion; plus a file that
+        # legitimately consists of zeros and is never touched.
+        c.put("g/wiped.jpg", jpg, "G", {"exact": False, "max": "very poor", "zero_assessment": "contradicts_format"})
+        c.put("g/wiped.bin", gen("wipedraw", 65536), "G", {"exact": False, "min": "good", "max_confidence": 65, "zero_assessment": "ambiguous"})
+        c.put("g/zeros.bin", b"\0" * 65536, "Z", {"exact": True, "min": "good", "max_confidence": 65, "zero_assessment": "ambiguous"})
         # H — file in a directory that is deleted and never reused
         c.put("h/gone/keep.txt", gen("keep", 3000), "H", {"exact": True, "min": "very good", "via_deleted_dir": True})
         # F — records to corrupt afterwards

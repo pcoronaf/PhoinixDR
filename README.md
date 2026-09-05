@@ -1,8 +1,8 @@
-# PHOINIX
+# PhoinixDR
 
 **Open-source, evidence-driven data recovery.**
 
-PHOINIX is a data-recovery engine and (future) desktop application that
+PhoinixDR (Phoinix Data Recovery) is a data-recovery engine and (future) desktop application that
 reconstructs lost data from filesystems, raw media and damaged storage
 structures while explaining how likely each recovered object is to be intact.
 
@@ -59,7 +59,7 @@ docs/                   architecture, NTFS notes, decision records
 
 ## Building
 
-PHOINIX is a standard Cargo workspace on stable Rust (edition 2024).
+PhoinixDR is a standard Cargo workspace on stable Rust (edition 2024).
 
 ```bash
 cargo build --release
@@ -114,18 +114,22 @@ When a source contains a partition table, `scan`, `explain`, `recover` and the
 
 ## Safety
 
-PHOINIX never writes to the source. Recovery always targets another
+PhoinixDR never writes to the source. Recovery always targets another
 filesystem, and the recovery writer refuses destinations that appear to live
 on the source device. See [SECURITY.md](SECURITY.md) for the threat model and
 how to report vulnerabilities.
 
 ## License
 
+SPDX-License-Identifier: `MIT OR Apache-2.0`
+
 Licensed under either of
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 
-at your option. Optional adapters for third-party libraries (for example
+at your option. The Apache licence supplies the patent grant; the MIT
+licence keeps compatibility with projects that prefer a minimal permissive
+licence. Optional adapters for third-party libraries (for example
 The Sleuth Kit or libewf) may carry different terms and are reviewed
 dependency by dependency before any binary that includes them is released.

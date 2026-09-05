@@ -23,7 +23,9 @@ evidence moves it within the cap, and every adjustment produces a reason.
 | extent map incomplete | cap 79 × (located share); 0 when nothing is located |
 | allocation map unavailable | cap 74 |
 | structure damaged / invalid | cap 59 / 34 |
-| ≥ 50 % of sampled blocks zero | cap 20 |
+| zeros contradict the format (`ZeroContentAssessment::ContradictsFormat`) | cap 20 |
+| zeros suspicious for a recognised type (`Suspicious`) | cap 59 |
+| empty file (logical size 0) | likelihood ≤ 97, validation not applicable |
 | encrypted / compressed | cap 10 / 0 |
 | valid structure | +3 |
 | fragments | −1 per extra extent, at most −5 |
@@ -31,12 +33,34 @@ evidence moves it within the cap, and every adjustment produces a reason.
 Fragmentation alone never makes a file *Poor* when every extent is known and
 free.
 
+## Zero-filled content
+
+Zeros are not evidence of loss by themselves. Sampled zero blocks are
+interpreted with the file's context:
+
+```text
+All-zero content detected
+        │
+        ├── stream is sparse                 → Expected, no penalty
+        ├── recognised structured type
+        │       ├── validation fails         → ContradictsFormat (cap 20)
+        │       ├── validation passes        → Plausible, no penalty
+        │       └── no validator             → Suspicious (cap 59)
+        ├── name implies a structured type   → ContradictsFormat (cap 20)
+        └── unknown / raw type               → Ambiguous: likelihood untouched,
+                                               confidence −25, explicit warning
+```
+
+An empty file (logical size 0) has no content to recover; it is Excellent
+when its metadata survives and validation is reported as not applicable.
+
 ## Confidence
 
 Starts at 100 and loses points for what PHOINIX could not see: damaged record
 (−30), unknown size (−10), incomplete extents (−25), no allocation map (−25,
 or proportional to unknown clusters), no structural validator (−15), no
-content sample (−5), unknown medium (−3), SSD without TRIM knowledge (−10).
+content sample (−5), ambiguous zero-filled content (−25), unknown medium
+(−3), SSD without TRIM knowledge (−10).
 
 ## Wording
 

@@ -21,7 +21,9 @@ use phoinix_fs::{
     CandidateContent, CandidateTimestamps, DeletedFileProvider, FileSystemObjectId, FsError,
     RecoveryCandidate,
 };
-use phoinix_health::validate::{DEFAULT_BYTE_BUDGET, examine};
+use phoinix_health::validate::{
+    DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
+};
 use phoinix_health::{
     AllocationEvidence, ContentEvidence, ExtentEvidence, MetadataEvidence, RecoveryDiagnostic,
     RecoveryEvidence, RecoveryHealth, ScoringModel, StorageEvidence, score,
@@ -286,6 +288,7 @@ impl<'a> NtfsUndelete<'a> {
             original_parent_available: file.name().is_some() && !parent_problem,
             parent_reference_valid: !path.uncertain,
             logical_size_available: stream.is_some(),
+            logical_size: stream.map(|s| s.logical_size),
             timestamps_available: file.standard_information.is_some() || !file.names.is_empty(),
         };
 
@@ -391,7 +394,8 @@ impl<'a> NtfsUndelete<'a> {
             }
         };
 
-        let content = if self.examine_content
+        let expected_type = file.name().and_then(expected_type_from_name);
+        let mut content = if self.examine_content
             && stream.storage.is_readable()
             && complete
             && stream.logical_size > 0
@@ -400,7 +404,17 @@ impl<'a> NtfsUndelete<'a> {
                 Ok(s) => {
                     let mut cursor = s.cursor();
                     match examine(&mut cursor, s.len(), self.byte_budget) {
-                        Ok(c) => c,
+                        Ok(mut c) => {
+                            c.zero_assessment = assess_zero_content(
+                                c.zero_block_ratio.unwrap_or(0.0),
+                                c.head_is_zero,
+                                extents.sparse,
+                                c.detected_type.as_ref(),
+                                expected_type.as_ref(),
+                                c.validation.as_ref(),
+                            );
+                            c
+                        }
                         Err(e) => {
                             diagnostics.push(RecoveryDiagnostic::warning(format!(
                                 "Content could not be examined: {e}"
@@ -419,6 +433,8 @@ impl<'a> NtfsUndelete<'a> {
         } else {
             ContentEvidence::default()
         };
+
+        content.expected_type = expected_type;
 
         RecoveryEvidence {
             metadata,

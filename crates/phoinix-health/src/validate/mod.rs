@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 pub use magic::{SIGNATURES, Signature, detect_type};
 
-use crate::evidence::ContentEvidence;
+use crate::evidence::{ContentEvidence, ZeroContentAssessment};
 
 /// A `Read + Seek` stream of candidate content.
 pub trait ReadSeek: Read + Seek {}
@@ -194,6 +194,7 @@ pub fn examine(
     let samples = blocks.min(ZERO_SAMPLE_BLOCKS);
     let mut zero = 0u64;
     let mut buf = vec![0u8; 4096];
+    evidence.head_is_zero = head.iter().all(|b| *b == 0);
     for i in 0..samples {
         let index = if blocks <= ZERO_SAMPLE_BLOCKS {
             i
@@ -214,6 +215,119 @@ pub fn examine(
         evidence.bytes_examined = evidence.bytes_examined.max(samples * block).min(len);
     }
     Ok(evidence)
+}
+
+/// Infers the type a file *should* have from its name's extension, using the
+/// signature table's identifiers.
+#[must_use]
+pub fn expected_type_from_name(name: &str) -> Option<FileTypeDetection> {
+    let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
+    let id = match ext.as_str() {
+        "jpg" | "jpeg" | "jpe" => "jpeg",
+        "png" => "png",
+        "gif" => "gif",
+        "bmp" => "bmp",
+        "tif" | "tiff" => "tiff",
+        "pdf" => "pdf",
+        "zip" | "jar" => "zip",
+        "docx" => "docx",
+        "xlsx" => "xlsx",
+        "pptx" => "pptx",
+        "odt" | "ods" | "odp" => "odf",
+        "rar" => "rar",
+        "7z" => "7z",
+        "gz" | "tgz" => "gzip",
+        "sqlite" | "db" => "sqlite",
+        "doc" | "xls" | "ppt" => "ole",
+        "mp4" | "m4a" | "mov" => "mp4",
+        "wav" | "avi" | "webp" => "riff",
+        "flac" => "flac",
+        "mp3" => "mp3",
+        "exe" | "dll" => "pe",
+        "tar" => "tar",
+        _ => return None,
+    };
+    let (name, extension) = match id {
+        "docx" => ("Word document (DOCX)", "docx"),
+        "xlsx" => ("Excel workbook (XLSX)", "xlsx"),
+        "pptx" => ("PowerPoint presentation (PPTX)", "pptx"),
+        "odf" => ("OpenDocument", ext.as_str()),
+        other => {
+            let sig = SIGNATURES.iter().find(|s| s.id == other)?;
+            (sig.name, sig.extension)
+        }
+    };
+    Some(FileTypeDetection {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        extension: extension.to_owned(),
+    })
+}
+
+/// Fraction of zero blocks at or above which content counts as "mostly
+/// zero".
+pub const MOSTLY_ZERO_THRESHOLD: f64 = 0.5;
+
+/// Interprets zero-filled content.
+///
+/// - `zero_ratio`: share of sampled blocks that were entirely zero;
+/// - `head_is_zero`: whether the first block (where a signature would be)
+///   is zero;
+/// - `sparse`: the stream is known to contain sparse regions;
+/// - `detected`: the type recognised from the content;
+/// - `expected`: the type implied by the filename;
+/// - `validation`: the structural validation result, if one ran.
+#[must_use]
+pub fn assess_zero_content(
+    zero_ratio: f64,
+    head_is_zero: bool,
+    sparse: bool,
+    detected: Option<&FileTypeDetection>,
+    expected: Option<&FileTypeDetection>,
+    validation: Option<&ValidationResult>,
+) -> Option<ZeroContentAssessment> {
+    if zero_ratio <= 0.0 && !head_is_zero {
+        return None;
+    }
+    if sparse {
+        return Some(ZeroContentAssessment::Expected);
+    }
+    let mostly = zero_ratio >= MOSTLY_ZERO_THRESHOLD;
+    if detected.is_some() {
+        return Some(match validation.map(|v| v.status) {
+            Some(ValidationStatus::Valid | ValidationStatus::MostlyValid) => {
+                ZeroContentAssessment::Plausible
+            }
+            Some(ValidationStatus::Damaged | ValidationStatus::Invalid) => {
+                if mostly {
+                    ZeroContentAssessment::ContradictsFormat
+                } else {
+                    ZeroContentAssessment::Suspicious
+                }
+            }
+            _ => {
+                if mostly {
+                    ZeroContentAssessment::Suspicious
+                } else {
+                    ZeroContentAssessment::Plausible
+                }
+            }
+        });
+    }
+    if expected.is_some() {
+        // Every recognised type starts with a non-zero signature: a zero
+        // head or a mostly-zero body cannot be that format.
+        return Some(if head_is_zero || mostly {
+            ZeroContentAssessment::ContradictsFormat
+        } else {
+            ZeroContentAssessment::Suspicious
+        });
+    }
+    Some(if mostly {
+        ZeroContentAssessment::Ambiguous
+    } else {
+        ZeroContentAssessment::Plausible
+    })
 }
 
 /// Reads exactly `len` bytes at `offset`.
@@ -248,6 +362,48 @@ mod tests {
         assert!(e.detected_type.is_none());
         assert!(e.validation.is_none());
         assert_eq!(e.zero_block_ratio, Some(0.8));
+    }
+
+    #[test]
+    fn expected_types_and_zero_assessment() {
+        assert_eq!(expected_type_from_name("Photo.JPG").unwrap().id, "jpeg");
+        assert_eq!(expected_type_from_name("report.docx").unwrap().id, "docx");
+        assert!(expected_type_from_name("notes.txt").is_none());
+        let jpeg = expected_type_from_name("a.jpg");
+        assert_eq!(
+            assess_zero_content(0.0, false, false, None, None, None),
+            None
+        );
+        assert_eq!(
+            assess_zero_content(0.9, true, true, None, None, None),
+            Some(ZeroContentAssessment::Expected)
+        );
+        assert_eq!(
+            assess_zero_content(1.0, true, false, None, jpeg.as_ref(), None),
+            Some(ZeroContentAssessment::ContradictsFormat)
+        );
+        assert_eq!(
+            assess_zero_content(1.0, true, false, None, None, None),
+            Some(ZeroContentAssessment::Ambiguous)
+        );
+        assert_eq!(
+            assess_zero_content(0.1, false, false, None, None, None),
+            Some(ZeroContentAssessment::Plausible)
+        );
+        let valid = ValidationResult::with_status(ValidationStatus::Valid, vec![]);
+        let damaged = ValidationResult::with_status(ValidationStatus::Damaged, vec![]);
+        assert_eq!(
+            assess_zero_content(0.3, false, false, jpeg.as_ref(), None, Some(&valid)),
+            Some(ZeroContentAssessment::Plausible)
+        );
+        assert_eq!(
+            assess_zero_content(0.6, false, false, jpeg.as_ref(), None, Some(&damaged)),
+            Some(ZeroContentAssessment::ContradictsFormat)
+        );
+        assert_eq!(
+            assess_zero_content(0.6, false, false, jpeg.as_ref(), None, None),
+            Some(ZeroContentAssessment::Suspicious)
+        );
     }
 
     #[test]

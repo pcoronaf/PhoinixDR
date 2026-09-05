@@ -52,6 +52,18 @@
       "record": 71
     },
     {
+      "path": "\\a\\empty.txt",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scenario": "A",
+      "expect": {
+        "exact": true,
+        "min": "excellent",
+        "empty": true
+      },
+      "record": 72
+    },
+    {
       "path": "\\b\\64k.bin",
       "size": 65536,
       "sha256": "5ce05316a2452752146316a7db85aeb89d5704d6016ad392b72c51f3af98e4fd",
@@ -61,7 +73,7 @@
         "min": "very good",
         "max_extents": 1
       },
-      "record": 73
+      "record": 74
     },
     {
       "path": "\\b\\1mib.bin",
@@ -73,7 +85,7 @@
         "min": "very good",
         "max_extents": 1
       },
-      "record": 74
+      "record": 75
     },
     {
       "path": "\\docs\\report.pdf",
@@ -86,7 +98,7 @@
         "type": "pdf",
         "validation": "valid"
       },
-      "record": 76
+      "record": 77
     },
     {
       "path": "\\docs\\photo.jpg",
@@ -99,7 +111,7 @@
         "type": "jpeg",
         "validation": "valid"
       },
-      "record": 77
+      "record": 78
     },
     {
       "path": "\\docs\\logo.png",
@@ -112,12 +124,12 @@
         "type": "png",
         "validation": "valid"
       },
-      "record": 78
+      "record": 79
     },
     {
       "path": "\\docs\\proposal.docx",
       "size": 15835,
-      "sha256": "4f0baed6e917fddf4634a79ade084e2211df22b395c5944f717218c98e537b31",
+      "sha256": "4e5dc9a45d78a5b2e75b5a1376d932678d9d2dc61ca16a913f7ffdf9deb9c857",
       "scenario": "V",
       "expect": {
         "exact": true,
@@ -125,7 +137,7 @@
         "type": "docx",
         "validation": "valid"
       },
-      "record": 79
+      "record": 80
     },
     {
       "path": "\\d\\realloc_1.bin",
@@ -138,7 +150,7 @@
         "allocated_clusters": 3,
         "total_clusters": 256
       },
-      "record": 81
+      "record": 82
     },
     {
       "path": "\\d\\realloc_10.bin",
@@ -151,7 +163,7 @@
         "allocated_clusters": 6,
         "total_clusters": 64
       },
-      "record": 82
+      "record": 83
     },
     {
       "path": "\\d\\realloc_25.bin",
@@ -164,7 +176,7 @@
         "allocated_clusters": 16,
         "total_clusters": 64
       },
-      "record": 83
+      "record": 84
     },
     {
       "path": "\\d\\realloc_50.bin",
@@ -177,7 +189,7 @@
         "allocated_clusters": 32,
         "total_clusters": 64
       },
-      "record": 84
+      "record": 85
     },
     {
       "path": "\\d\\realloc_100.bin",
@@ -190,7 +202,7 @@
         "allocated_clusters": 64,
         "total_clusters": 64
       },
-      "record": 85
+      "record": 86
     },
     {
       "path": "\\g\\wiped.jpg",
@@ -199,9 +211,36 @@
       "scenario": "G",
       "expect": {
         "exact": false,
-        "max": "very poor"
+        "max": "very poor",
+        "zero_assessment": "contradicts_format"
       },
-      "record": 87
+      "record": 88
+    },
+    {
+      "path": "\\g\\wiped.bin",
+      "size": 65536,
+      "sha256": "780cf944a70c30fe2963b212899a8cb6e1f631eb62915e70ac6e16396448d3b6",
+      "scenario": "G",
+      "expect": {
+        "exact": false,
+        "min": "good",
+        "max_confidence": 65,
+        "zero_assessment": "ambiguous"
+      },
+      "record": 89
+    },
+    {
+      "path": "\\g\\zeros.bin",
+      "size": 65536,
+      "sha256": "de2f256064a0af797747c2b97505dc0b9f3df0de4f489eac731c23ae9ca9cc31",
+      "scenario": "Z",
+      "expect": {
+        "exact": true,
+        "min": "good",
+        "max_confidence": 65,
+        "zero_assessment": "ambiguous"
+      },
+      "record": 90
     },
     {
       "path": "\\h\\gone\\keep.txt",
@@ -213,7 +252,7 @@
         "min": "very good",
         "via_deleted_dir": true
       },
-      "record": 90
+      "record": 93
     },
     {
       "path": "\\f\\corrupt_usa.bin",
@@ -223,7 +262,7 @@
       "expect": {
         "corruption": "usa"
       },
-      "record": 92
+      "record": 95
     },
     {
       "path": "\\f\\corrupt_attr.bin",
@@ -233,7 +272,7 @@
       "expect": {
         "corruption": "attr"
       },
-      "record": 93
+      "record": 96
     },
     {
       "path": "\\f\\corrupt_runlist.bin",
@@ -243,7 +282,7 @@
       "expect": {
         "corruption": "runlist"
       },
-      "record": 94
+      "record": 97
     },
     {
       "path": "\\f\\corrupt_namelen.bin",
@@ -253,7 +292,7 @@
       "expect": {
         "corruption": "namelen"
       },
-      "record": 95
+      "record": 98
     },
     {
       "path": "\\c\\frag10.bin",
@@ -265,7 +304,7 @@
         "min": "very good",
         "min_extents": 8
       },
-      "record": 122
+      "record": 101
     },
     {
       "path": "\\c\\frag2.bin",
@@ -277,7 +316,7 @@
         "min": "very good",
         "min_extents": 2
       },
-      "record": 123
+      "record": 103
     },
     {
       "path": "\\e\\olddir\\sub\\document.txt",
@@ -288,7 +327,7 @@
         "exact": true,
         "path_uncertain": true
       },
-      "record": 96
+      "record": 104
     }
   ]
 }
