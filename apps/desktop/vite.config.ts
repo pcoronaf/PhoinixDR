@@ -8,6 +8,11 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    // Cargo writes (and Windows locks) files under src-tauri/target while the
+    // shell compiles; the dev server must not watch them.
+    watch: {
+      ignored: ["**/src-tauri/**"],
+    },
   },
   build: {
     target: ["es2022", "chrome105", "safari13"],
