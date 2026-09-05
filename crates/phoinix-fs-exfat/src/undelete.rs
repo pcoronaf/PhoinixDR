@@ -6,15 +6,16 @@ use std::sync::Arc;
 use phoinix_core::fmt::iso8601_utc;
 use phoinix_core::{CandidateId, FileSystemType, SourceId};
 use phoinix_fs::{
-    CandidateContent, CandidateTimestamps, DeletedFileProvider, ExtentStreamCursor,
-    FileSystemObjectId, FsError, RecoveryCandidate,
+    AllocationSummary, AllocationView, ByteRange, CandidateContent, CandidateTimestamps,
+    DeletedFileProvider, Extent, ExtentStreamCursor, FileSystemObjectId, FsError,
+    RecoveryCandidate,
 };
 use phoinix_health::validate::{
     DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
 };
 use phoinix_health::{
-    AllocationEvidence, ContentEvidence, ExtentEvidence, MetadataEvidence, RecoveryDiagnostic,
-    RecoveryEvidence, ScoringModel, StorageEvidence, score,
+    AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, MetadataEvidence,
+    RecoveryDiagnostic, RecoveryEvidence, ScoringModel, StorageEvidence, score,
 };
 
 use crate::ExfatError;
@@ -196,6 +197,7 @@ impl ExfatUndelete {
         }
         content.expected_type = expected_type;
         let evidence = RecoveryEvidence {
+            source: CandidateSource::FilesystemMetadata,
             metadata,
             extents,
             allocation,
@@ -309,6 +311,64 @@ impl DeletedFileProvider for ExfatUndelete {
         Ok(Box::new(Content {
             cursor: stream.cursor(),
         }))
+    }
+
+    fn content_extents(&self, candidate: &RecoveryCandidate) -> Result<Vec<Extent>, FsError> {
+        let FileSystemObjectId::ExFat { entry_offset } = &candidate.filesystem_object else {
+            return Err(FsError::NotFound(format!(
+                "{} is not an exFAT object",
+                candidate.filesystem_object
+            )));
+        };
+        let w = self.find(*entry_offset)?;
+        Ok(self.volume.open_stream(&w.entry)?.extents().to_vec())
+    }
+}
+
+impl AllocationView for ExfatUndelete {
+    fn cluster_size(&self) -> u64 {
+        u64::from(self.volume.cluster_size().max(1))
+    }
+
+    fn volume_len(&self) -> u64 {
+        self.volume.boot().volume_bytes()
+    }
+
+    fn map_available(&self) -> bool {
+        self.volume.bitmap().is_some()
+    }
+
+    fn free_ranges(&self) -> Result<Vec<ByteRange>, FsError> {
+        let boot = self.volume.boot();
+        Ok(phoinix_fs::space::free_ranges_from(
+            u64::from(boot.cluster_count),
+            AllocationView::cluster_size(self),
+            boot.heap_offset,
+            |c| self.cluster_free(c),
+        ))
+    }
+
+    fn summarize(&self, range: ByteRange) -> AllocationSummary {
+        let boot = self.volume.boot();
+        phoinix_fs::space::summarize_with(
+            range,
+            AllocationView::cluster_size(self),
+            boot.heap_offset,
+            u64::from(boot.cluster_count),
+            |c| self.cluster_free(c),
+        )
+    }
+}
+
+impl ExfatUndelete {
+    /// Free state of the 0-based heap cluster `index` (cluster `index + 2`).
+    fn cluster_free(&self, index: u64) -> Option<bool> {
+        let n = u32::try_from(index.saturating_add(2)).ok()?;
+        match self.volume.cluster_state(n) {
+            ClusterState::Free => Some(true),
+            ClusterState::Allocated => Some(false),
+            ClusterState::Unknown => None,
+        }
     }
 }
 

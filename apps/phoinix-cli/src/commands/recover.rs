@@ -6,7 +6,9 @@ use phoinix_core::fmt::grouped;
 use phoinix_recovery::{RecoveryRequest, RecoveryWriter};
 use serde::Serialize;
 
-use crate::commands::undelete::{Session, SourceArgs};
+use phoinix_fs::DeletedFileProvider;
+
+use crate::commands::undelete::{CarveArgs, Session, SourceArgs};
 use crate::output::{self, outln};
 
 /// Arguments for `phoinix recover`.
@@ -14,9 +16,12 @@ use crate::output::{self, outln};
 pub struct Args {
     #[command(flatten)]
     source: SourceArgs,
-    /// Candidate references from `phoinix scan` (`<record>` or `<record>:<stream>`).
+    /// Candidate references from `phoinix scan` (`<record>`,
+    /// `<record>:<stream>`, or `c<offset>` for carved files).
     #[arg(required = true)]
     candidates: Vec<String>,
+    #[command(flatten)]
+    carve: CarveArgs,
     /// Destination directory (must not be on the source disk).
     #[arg(long, short = 'o')]
     output: PathBuf,
@@ -50,22 +55,79 @@ struct Report {
 }
 
 pub fn run(args: Args) -> anyhow::Result<()> {
-    let session = Session::open(&args.source)?;
-    let engine = &*session.engine;
+    let any_carved = args
+        .candidates
+        .iter()
+        .any(|r| Session::is_carved_reference(r));
+    let all_carved = args
+        .candidates
+        .iter()
+        .all(|r| Session::is_carved_reference(r));
+    let session = if all_carved {
+        Session::open_any(&args.source)?
+    } else {
+        Session::open(&args.source)?
+    };
     let mut request = RecoveryRequest::new(&args.output);
     request.preserve_tree = args.preserve_tree;
     request.preserve_timestamps = !args.no_timestamps;
     request.hash_after_write = !args.no_hash;
     request.overwrite = args.overwrite;
     request.allow_same_device = args.allow_source_destination;
-    let writer = RecoveryWriter::new(engine, &args.source.source, request)?;
-    if let Some(w) = writer.destination_check().warning() {
+    // One writer per engine: metadata candidates and carved candidates are
+    // resolved by different providers over the same volume.
+    let carver = if any_carved {
+        Some(session.carve_engine(&args.carve)?)
+    } else {
+        None
+    };
+    let metadata_writer = match session.engine.as_deref() {
+        Some(engine) => Some(RecoveryWriter::new(
+            engine,
+            &args.source.source,
+            request.clone(),
+        )?),
+        None => None,
+    };
+    let carve_writer = match &carver {
+        Some(c) => Some(RecoveryWriter::new(c, &args.source.source, request)?),
+        None => None,
+    };
+    if let Some(w) = metadata_writer
+        .as_ref()
+        .or(carve_writer.as_ref())
+        .and_then(|w| w.destination_check().warning())
+    {
         eprintln!("warning: {w}");
     }
 
     let mut reports = Vec::new();
     let mut failures = 0usize;
     for reference in &args.candidates {
+        let (engine, writer): (&dyn DeletedFileProvider, &RecoveryWriter<'_>) =
+            if Session::is_carved_reference(reference) {
+                match (&carver, &carve_writer) {
+                    (Some(c), Some(w)) => (c, w),
+                    _ => continue,
+                }
+            } else {
+                match (session.engine.as_deref(), &metadata_writer) {
+                    (Some(e), Some(w)) => (e, w),
+                    _ => {
+                        failures += 1;
+                        reports.push(Report {
+                            candidate: reference.clone(),
+                            name: String::new(),
+                            result: None,
+                            error: Some(format!(
+                                "no undelete engine for {}; only carved references (c<offset>) can be recovered here",
+                                session.filesystem
+                            )),
+                        });
+                        continue;
+                    }
+                }
+            };
         let object = match engine.object_from_reference(reference) {
             Ok(o) => o,
             Err(e) => {

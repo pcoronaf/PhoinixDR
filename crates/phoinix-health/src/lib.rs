@@ -32,8 +32,9 @@ mod scoring;
 pub mod validate;
 
 pub use evidence::{
-    AllocationEvidence, ContentEvidence, DeviceKind, DiagnosticSeverity, ExtentEvidence,
-    MetadataEvidence, RecoveryDiagnostic, RecoveryEvidence, StorageEvidence, ZeroContentAssessment,
+    AllocationEvidence, CandidateSource, ContentEvidence, DeviceKind, DiagnosticSeverity,
+    ExtentEvidence, MetadataEvidence, RecoveryDiagnostic, RecoveryEvidence, StorageEvidence,
+    ZeroContentAssessment,
 };
 pub use health::{HealthCategory, HealthReason, RecoveryHealth};
 pub use scoring::{ScoringModel, score};

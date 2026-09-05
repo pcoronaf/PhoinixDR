@@ -28,6 +28,9 @@ evidence moves it within the cap, and every adjustment produces a reason.
 | empty file (logical size 0) | likelihood ≤ 97, validation not applicable |
 | encrypted / compressed | cap 10 / 0 |
 | heuristic layout (skipped clusters) or inferred start | cap 59, or 79 when the content validates completely |
+| carved file (`CandidateSource::FileCarving`), structure validated | cap 85 |
+| carved file without a structural validator | cap 74 |
+| carved file whose end could not be determined | cap 59 |
 | valid structure | +3 |
 | fragments | −1 per extra extent, at most −5 |
 
@@ -62,7 +65,17 @@ Starts at 100 and loses points for what PHOINIX could not see: damaged record
 or proportional to unknown clusters), no structural validator (−15), no
 content sample (−5), ambiguous zero-filled content (−25), unknown medium
 (−3), SSD without TRIM knowledge (−10), contiguity assumed (−10) or
-heuristic layout (−30), start inferred (a further −20).
+heuristic layout (−30), start inferred (a further −20), carved file (−15
+for the missing metadata plus −10 for the contiguity assumption).
+
+## Carved candidates
+
+A carved file has no metadata record, so the metadata rules are replaced by
+a single reason ("Found by signature carving: …") and the size rule reads
+whether the structure determined the end. Allocation caps, validation caps
+and zero-content rules apply unchanged: a carved file over reused clusters
+is still Very poor, and a damaged structure is still capped at 59. See
+`docs/carving/deep-scan.md`.
 
 ## Wording
 

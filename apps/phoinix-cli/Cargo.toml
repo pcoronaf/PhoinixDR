@@ -22,6 +22,7 @@ phoinix-fs-ntfs = { workspace = true }
 phoinix-fs-fat = { workspace = true }
 phoinix-fs-exfat = { workspace = true }
 phoinix-health = { workspace = true }
+phoinix-carve = { workspace = true }
 phoinix-recovery = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }

@@ -232,9 +232,32 @@ impl RecoveryDiagnostic {
     }
 }
 
+/// How a candidate was discovered. The same underlying file may be found
+/// through several sources; the scoring rules differ per source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateSource {
+    /// A filesystem metadata record (MFT record, directory entry).
+    #[default]
+    FilesystemMetadata,
+    /// A filesystem journal.
+    Journal,
+    /// Signature carving of unallocated (or all) space: no metadata.
+    FileCarving,
+    /// A reconstructed partition.
+    PartitionReconstruction,
+    /// A snapshot or shadow copy.
+    Snapshot,
+    /// Several sources merged.
+    Combined,
+}
+
 /// Everything known about a candidate's recoverability.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct RecoveryEvidence {
+    /// How the candidate was discovered.
+    #[serde(default)]
+    pub source: CandidateSource,
     /// Metadata evidence.
     pub metadata: MetadataEvidence,
     /// Extent evidence.

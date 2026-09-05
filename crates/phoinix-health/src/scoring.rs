@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::evidence::{RecoveryEvidence, ZeroContentAssessment};
+use crate::evidence::{CandidateSource, RecoveryEvidence, ZeroContentAssessment};
 use crate::health::{HealthCategory, HealthReason, RecoveryHealth};
 use crate::validate::ValidationStatus;
 
@@ -47,6 +47,16 @@ pub struct ScoringModel {
     pub cap_heuristic_validated: u8,
     /// Confidence penalty when the start of the file had to be inferred.
     pub inferred_start_confidence_penalty: u8,
+    /// Ceiling for a carved file whose structure validates completely: the
+    /// content is right as far as the structure can tell, but contiguity
+    /// is assumed and nothing confirms the original name or size.
+    pub carved_base: u8,
+    /// Cap for a carved file no validator could check.
+    pub cap_carved_unvalidated: u8,
+    /// Cap for a carved file whose end could not be determined.
+    pub cap_carved_end_unknown: u8,
+    /// Confidence penalty for carved files (no metadata at all).
+    pub carving_confidence_penalty: u8,
     /// Confidence penalty when the cluster chain is unknown and contiguity
     /// was assumed.
     pub assumed_contiguous_confidence_penalty: u8,
@@ -79,6 +89,10 @@ impl Default for ScoringModel {
             cap_heuristic_reconstruction: 59,
             cap_heuristic_validated: 79,
             inferred_start_confidence_penalty: 20,
+            carved_base: 85,
+            cap_carved_unvalidated: 74,
+            cap_carved_end_unknown: 59,
+            carving_confidence_penalty: 15,
             assumed_contiguous_confidence_penalty: 10,
             heuristic_confidence_penalty: 30,
             bonus_valid_structure: 3,
@@ -146,31 +160,44 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
     let a = &evidence.allocation;
     let c = &evidence.content;
 
+    let carved = evidence.source == CandidateSource::FileCarving;
+
     // ---- metadata ---------------------------------------------------------
-    if m.valid_record {
-        s.good("Valid deleted metadata record");
+    if carved {
+        s.bad("Found by signature carving: no filesystem record describes this file, so its original name, path and timestamps are unknown");
+        if m.logical_size_available {
+            s.good("The size was determined from the file structure");
+        } else {
+            s.bad("The end of the file could not be determined from its structure; the size is an upper bound");
+            s.cap_at(model.cap_carved_end_unknown);
+        }
+        s.cap_at(model.carved_base);
     } else {
-        s.bad("Metadata record is damaged");
-        s.likelihood -= 20;
-    }
-    if m.filename_available {
-        s.good("Original filename is available");
-    } else {
-        s.bad("Original filename is not available");
-        s.likelihood -= 3;
-    }
-    if m.original_parent_available && m.parent_reference_valid {
-        s.good("Original parent directory is available");
-    } else if m.original_parent_available {
-        s.bad("Parent directory record was reused; the original path is uncertain");
-    } else {
-        s.bad("Original path could not be reconstructed");
-    }
-    if m.logical_size_available {
-        s.good("Original size is available");
-    } else {
-        s.bad("Original size is unknown");
-        s.likelihood -= 5;
+        if m.valid_record {
+            s.good("Valid deleted metadata record");
+        } else {
+            s.bad("Metadata record is damaged");
+            s.likelihood -= 20;
+        }
+        if m.filename_available {
+            s.good("Original filename is available");
+        } else {
+            s.bad("Original filename is not available");
+            s.likelihood -= 3;
+        }
+        if m.original_parent_available && m.parent_reference_valid {
+            s.good("Original parent directory is available");
+        } else if m.original_parent_available {
+            s.bad("Parent directory record was reused; the original path is uncertain");
+        } else {
+            s.bad("Original path could not be reconstructed");
+        }
+        if m.logical_size_available {
+            s.good("Original size is available");
+        } else {
+            s.bad("Original size is unknown");
+            s.likelihood -= 5;
+        }
     }
 
     let empty = m.logical_size == Some(0);
@@ -264,7 +291,17 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
             s.bad("The allocation map is unavailable; cluster reuse cannot be checked");
             s.cap_at(model.cap_no_allocation_map);
         }
-        if !x.resident && !x.chain_known {
+        if carved {
+            s.bad("Carved files are assumed to be stored contiguously; fragmentation cannot be seen from the content alone");
+            if !c
+                .validation
+                .as_ref()
+                .is_some_and(|v| v.status != ValidationStatus::Unknown)
+            {
+                s.bad("No structural validator exists for this type, so only the signature supports it");
+                s.cap_at(model.cap_carved_unvalidated);
+            }
+        } else if !x.resident && !x.chain_known {
             // A complete structural validation of the reconstructed content
             // supports the inferred layout, so the cap is relaxed (not
             // lifted): the layout is still inferred, not proven.
@@ -424,7 +461,10 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
 /// whether the news is good.
 fn confidence(e: &RecoveryEvidence, model: &ScoringModel) -> u8 {
     let mut c: i32 = 100;
-    if !e.metadata.valid_record {
+    let carved = e.source == CandidateSource::FileCarving;
+    if carved {
+        c -= i32::from(model.carving_confidence_penalty);
+    } else if !e.metadata.valid_record {
         c -= 30;
     }
     if !e.metadata.logical_size_available {
@@ -459,7 +499,9 @@ fn confidence(e: &RecoveryEvidence, model: &ScoringModel) -> u8 {
     if e.storage.rotational == Some(false) && !e.storage.trim_state_known && !e.extents.resident {
         c -= 10;
     }
-    if !e.extents.resident && !e.extents.chain_known {
+    if carved {
+        c -= i32::from(model.assumed_contiguous_confidence_penalty);
+    } else if !e.extents.resident && !e.extents.chain_known {
         c -= i32::from(if e.extents.heuristic {
             model.heuristic_confidence_penalty
         } else {
@@ -508,6 +550,7 @@ mod tests {
 
     fn non_resident(extents: u32, clusters: u64, allocated: u64) -> RecoveryEvidence {
         RecoveryEvidence {
+            source: CandidateSource::FilesystemMetadata,
             metadata: good_metadata(),
             extents: ExtentEvidence {
                 resident: false,
@@ -796,6 +839,49 @@ mod tests {
         e.extents.chain_known = false;
         e.extents.start_inferred = true;
         e.content.validation = Some(valid("PDF"));
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 15, "{h:?}");
+    }
+
+    #[test]
+    fn carved_files_score_on_structure_not_metadata() {
+        // A validated carved JPEG over free clusters: Very good, but never
+        // above the carved ceiling; confidence reflects the missing metadata.
+        let mut e = non_resident(1, 10, 0);
+        e.source = CandidateSource::FileCarving;
+        e.metadata = MetadataEvidence {
+            logical_size_available: true,
+            logical_size: Some(40_960),
+            ..Default::default()
+        };
+        e.extents.chain_known = false;
+        e.content.validation = Some(valid("JPEG"));
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood >= 80 && h.likelihood <= 85, "{h:?}");
+        assert!(h.confidence >= 60 && h.confidence <= 80, "{h:?}");
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| r.text.contains("signature carving"))
+        );
+        assert!(
+            !h.reasons
+                .iter()
+                .any(|r| r.text.contains("Metadata record is damaged"))
+        );
+        // No validator: capped lower.
+        e.content.validation = None;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 74, "{h:?}");
+        // Unknown end: capped further.
+        e.metadata.logical_size_available = false;
+        e.metadata.logical_size = None;
+        let h = score(&e, &ScoringModel::default());
+        assert!(h.likelihood <= 59, "{h:?}");
+        // Reused clusters still dominate.
+        let mut e = non_resident(1, 64, 64);
+        e.source = CandidateSource::FileCarving;
+        e.content.validation = Some(valid("JPEG"));
         let h = score(&e, &ScoringModel::default());
         assert!(h.likelihood <= 15, "{h:?}");
     }

@@ -111,7 +111,8 @@ fn scan_explain_recover_vertical_slice() {
 
     let (ok, out, err) = phoinix(&["scan", image, "--deleted", "--json"]);
     assert!(ok, "{err}");
-    let candidates: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let candidates: Vec<serde_json::Value> = json["candidates"].as_array().unwrap().clone();
     let photo = candidates
         .iter()
         .find(|c| c["original_name"] == "photo.jpg")
@@ -206,7 +207,8 @@ fn scan_and_recover_on_fat_and_exfat() {
         );
         let (ok, out, _) = phoinix(&["scan", image, "--deleted", "--json"]);
         assert!(ok);
-        let candidates: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let candidates: Vec<serde_json::Value> = json["candidates"].as_array().unwrap().clone();
         // FAT short names lose their first character: match on the tail.
         let tail = &name[1..];
         let cand = candidates
@@ -253,4 +255,103 @@ fn scan_and_recover_on_fat_and_exfat() {
             "{fixture_name}: recovered digest mismatch:\n{out}"
         );
     }
+}
+
+#[test]
+fn deep_scan_carves_orphans_and_recovers_them() {
+    let dir = tempfile::tempdir().unwrap();
+    let img = fixture("carve/corpus.img.gz", dir.path());
+    let image = img.to_str().unwrap();
+    let manifest: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/carve/corpus.manifest.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let orphan = manifest["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["path"] == "/o/orphan.pdf")
+        .unwrap();
+    let offset = orphan["offset"].as_u64().unwrap();
+
+    // Quick scan: no carved rows.
+    let (ok, out, _) = phoinix(&["scan", image]);
+    assert!(ok);
+    assert!(!out.contains("carved-"), "{out}");
+
+    // Deep scan: table and JSON.
+    let (ok, out, err) = phoinix(&["scan", image, "--deep"]);
+    assert!(ok, "{err}");
+    assert!(out.contains(&format!("c{offset}")), "{out}");
+    assert!(out.contains("carved-"), "{out}");
+    assert!(out.contains("merged into filesystem candidates"), "{out}");
+    let (ok, out, _) = phoinix(&["scan", image, "--deep", "--json"]);
+    assert!(ok);
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(json["filesystem"], "FAT32");
+    assert!(
+        json["carving"]["merged_into_metadata"].as_u64().unwrap() >= 10,
+        "{}",
+        json["carving"]
+    );
+    let carved: Vec<&serde_json::Value> = json["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["evidence"]["source"] == "file_carving")
+        .collect();
+    assert_eq!(carved.len(), 3, "{out}");
+    assert!(
+        carved
+            .iter()
+            .any(|c| c["filesystem_object"]["offset"] == offset)
+    );
+
+    // Type filter and whole-volume carving.
+    let (ok, out, _) = phoinix(&[
+        "scan",
+        image,
+        "--deep",
+        "--carve-only",
+        "--carve-types",
+        "pdf",
+        "--json",
+    ]);
+    assert!(ok);
+    let json: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert!(
+        json["candidates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|c| c["filesystem_object"]["type_id"] == "pdf")
+    );
+    let (ok, _, err) = phoinix(&["scan", image, "--deep", "--carve-types", "nope"]);
+    assert!(!ok);
+    assert!(err.contains("unknown signature"), "{err}");
+
+    // Explain and recover a carved candidate by its reference.
+    let reference = format!("c{offset}");
+    let (ok, out, err) = phoinix(&["explain", image, &reference]);
+    assert!(ok, "{err}");
+    assert!(out.contains("signature carving"), "{out}");
+    assert!(out.contains("PDF document"), "{out}");
+    let dest = dir.path().join("carved-out");
+    let (ok, out, err) = phoinix(&[
+        "recover",
+        image,
+        &reference,
+        "--output",
+        dest.to_str().unwrap(),
+    ]);
+    assert!(ok, "{err}");
+    assert!(out.contains(orphan["sha256"].as_str().unwrap()), "{out}");
+    assert!(dest.join(format!("carved-{offset:012}.pdf")).exists());
+    let (ok, _, err) = phoinix(&["recover", image, "c12", "--output", dest.to_str().unwrap()]);
+    assert!(!ok);
+    assert!(err.contains("failed"), "{err}");
 }

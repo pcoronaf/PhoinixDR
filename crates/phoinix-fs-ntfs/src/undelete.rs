@@ -19,20 +19,20 @@ use std::sync::Arc;
 
 use phoinix_core::{CandidateId, FileSystemType, SourceId};
 use phoinix_fs::{
-    CandidateContent, CandidateTimestamps, DeletedFileProvider, FileSystemObjectId, FsError,
-    RecoveryCandidate,
+    AllocationSummary, AllocationView, ByteRange, CandidateContent, CandidateTimestamps,
+    DeletedFileProvider, Extent, FileSystemObjectId, FsError, RecoveryCandidate,
 };
 use phoinix_health::validate::{
     DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
 };
 use phoinix_health::{
-    AllocationEvidence, ContentEvidence, ExtentEvidence, MetadataEvidence, RecoveryDiagnostic,
-    RecoveryEvidence, RecoveryHealth, ScoringModel, StorageEvidence, score,
+    AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, MetadataEvidence,
+    RecoveryDiagnostic, RecoveryEvidence, RecoveryHealth, ScoringModel, StorageEvidence, score,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::NtfsError;
-use crate::bitmap::{ClusterAllocationMap, ClusterBitmap, RangeAllocation};
+use crate::bitmap::{ClusterAllocationMap, ClusterBitmap, ClusterState, RangeAllocation};
 use crate::data::{DataStorage, DataStreamDescriptor};
 use crate::diagnostic::NtfsDiagnostic;
 use crate::file::NtfsFile;
@@ -318,6 +318,7 @@ impl NtfsUndelete {
 
         let Some(stream) = stream else {
             return RecoveryEvidence {
+                source: CandidateSource::FilesystemMetadata,
                 metadata,
                 extents: ExtentEvidence::default(),
                 allocation: AllocationEvidence {
@@ -443,6 +444,7 @@ impl NtfsUndelete {
         content.expected_type = expected_type;
 
         RecoveryEvidence {
+            source: CandidateSource::FilesystemMetadata,
             metadata,
             extents,
             allocation,
@@ -589,5 +591,82 @@ impl DeletedFileProvider for NtfsUndelete {
                 detail: e.to_string(),
             })?;
         Ok(Box::new(NtfsContent { cursor }))
+    }
+
+    fn content_extents(&self, candidate: &RecoveryCandidate) -> Result<Vec<Extent>, FsError> {
+        let FileSystemObjectId::Ntfs { record, stream, .. } = &candidate.filesystem_object else {
+            return Err(FsError::NotFound(format!(
+                "{} is not an NTFS object",
+                candidate.filesystem_object
+            )));
+        };
+        let file = self.volume.file(*record)?;
+        let s = self.volume.open_stream(&file, stream.as_deref())?;
+        let cs = u64::from(self.volume.cluster_size().max(1));
+        let mut remaining = s.len();
+        let mut out = Vec::new();
+        for run in s.runs() {
+            if remaining == 0 {
+                break;
+            }
+            let bytes = run.clusters().saturating_mul(cs).min(remaining);
+            if let NtfsRun::Data { lcn, .. } = run {
+                out.push(Extent {
+                    offset: lcn.saturating_mul(cs),
+                    length: bytes,
+                });
+            }
+            remaining -= bytes;
+        }
+        Ok(out)
+    }
+}
+
+impl AllocationView for NtfsUndelete {
+    fn cluster_size(&self) -> u64 {
+        u64::from(self.volume.cluster_size().max(1))
+    }
+
+    fn volume_len(&self) -> u64 {
+        self.volume
+            .total_clusters()
+            .saturating_mul(AllocationView::cluster_size(self))
+    }
+
+    fn map_available(&self) -> bool {
+        self.bitmap.is_some()
+    }
+
+    fn free_ranges(&self) -> Result<Vec<ByteRange>, FsError> {
+        let state = |lcn: u64| -> Option<bool> {
+            self.bitmap.as_ref().and_then(|b| match b.state(lcn) {
+                ClusterState::Free => Some(true),
+                ClusterState::Allocated => Some(false),
+                ClusterState::Unknown => None,
+            })
+        };
+        Ok(phoinix_fs::space::free_ranges_from(
+            self.volume.total_clusters(),
+            AllocationView::cluster_size(self),
+            0,
+            state,
+        ))
+    }
+
+    fn summarize(&self, range: ByteRange) -> AllocationSummary {
+        let state = |lcn: u64| -> Option<bool> {
+            self.bitmap.as_ref().and_then(|b| match b.state(lcn) {
+                ClusterState::Free => Some(true),
+                ClusterState::Allocated => Some(false),
+                ClusterState::Unknown => None,
+            })
+        };
+        phoinix_fs::space::summarize_with(
+            range,
+            AllocationView::cluster_size(self),
+            0,
+            self.volume.total_clusters(),
+            state,
+        )
     }
 }

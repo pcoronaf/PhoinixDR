@@ -294,7 +294,7 @@ mod tests {
     use std::io::{self, Read};
 
     use phoinix_core::{CandidateId, FileSystemType, SourceId};
-    use phoinix_fs::{CandidateContent, CandidateTimestamps, FileSystemObjectId};
+    use phoinix_fs::{CandidateContent, CandidateTimestamps, Extent, FileSystemObjectId};
     use phoinix_health::{RecoveryEvidence, RecoveryHealth};
 
     use super::*;
@@ -356,6 +356,9 @@ mod tests {
                 pos: 0,
                 fail_at: self.fail_at,
             }))
+        }
+        fn content_extents(&self, _: &RecoveryCandidate) -> Result<Vec<Extent>, FsError> {
+            Ok(Vec::new())
         }
     }
 

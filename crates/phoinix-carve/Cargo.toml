@@ -1,0 +1,23 @@
+[package]
+name = "phoinix-carve"
+description = "Deep scan: signature carving of unallocated space with structural assembly"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+phoinix-core = { workspace = true }
+phoinix-block = { workspace = true }
+phoinix-fs = { workspace = true }
+phoinix-health = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+crc32fast = { workspace = true }
+
+[lints]
+workspace = true

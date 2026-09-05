@@ -13,10 +13,11 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 ```
 
 > **Status:** early engineering preview. The repository implements milestones
-> M0–M4 and M7 of the technical specification: the read-only block layer,
+> M0–M4, M7 and M8 of the technical specification: the read-only block layer,
 > MBR/GPT discovery, native NTFS, FAT12/16/32 and exFAT readers with undelete,
-> evidence-based recovery health and a verified recovery writer, all exposed
-> through `phoinix-cli`. There is no desktop GUI yet.
+> deep scan (signature carving of unallocated space), evidence-based recovery
+> health and a verified recovery writer, all exposed through `phoinix-cli`.
+> There is no desktop GUI yet.
 
 ## Principles
 
@@ -37,6 +38,7 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md), the
 [architectural decision records](docs/decisions/), the
 [NTFS reader notes](docs/ntfs/reader.md), the
 [FAT/exFAT engine notes](docs/fat/reader.md), the
+[deep scan / carving notes](docs/carving/deep-scan.md), the
 [health model](docs/recovery/health-model.md), the
 [undelete corpora](docs/ntfs/undelete-corpus.md) and the
 [real-hardware test procedure](docs/testing/real-hardware.md).
@@ -54,6 +56,7 @@ crates/phoinix-fs-ntfs  native NTFS reader and undelete engine
 crates/phoinix-fs-fat   native FAT12/16/32 reader and undelete engine
 crates/phoinix-fs-exfat native exFAT reader and undelete engine
 crates/phoinix-health   recovery evidence model, scoring and explanations
+crates/phoinix-carve    deep scan: signature carving with structural assembly
 crates/phoinix-recovery recovery writer with destination safety and SHA-256 verification
 tests/fixtures          compressed disk-image fixtures with ground-truth manifests
 tests/generated         scripts that build the fixtures deterministically
@@ -89,11 +92,17 @@ phoinix ntfs extract volume.img --record 64 --output file.bin
 # Undelete: list deleted candidates with recovery health.
 phoinix scan disk.img --deleted
 
-# Explain the evidence behind a candidate's score.
+# Deep scan: also carve files by signature from the unallocated space
+# (--carve-all for the whole volume; works on raw sources without a filesystem).
+phoinix scan disk.img --deep
+phoinix scan disk.img --deep --carve-types jpeg,pdf,docx
+
+# Explain the evidence behind a candidate's score (carved files are c<offset>).
 phoinix explain disk.img 64
+phoinix explain disk.img c1048576
 
 # Recover candidates to another filesystem and verify by SHA-256.
-phoinix recover disk.img 64 65 --output /mnt/recovery --preserve-tree
+phoinix recover disk.img 64 65 c1048576 --output /mnt/recovery --preserve-tree
 ```
 
 Example `scan` output on the test corpus:

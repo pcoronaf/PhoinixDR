@@ -6,15 +6,16 @@ use std::sync::Arc;
 use phoinix_core::fmt::{grouped as group, iso8601_utc};
 use phoinix_core::{CandidateId, SourceId};
 use phoinix_fs::{
-    CandidateContent, CandidateTimestamps, DeletedFileProvider, ExtentStreamCursor,
-    FileSystemObjectId, FsError, RecoveryCandidate,
+    AllocationSummary, AllocationView, ByteRange, CandidateContent, CandidateTimestamps,
+    DeletedFileProvider, Extent, ExtentStreamCursor, FileSystemObjectId, FsError,
+    RecoveryCandidate,
 };
 use phoinix_health::validate::{
     DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
 };
 use phoinix_health::{
-    AllocationEvidence, ContentEvidence, ExtentEvidence, MetadataEvidence, RecoveryDiagnostic,
-    RecoveryEvidence, ScoringModel, StorageEvidence, score,
+    AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, MetadataEvidence,
+    RecoveryDiagnostic, RecoveryEvidence, ScoringModel, StorageEvidence, score,
 };
 
 use crate::FatError;
@@ -202,6 +203,7 @@ impl FatUndelete {
         }
         content.expected_type = expected_type;
         let evidence = RecoveryEvidence {
+            source: CandidateSource::FilesystemMetadata,
             metadata,
             extents,
             allocation,
@@ -309,5 +311,61 @@ impl DeletedFileProvider for FatUndelete {
         Ok(Box::new(Content {
             cursor: stream.cursor(),
         }))
+    }
+
+    fn content_extents(&self, candidate: &RecoveryCandidate) -> Result<Vec<Extent>, FsError> {
+        let FileSystemObjectId::Fat { entry_offset } = &candidate.filesystem_object else {
+            return Err(FsError::NotFound(format!(
+                "{} is not a FAT object",
+                candidate.filesystem_object
+            )));
+        };
+        let w = self.find(*entry_offset)?;
+        Ok(self.volume.open_stream(&w.entry)?.extents().to_vec())
+    }
+}
+
+impl AllocationView for FatUndelete {
+    fn cluster_size(&self) -> u64 {
+        u64::from(self.volume.cluster_size().max(1))
+    }
+
+    fn volume_len(&self) -> u64 {
+        self.volume.boot().volume_bytes()
+    }
+
+    fn map_available(&self) -> bool {
+        true
+    }
+
+    fn free_ranges(&self) -> Result<Vec<ByteRange>, FsError> {
+        let boot = self.volume.boot();
+        let fat = self.volume.fat();
+        Ok(phoinix_fs::space::free_ranges_from(
+            u64::from(boot.cluster_count),
+            AllocationView::cluster_size(self),
+            boot.data_offset,
+            |c| {
+                u32::try_from(c.saturating_add(2))
+                    .ok()
+                    .map(|n| fat.is_free(n))
+            },
+        ))
+    }
+
+    fn summarize(&self, range: ByteRange) -> AllocationSummary {
+        let boot = self.volume.boot();
+        let fat = self.volume.fat();
+        phoinix_fs::space::summarize_with(
+            range,
+            AllocationView::cluster_size(self),
+            boot.data_offset,
+            u64::from(boot.cluster_count),
+            |c| {
+                u32::try_from(c.saturating_add(2))
+                    .ok()
+                    .map(|n| fat.is_free(n))
+            },
+        )
     }
 }

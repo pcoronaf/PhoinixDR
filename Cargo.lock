@@ -379,6 +379,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "phoinix-carve"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "phoinix-block",
+ "phoinix-core",
+ "phoinix-fs",
+ "phoinix-health",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "phoinix-cli"
 version = "0.1.0"
 dependencies = [
@@ -387,6 +402,7 @@ dependencies = [
  "flate2",
  "hex",
  "phoinix-block",
+ "phoinix-carve",
  "phoinix-core",
  "phoinix-device",
  "phoinix-fs",
@@ -498,6 +514,7 @@ dependencies = [
  "flate2",
  "hex",
  "phoinix-block",
+ "phoinix-carve",
  "phoinix-core",
  "phoinix-fs",
  "phoinix-fs-exfat",

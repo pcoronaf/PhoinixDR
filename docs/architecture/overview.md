@@ -21,6 +21,7 @@
 │  phoinix-fs-fat    native FAT12/16/32 reader + undelete     │
 │  phoinix-fs-exfat  native exFAT reader + undelete           │
 │  phoinix-health    evidence, scoring, explanations          │
+│  phoinix-carve     deep scan: signature carving, assembly   │
 │  phoinix-recovery  recovery writer, safety, SHA-256         │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -37,6 +38,7 @@ phoinix-volume        phoinix-health
 phoinix-fs ◄───────────────┘
    ▲
 phoinix-fs-ntfs / phoinix-fs-fat / phoinix-fs-exfat
+phoinix-carve (phoinix-fs contracts + phoinix-health only)
    ▲
 phoinix-recovery (via phoinix-fs contracts only)
    ▲
@@ -68,6 +70,7 @@ build RecoveryEvidence               phoinix-fs-ntfs → phoinix-health
 calculate RecoveryHealth             phoinix-health
         ↓
 recover to destination, SHA-256      phoinix-recovery
+deep scan (carving of free space)    phoinix-carve, over AllocationView of the engine
 ```
 
 ## Policies

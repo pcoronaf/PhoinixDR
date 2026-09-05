@@ -2,7 +2,10 @@
 
 use phoinix_core::fmt::{bytes_iec, grouped};
 
-use crate::commands::undelete::{Session, SourceArgs};
+use phoinix_fs::DeletedFileProvider;
+use phoinix_health::CandidateSource;
+
+use crate::commands::undelete::{CarveArgs, Session, SourceArgs};
 use crate::output::{self, outln};
 
 /// Arguments for `phoinix explain`.
@@ -10,16 +13,30 @@ use crate::output::{self, outln};
 pub struct Args {
     #[command(flatten)]
     source: SourceArgs,
-    /// Candidate reference from `phoinix scan` (`<record>` or `<record>:<stream>`).
+    /// Candidate reference from `phoinix scan` (`<record>`,
+    /// `<record>:<stream>`, or `c<offset>` for a carved file).
     candidate: String,
+    #[command(flatten)]
+    carve: CarveArgs,
     /// Emit JSON.
     #[arg(long)]
     json: bool,
 }
 
 pub fn run(args: Args) -> anyhow::Result<()> {
-    let session = Session::open(&args.source)?;
-    let engine = &*session.engine;
+    let carved = Session::is_carved_reference(&args.candidate);
+    let session = if carved {
+        Session::open_any(&args.source)?
+    } else {
+        Session::open(&args.source)?
+    };
+    let carver;
+    let engine: &dyn DeletedFileProvider = if carved {
+        carver = session.carve_engine(&args.carve)?;
+        &carver
+    } else {
+        session.engine()?
+    };
     let object = engine.object_from_reference(&args.candidate)?;
     let c = engine.candidate(&object)?;
     if args.json {
@@ -47,6 +64,9 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         outln!("Modified:              {m}");
     }
     outln!("Object:                {}", c.filesystem_object);
+    if c.evidence.source == CandidateSource::FileCarving {
+        outln!("Found by:              signature carving (no filesystem metadata)");
+    }
     outln!();
     outln!(
         "Recovery likelihood:   {}% — {}",

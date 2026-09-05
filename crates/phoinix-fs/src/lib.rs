@@ -15,6 +15,9 @@
 //!   recoverable object, and [`DeletedFileProvider`] is how an engine hands
 //!   candidates and their content to generic code such as the recovery
 //!   writer.
+//! - [`AllocationView`] is what an engine knows about free space, so that
+//!   deep scan (carving) can iterate unallocated ranges and score carved
+//!   files with the same allocation evidence.
 
 #![forbid(unsafe_code)]
 
@@ -22,6 +25,7 @@ mod candidate;
 mod error;
 mod probe;
 pub mod signature;
+pub mod space;
 pub mod stream;
 
 pub use candidate::{
@@ -32,4 +36,5 @@ pub use error::FsError;
 pub use probe::{
     Detection, FileSystemProbe, POSITIVE_THRESHOLD, ProbeEvidence, ProbeRegistry, ProbeResult,
 };
+pub use space::{AllocationSummary, AllocationView, ByteRange, WholeSource};
 pub use stream::{Extent, ExtentStream, ExtentStreamCursor};

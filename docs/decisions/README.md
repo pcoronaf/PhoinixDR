@@ -14,3 +14,4 @@ consequences. A superseded record stays in place and links to its successor.
 | [0006](ADR-0006-likelihood-vs-confidence.md) | Recovery likelihood is not assessment confidence |
 | [0007](ADR-0007-no-source-writes-in-recovery-core.md) | No source writes in the recovery core |
 | [0008](ADR-0008-candidate-addressing-before-sessions.md) | Candidate addressing before a session database exists |
+| [0009](ADR-0009-carving-scope-and-dedup.md) | Carving scans free space by default and folds into metadata candidates |

@@ -1,0 +1,204 @@
+{
+  "image": "corpus.img.gz",
+  "filesystem": "FAT32",
+  "cluster_size": 1024,
+  "files": [
+    {
+      "path": "/v/photo.jpg",
+      "type": "jpeg",
+      "size": 3675,
+      "sha256": "ac31031703e2cf3358e97b76d67b60bfe87438be59936696c0d632fa4abb0960",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 280576
+    },
+    {
+      "path": "/v/diagram.png",
+      "type": "png",
+      "size": 1034,
+      "sha256": "ebe6cb1f03942170f3f27c7532c41d4ffaf7d9548b80480c73741bf7a3388580",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 284672
+    },
+    {
+      "path": "/v/anim.gif",
+      "type": "gif",
+      "size": 2980,
+      "sha256": "cdfcebb9af6b9cbb40acd310cd128055ab5189a8908d9bcfc8041253e76ee19a",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 286720
+    },
+    {
+      "path": "/v/bitmap.bmp",
+      "type": "bmp",
+      "size": 3654,
+      "sha256": "b6c4e1984c2919bc77664e34ae56bc9ae71a61273eaabda1dab935bc9af8ea82",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 289792
+    },
+    {
+      "path": "/v/report.pdf",
+      "type": "pdf",
+      "size": 30460,
+      "sha256": "0e9ce5fab1bc1af2ab5a1eab03f6ae62751aadb1bc42b6026a41b9cb4697511c",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 293888
+    },
+    {
+      "path": "/v/proposal.docx",
+      "type": "docx",
+      "size": 2597,
+      "sha256": "b2bc3921516ba5bae3215910dfaa010c0a300f5dae8786301498b44a2b286236",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 324608
+    },
+    {
+      "path": "/v/archive.zip",
+      "type": "zip",
+      "size": 12222,
+      "sha256": "f644a2f42e42590e5e9f8d6ad3cec922cea9ebf10c4f870881809997a04893aa",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 327680
+    },
+    {
+      "path": "/v/notes.sqlite",
+      "type": "sqlite",
+      "size": 118784,
+      "sha256": "1b21032941835a0fed9e2c7ab85f77d0b38494f3eab28f417daa26082dae63b6",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 339968
+    },
+    {
+      "path": "/v/sound.wav",
+      "type": "wav",
+      "size": 16044,
+      "sha256": "25937dfd29227eb56b30bb5e3ae80586b815146f3328576b523551f79c810071",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 458752
+    },
+    {
+      "path": "/v/clip.mp4",
+      "type": "mp4",
+      "size": 20444,
+      "sha256": "1045f2ece5b8bce9e3102c2eab923527787373cf678d5832ed0b1e62903259fe",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 475136
+    },
+    {
+      "path": "/v/bundle.7z",
+      "type": "7z",
+      "size": 5092,
+      "sha256": "2c0503e8c3a5cac36ef37cf2b491ef31cc16c958717ec2c6f86d76f41aaea3c9",
+      "scenario": "V",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "merged": true
+      },
+      "offset": 495616
+    },
+    {
+      "path": "/o/orphan.jpg",
+      "type": "jpeg",
+      "size": 5589,
+      "sha256": "2db7f4368ac3cfd7ca14db4ccdd606cc4fae5cf5d2bb84956a5455662a1e1403",
+      "scenario": "O",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "orphan": true
+      },
+      "offset": 500736
+    },
+    {
+      "path": "/o/orphan.pdf",
+      "type": "pdf",
+      "size": 12314,
+      "sha256": "e1baea05ec1170d13965ff5af5221c78e335a7aca68f33252af476151322c682",
+      "scenario": "O",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "orphan": true
+      },
+      "offset": 506880
+    },
+    {
+      "path": "/o/frag.png",
+      "type": "png",
+      "size": 32558,
+      "sha256": "e69f9c0caf0db6dbbb56130abdad63794ba35d58f019870d7eeb5c4d704518d8",
+      "scenario": "F",
+      "expect": {
+        "exact": false,
+        "status": "damaged",
+        "orphan": true,
+        "fragmented": true
+      },
+      "offset": 520192,
+      "fragment_split": 15360
+    },
+    {
+      "path": "/l/live.jpg",
+      "type": "jpeg",
+      "size": 1487,
+      "sha256": "1709778bc291f6e1842a2f04b8ef3c25919d03820249613f4b85783421b07a40",
+      "scenario": "L",
+      "expect": {
+        "exact": true,
+        "status": "valid",
+        "live": true
+      },
+      "offset": 552960
+    }
+  ]
+}

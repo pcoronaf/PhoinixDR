@@ -1,10 +1,18 @@
 //! `phoinix scan` — list recoverable files with their health.
+//!
+//! The quick scan walks filesystem metadata. `--deep` adds signature
+//! carving of the unallocated space (or the whole volume with
+//! `--carve-all`), deduplicated against the metadata candidates.
 
-use phoinix_core::fmt::bytes_iec;
+use std::io::{IsTerminal, Write};
+
+use phoinix_carve::{CarveReport, ScanProgress};
+use phoinix_core::fmt::{bytes_iec, bytes_si};
 use phoinix_fs::RecoveryCandidate;
-use phoinix_health::HealthCategory;
+use phoinix_health::{CandidateSource, HealthCategory};
+use serde::Serialize;
 
-use crate::commands::undelete::{Session, SourceArgs};
+use crate::commands::undelete::{CarveArgs, Session, SourceArgs};
 use crate::output::{self, outln};
 
 /// Arguments for `phoinix scan`.
@@ -12,9 +20,18 @@ use crate::output::{self, outln};
 pub struct Args {
     #[command(flatten)]
     source: SourceArgs,
-    /// Scan for deleted files (the only mode implemented so far; implied).
+    /// Scan for deleted files through filesystem metadata (the default;
+    /// implied).
     #[arg(long)]
     deleted: bool,
+    /// Deep scan: also carve files by signature from the unallocated space.
+    #[arg(long)]
+    deep: bool,
+    /// Only carve; skip the metadata scan.
+    #[arg(long, requires = "deep")]
+    carve_only: bool,
+    #[command(flatten)]
+    carve: CarveArgs,
     /// Only show candidates at or above this health category
     /// (excellent, very-good, good, poor, very-poor).
     #[arg(long, value_parser = parse_category)]
@@ -32,23 +49,99 @@ fn parse_category(text: &str) -> Result<HealthCategory, String> {
     HealthCategory::parse(text).ok_or_else(|| format!("unknown health category {text:?}"))
 }
 
+#[derive(Serialize)]
+struct JsonOutput<'a> {
+    filesystem: String,
+    candidates: &'a [RecoveryCandidate],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    carving: Option<CarveReport>,
+}
+
+/// Reports deep-scan progress on stderr when it is a terminal.
+struct Progress {
+    enabled: bool,
+    last_percent: u64,
+}
+
+impl Progress {
+    fn new() -> Self {
+        Self {
+            enabled: std::io::stderr().is_terminal(),
+            last_percent: u64::MAX,
+        }
+    }
+
+    fn update(&mut self, p: &ScanProgress) {
+        if !self.enabled || p.bytes_total == 0 {
+            return;
+        }
+        let percent = p.bytes_scanned.saturating_mul(100) / p.bytes_total;
+        if percent == self.last_percent {
+            return;
+        }
+        self.last_percent = percent;
+        let mut err = std::io::stderr().lock();
+        let _ = write!(
+            err,
+            "\rDeep scan: {percent}% ({} of {}), {} hit(s)   ",
+            bytes_si(p.bytes_scanned),
+            bytes_si(p.bytes_total),
+            p.hits
+        );
+        let _ = err.flush();
+    }
+
+    fn finish(&self) {
+        if self.enabled && self.last_percent != u64::MAX {
+            let mut err = std::io::stderr().lock();
+            let _ = writeln!(err);
+        }
+    }
+}
+
 pub fn run(args: Args) -> anyhow::Result<()> {
-    let session = Session::open(&args.source)?;
-    let engine = &*session.engine;
-    let needle = args.name.as_ref().map(|n| n.to_lowercase());
+    let session = if args.deep {
+        Session::open_any(&args.source)?
+    } else {
+        Session::open(&args.source)?
+    };
     let mut candidates: Vec<RecoveryCandidate> = Vec::new();
-    for item in engine.deleted_files() {
-        let c = match item {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!(error = %e, "candidate skipped");
-                continue;
+    let mut from_metadata = 0usize;
+    if !args.carve_only
+        && let Some(engine) = session.engine.as_deref()
+    {
+        for item in engine.deleted_files() {
+            match item {
+                Ok(c) => candidates.push(c),
+                Err(e) => tracing::warn!(error = %e, "candidate skipped"),
             }
+        }
+        from_metadata = candidates.len();
+    }
+    let mut carving: Option<CarveReport> = None;
+    if args.deep {
+        let carver = session.carve_engine(&args.carve)?;
+        let mut progress = Progress::new();
+        let (carved, mut report) = carver.carve(&mut |p| progress.update(p))?;
+        progress.finish();
+        let (carved, merged) = match session.engine.as_deref() {
+            Some(engine) if !args.carve_only => {
+                let extents_of = |c: &RecoveryCandidate| engine.content_extents(c).ok();
+                phoinix_carve::CarveEngine::deduplicate(carved, &mut candidates, &extents_of)
+            }
+            _ => (carved, 0),
         };
+        report.merged_into_metadata = merged;
+        candidates.extend(carved);
+        carving = Some(report);
+    }
+
+    let needle = args.name.as_ref().map(|n| n.to_lowercase());
+    candidates.retain(|c| {
         if let Some(min) = args.min_health
             && (c.health.category == HealthCategory::Unknown || c.health.category < min)
         {
-            continue;
+            return false;
         }
         if let Some(n) = &needle
             && !c.display_name().to_lowercase().contains(n)
@@ -59,27 +152,45 @@ pub fn run(args: Args) -> anyhow::Result<()> {
                 .to_lowercase()
                 .contains(n)
         {
-            continue;
+            return false;
         }
-        candidates.push(c);
-    }
+        true
+    });
     if args.json {
-        return output::print_json(&candidates);
+        return output::print_json(&JsonOutput {
+            filesystem: session.filesystem.to_string(),
+            candidates: &candidates,
+            carving,
+        });
     }
     if candidates.is_empty() {
-        outln!("No deleted files found.");
+        outln!("No recoverable files found.");
+        if let Some(r) = &carving {
+            outln!("{}", carving_summary(r));
+        }
         return Ok(());
     }
     let rows: Vec<Vec<String>> = candidates
         .iter()
         .map(|c| {
+            let carved = c.evidence.source == CandidateSource::FileCarving;
             vec![
                 c.filesystem_object.short_reference(),
                 c.display_name(),
                 c.logical_size.map_or_else(|| "-".to_owned(), bytes_iec),
                 format!("{} {}", c.health.category, c.health.likelihood),
                 c.health.confidence.to_string(),
-                c.original_path.clone().unwrap_or_default(),
+                if carved {
+                    let name = c
+                        .evidence
+                        .content
+                        .detected_type
+                        .as_ref()
+                        .map_or("unknown type", |t| t.name.as_str());
+                    format!("(carved: {name})")
+                } else {
+                    c.original_path.clone().unwrap_or_default()
+                },
             ]
         })
         .collect();
@@ -88,10 +199,37 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         &rows,
     ));
     outln!();
-    outln!(
-        "{} candidate(s) on the {} volume. Recovery figures are estimates. Use `phoinix explain <source> <ID>` for the evidence.",
-        candidates.len(),
-        session.filesystem
-    );
+    let carved_count = candidates
+        .len()
+        .saturating_sub(from_metadata.min(candidates.len()));
+    match &carving {
+        Some(r) => {
+            outln!(
+                "{} candidate(s) on the {} volume: {} from filesystem metadata, {} carved. {}",
+                candidates.len(),
+                session.filesystem,
+                candidates.len().saturating_sub(carved_count),
+                carved_count,
+                carving_summary(r)
+            );
+        }
+        None => outln!(
+            "{} candidate(s) on the {} volume.",
+            candidates.len(),
+            session.filesystem
+        ),
+    }
+    outln!("Recovery figures are estimates. Use `phoinix explain <source> <ID>` for the evidence.");
     Ok(())
+}
+
+fn carving_summary(r: &CarveReport) -> String {
+    format!(
+        "Deep scan covered {} of eligible space: {} header hit(s), {} nested hit(s) skipped, {} rejected, {} merged into filesystem candidates.",
+        bytes_si(r.bytes_scanned),
+        r.hits,
+        r.nested_skipped,
+        r.rejected + r.too_small,
+        r.merged_into_metadata
+    )
 }

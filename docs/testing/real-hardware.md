@@ -73,6 +73,21 @@ check; `explain` shows "All N required clusters are currently free".
 If the stick is flash media, `explain` should also print the SSD/TRIM
 caution when the OS reports the medium as non-rotational.
 
+## Step 4b — deep scan
+
+```bash
+sudo ./phoinix scan /dev/sdb --deep
+sudo ./phoinix scan /dev/sdb --deep --json > deep.json
+```
+
+Expect the metadata candidates from step 4 plus carved rows (`c<offset>`)
+only for content the filesystem no longer describes; the summary line
+reports how many carved hits were merged into metadata candidates. On a
+16 GB stick the header search reads the whole free space once (a few
+minutes over USB 2.0); progress is shown on stderr. `explain` on a merged
+metadata candidate shows the carving corroboration as an informational
+diagnostic.
+
 ## Step 5 — recovery and verification
 
 Recover to a directory on a *different* disk (for example your home

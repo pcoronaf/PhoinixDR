@@ -1,13 +1,16 @@
 //! Shared setup for the undelete commands: open a source, pick the volume,
-//! detect its filesystem and build the matching engine.
+//! detect its filesystem and build the matching engines (metadata engine
+//! and, on demand, the carving engine over the same volume).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
+use phoinix_block::BlockReader;
+use phoinix_carve::{CarveEngine, CarveOptions, SignatureSet};
 use phoinix_core::FileSystemType;
 use phoinix_device::platform_enumerator;
-use phoinix_fs::DeletedFileProvider;
+use phoinix_fs::{AllocationView, DeletedFileProvider, FileSystemObjectId, WholeSource};
 use phoinix_fs_exfat::{ExfatUndelete, ExfatVolume};
 use phoinix_fs_fat::{FatUndelete, FatVolume};
 use phoinix_fs_ntfs::{NtfsUndelete, NtfsVolume};
@@ -30,62 +33,181 @@ pub struct SourceArgs {
     pub no_content: bool,
 }
 
-/// An opened volume with its undelete engine.
+/// Carving arguments shared by scan/explain/recover (`explain` and
+/// `recover` need them to rebuild carved candidates the same way `scan`
+/// found them).
+#[derive(Debug, Clone, clap::Args)]
+pub struct CarveArgs {
+    /// Carve the whole volume instead of only its unallocated space.
+    #[arg(long)]
+    pub carve_all: bool,
+    /// Comma-separated signature ids to carve (default: all built-in).
+    #[arg(long, value_delimiter = ',')]
+    pub carve_types: Vec<String>,
+    /// Extra signature definitions (JSON array, see docs/carving).
+    #[arg(long)]
+    pub carve_signatures: Option<PathBuf>,
+    /// Test only offsets that are multiples of this (default 512; 1 tests
+    /// every byte and is slow).
+    #[arg(long, default_value_t = 512)]
+    pub carve_align: u64,
+    /// Drop carved files shorter than this many bytes.
+    #[arg(long, default_value_t = 0)]
+    pub carve_min_size: u64,
+    /// Worker threads for the header search (0 = all cores).
+    #[arg(long, default_value_t = 0)]
+    pub carve_threads: usize,
+}
+
+impl Default for CarveArgs {
+    fn default() -> Self {
+        Self {
+            carve_all: false,
+            carve_types: Vec::new(),
+            carve_signatures: None,
+            carve_align: 512,
+            carve_min_size: 0,
+            carve_threads: 0,
+        }
+    }
+}
+
+/// An opened volume with its engines.
 pub struct Session {
     /// Detected filesystem.
     pub filesystem: FileSystemType,
-    /// The engine.
-    pub engine: Box<dyn DeletedFileProvider>,
+    /// The metadata engine, when the filesystem has one.
+    pub engine: Option<Arc<dyn DeletedFileProvider>>,
+    /// What is known about allocation (the engine's view, or nothing).
+    pub space: Arc<dyn AllocationView>,
+    /// The volume.
+    pub reader: Arc<dyn BlockReader>,
+    /// The medium.
+    pub storage: StorageEvidence,
+    no_content: bool,
 }
 
 impl Session {
-    /// Opens the source and builds the engine for its filesystem.
+    /// Opens the source and builds the engine for its filesystem; fails
+    /// for filesystems without an engine.
     pub fn open(args: &SourceArgs) -> anyhow::Result<Self> {
+        let session = Self::open_any(args)?;
+        if session.engine.is_none() {
+            anyhow::bail!(
+                "no undelete engine for {}; supported: NTFS, FAT12/16/32, exFAT (use --partition to pick another volume, or `scan --deep` to carve the raw volume)",
+                session.filesystem
+            );
+        }
+        Ok(session)
+    }
+
+    /// Opens the source; a filesystem without an engine yields a session
+    /// that can only carve.
+    pub fn open_any(args: &SourceArgs) -> anyhow::Result<Self> {
         let opened = source::open(&args.source)?;
         let selected = source::select_volume(&opened, args.partition, None)?;
         let detection = standard_probes().detect(&*selected.reader);
         let filesystem = detection.filesystem();
         let storage = storage_evidence(&args.source);
         tracing::info!(partition = ?selected.partition, offset = selected.offset, %filesystem, "volume selected");
-        let engine: Box<dyn DeletedFileProvider> = match filesystem {
+        let reader = selected.reader.clone();
+        let (engine, space): (
+            Option<Arc<dyn DeletedFileProvider>>,
+            Arc<dyn AllocationView>,
+        ) = match filesystem {
             FileSystemType::Ntfs => {
-                let volume = Arc::new(
-                    NtfsVolume::open(selected.reader.clone()).context("opening NTFS volume")?,
-                );
-                let e = NtfsUndelete::new(volume, storage);
-                Box::new(if args.no_content {
+                let volume =
+                    Arc::new(NtfsVolume::open(reader.clone()).context("opening NTFS volume")?);
+                let e = NtfsUndelete::new(volume, storage.clone());
+                let e = Arc::new(if args.no_content {
                     e.without_content_examination()
                 } else {
                     e
-                })
+                });
+                (Some(e.clone()), e)
             }
             FileSystemType::Fat12 | FileSystemType::Fat16 | FileSystemType::Fat32 => {
-                let volume = Arc::new(
-                    FatVolume::open(selected.reader.clone()).context("opening FAT volume")?,
-                );
-                let e = FatUndelete::new(volume, storage);
-                Box::new(if args.no_content {
+                let volume =
+                    Arc::new(FatVolume::open(reader.clone()).context("opening FAT volume")?);
+                let e = FatUndelete::new(volume, storage.clone());
+                let e = Arc::new(if args.no_content {
                     e.without_content_examination()
                 } else {
                     e
-                })
+                });
+                (Some(e.clone()), e)
             }
             FileSystemType::ExFat => {
-                let volume = Arc::new(
-                    ExfatVolume::open(selected.reader.clone()).context("opening exFAT volume")?,
-                );
-                let e = ExfatUndelete::new(volume, storage);
-                Box::new(if args.no_content {
+                let volume =
+                    Arc::new(ExfatVolume::open(reader.clone()).context("opening exFAT volume")?);
+                let e = ExfatUndelete::new(volume, storage.clone());
+                let e = Arc::new(if args.no_content {
                     e.without_content_examination()
                 } else {
                     e
-                })
+                });
+                (Some(e.clone()), e)
             }
-            other => anyhow::bail!(
-                "no undelete engine for {other}; supported: NTFS, FAT12/16/32, exFAT (use --partition to pick another volume)"
+            _ => (
+                None,
+                Arc::new(WholeSource::new(
+                    reader.len(),
+                    u64::from(reader.geometry().logical_sector_size.max(1)),
+                )),
             ),
         };
-        Ok(Self { filesystem, engine })
+        Ok(Self {
+            filesystem,
+            engine,
+            space,
+            reader,
+            storage,
+            no_content: args.no_content,
+        })
+    }
+
+    /// The metadata engine.
+    pub fn engine(&self) -> anyhow::Result<&dyn DeletedFileProvider> {
+        self.engine
+            .as_deref()
+            .with_context(|| format!("no undelete engine for {}", self.filesystem))
+    }
+
+    /// Builds the carving engine for this volume.
+    pub fn carve_engine(&self, args: &CarveArgs) -> anyhow::Result<CarveEngine> {
+        let mut signatures = SignatureSet::builtin();
+        if let Some(path) = &args.carve_signatures {
+            let text = std::fs::read_to_string(path)
+                .with_context(|| format!("reading {}", path.display()))?;
+            signatures = signatures
+                .with_json(&text)
+                .with_context(|| format!("parsing {}", path.display()))?;
+        }
+        if !args.carve_types.is_empty() {
+            signatures = signatures.only(&args.carve_types)?;
+        }
+        let mut options = CarveOptions {
+            whole_volume: args.carve_all || self.engine.is_none(),
+            min_size: args.carve_min_size,
+            examine_content: !self.no_content,
+            ..Default::default()
+        };
+        options.scan.alignment = args.carve_align.max(1);
+        options.scan.threads = args.carve_threads;
+        Ok(CarveEngine::new(
+            self.reader.clone(),
+            self.space.clone(),
+            self.filesystem,
+            self.storage.clone(),
+        )
+        .with_signatures(signatures)
+        .with_options(options))
+    }
+
+    /// Whether `reference` names a carved candidate (`c<offset>`).
+    #[must_use]
+    pub fn is_carved_reference(reference: &str) -> bool {
+        FileSystemObjectId::parse_carved_reference(reference).is_some()
     }
 }
 
