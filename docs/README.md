@@ -36,6 +36,7 @@
 ## Releases
 
 - [Windows portable release requirement](release/windows-portable.md)
+- [Release process](release/process.md): how a version is built, tagged and published
 
 ## Testing
 

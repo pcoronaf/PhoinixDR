@@ -39,6 +39,7 @@ el sitio muestra la versión en inglés.
 ## Versiones
 
 - [Requisito de la versión portable para Windows](release/windows-portable.md)
+- [Proceso de publicación](../release/process.md) (en inglés): cómo se compila, etiqueta y publica una versión
 
 ## Pruebas (en inglés)
 

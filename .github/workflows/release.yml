@@ -3,7 +3,9 @@ name: Release
 # Builds the single-executable Windows portable release (REL-001, see
 # docs/release/windows-portable.md) and a Linux tarball, computes SHA-256
 # sums and publishes everything as a GitHub Release when a version tag is
-# pushed. The desktop executable carries the version in its name
+# pushed, or when the workflow is run manually on a branch: the version is
+# then read from Cargo.toml and the tag v<version> is created on that commit
+# by the release step. The desktop executable carries the version in its name
 # (PhoinixDR-<version>-windows-x64-portable.exe); the website resolves the
 # current name through the GitHub API. The other asset names carry no
 # version so that
@@ -16,8 +18,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build and publish (for example v0.1.0)"
-        required: true
+        description: "Existing tag to rebuild and publish (leave empty to release the version in Cargo.toml of the chosen branch, creating its tag)"
+        required: false
         type: string
 
 permissions:
@@ -32,22 +34,41 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
       - id: version
         env:
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          version="${RELEASE_TAG#v}"
           cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"                       # rebuild an existing tag
+          elif [ "$REF_TYPE" = "tag" ]; then
+            tag="$REF_NAME"                        # a pushed tag
+          else
+            tag="v${cargo_version}"                # manual run on a branch: release Cargo.toml's version
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "tag ${tag} already exists; bump the version in Cargo.toml before releasing again"
+              exit 1
+            fi
+          fi
+          version="${tag#v}"
           if [ "$version" != "$cargo_version" ]; then
-            echo "tag ${RELEASE_TAG} does not match the workspace version ${cargo_version} in Cargo.toml"
+            echo "tag ${tag} does not match the workspace version ${cargo_version} in Cargo.toml"
+            exit 1
+          fi
+          if ! grep -q "^## ${version}\b" CHANGELOG.md; then
+            echo "CHANGELOG.md has no '## ${version}' section"
             exit 1
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "Releasing PhoinixDR ${version}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Releasing PhoinixDR ${version} as ${tag} from ${REF_TYPE} ${REF_NAME}"
 
   windows:
     name: Windows portable
@@ -173,8 +194,6 @@ jobs:
         working-directory: dist
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Release notes
-        env:
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           {
             echo "PhoinixDR ${VERSION} by @pcoronaf"
@@ -192,10 +211,11 @@ jobs:
             echo "See CHANGELOG.md for what changed."
           } > notes.md
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          # Creates the tag on this commit when it does not exist yet (manual run on a branch).
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: dist/*
           body_path: notes.md
           draft: false
-          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
+          prerelease: ${{ contains(needs.version.outputs.tag, '-') }}
