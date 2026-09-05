@@ -1,0 +1,144 @@
+name: Release
+
+# Builds the single-executable Windows portable release (REL-001, see
+# docs/release/windows-portable.md) and a Linux tarball, computes SHA-256
+# sums and publishes everything as a GitHub Release when a version tag is
+# pushed. Asset names carry no version so that
+# https://github.com/pcoronaf/PhoinixDR/releases/latest/download/<asset>
+# always points at the current release.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows portable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            apps/desktop/src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Build the command-line application
+        run: cargo build --release -p phoinix-cli
+      - name: Build the desktop application (single executable, no bundle)
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: Collect and check the artefacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target\release\phoinix.exe dist\phoinix-windows-x64.exe
+          Copy-Item apps\desktop\src-tauri\target\release\phoinixdr-desktop.exe dist\PhoinixDR-windows-x64-portable.exe
+          # REL-001: the desktop build must not depend on files beside the executable.
+          $extra = Get-ChildItem apps\desktop\src-tauri\target\release -File | Where-Object { $_.Extension -in '.dll' -or $_.Name -like 'resources*' }
+          if ($extra) { Write-Error "unexpected files beside the executable: $($extra.Name -join ', ')" }
+          & dist\phoinix-windows-x64.exe --version
+          $fixture = "tests\fixtures\fat\fat12.img.gz"
+          $raw = "dist\fat12.img"
+          $in = New-Object System.IO.FileStream($fixture, [System.IO.FileMode]::Open)
+          $gz = New-Object System.IO.Compression.GZipStream($in, [System.IO.Compression.CompressionMode]::Decompress)
+          $out = New-Object System.IO.FileStream($raw, [System.IO.FileMode]::Create)
+          $gz.CopyTo($out); $out.Close(); $gz.Close(); $in.Close()
+          & dist\phoinix-windows-x64.exe inspect $raw | Select-String "FAT12"
+          Remove-Item $raw
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Webview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            apps/desktop/src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: cargo build --release -p phoinix-cli
+      - working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: Package
+        run: |
+          mkdir -p dist/phoinixdr
+          cp target/release/phoinix dist/phoinixdr/
+          cp apps/desktop/src-tauri/target/release/phoinixdr-desktop dist/phoinixdr/
+          cp README.md LICENSE-MIT LICENSE-APACHE dist/phoinixdr/
+          tar -C dist -czf dist/phoinix-linux-x64.tar.gz phoinixdr
+          rm -r dist/phoinixdr
+          dist_check=$(tar -tzf dist/phoinix-linux-x64.tar.gz | wc -l); test "$dist_check" -ge 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  publish:
+    name: Publish release
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Release notes
+        run: |
+          {
+            echo "PhoinixDR ${GITHUB_REF_NAME} by @pcoronaf"
+            echo
+            echo "| file | what |"
+            echo "|---|---|"
+            echo "| PhoinixDR-windows-x64-portable.exe | desktop application, single executable, no installation (needs Windows 10 21H2+/11 with WebView2) |"
+            echo "| phoinix-windows-x64.exe | command-line application |"
+            echo "| phoinix-linux-x64.tar.gz | both executables for Linux x86-64 (desktop needs WebKitGTK 4.1) |"
+            echo "| SHA256SUMS.txt | checksums of the files above |"
+            echo
+            echo "Verify a download on Windows with \`Get-FileHash <file> -Algorithm SHA256\`."
+            echo
+            echo "See CHANGELOG.md for what changed."
+          } > notes.md
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*
+          body_path: notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

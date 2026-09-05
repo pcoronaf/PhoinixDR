@@ -26,6 +26,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "pcoronaf",
+    "copyright": "PhoinixDR by @pcoronaf",
+    "shortDescription": "Open-source, evidence-driven data recovery",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

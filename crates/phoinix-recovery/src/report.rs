@@ -134,6 +134,9 @@ pub struct RecoveryReport {
     pub tool: String,
     /// Tool version.
     pub tool_version: String,
+    /// Tool author.
+    #[serde(default = "default_author")]
+    pub author: String,
     /// When the report was generated (ISO-8601 UTC).
     pub generated_at: String,
     /// Case metadata.
@@ -196,6 +199,7 @@ impl RecoveryReport {
             version: 1,
             tool: "PhoinixDR".into(),
             tool_version: env!("CARGO_PKG_VERSION").into(),
+            author: default_author(),
             generated_at: iso8601_utc(now, 0),
             case,
             source,
@@ -327,8 +331,8 @@ impl RecoveryReport {
         line(
             &mut out,
             format!(
-                "Generated {} by {} {}.",
-                self.generated_at, self.tool, self.tool_version
+                "Generated {} by {} {} ({}).",
+                self.generated_at, self.tool, self.tool_version, self.author
             ),
         );
         line(&mut out, String::new());
@@ -398,10 +402,11 @@ impl RecoveryReport {
         out.push_str("<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Recovery report</title>\n<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#222}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:.3rem .5rem;text-align:left;font-size:.9rem}th{background:#f3f3f3}code{font-family:ui-monospace,monospace;font-size:.85rem}.bad{color:#a00}.good{color:#060}</style></head><body>\n");
         out.push_str("<h1>Recovery report</h1>\n");
         out.push_str(&format!(
-            "<p>Generated {} by {} {}.</p>\n",
+            "<p>Generated {} by {} {} ({}).</p>\n",
             esc(&self.generated_at),
             esc(&self.tool),
-            esc(&self.tool_version)
+            esc(&self.tool_version),
+            esc(&self.author)
         ));
         out.push_str("<h2>Case</h2>\n<dl>\n");
         for (k, v) in self.case_rows() {
@@ -543,6 +548,10 @@ impl RecoveryReport {
         rows.push(("Destination", self.destination.clone()));
         rows
     }
+}
+
+fn default_author() -> String {
+    "by @pcoronaf".into()
 }
 
 fn item_result(i: &ReportItem) -> String {

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community · PhoinixDR</title>
+<link rel="icon" href="assets/favicon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="28" height="28"> PhoinixDR</a>
+  <nav>
+    <a href="docs/index.html">Documentation</a>
+    <a href="docs/user-guide/desktop.html">User guide</a>
+    <a href="download.html">Download</a>
+    <a href="community.html">Community</a>
+    <a href="https://github.com/pcoronaf/PhoinixDR">GitHub</a>
+  </nav>
+</header>
+<main class="doc">
+  <h1>Community</h1>
+  <p>PhoinixDR is developed in the open by <a href="https://github.com/pcoronaf">@pcoronaf</a>. Everything happens on GitHub.</p>
+  <div class="cards">
+    <div class="card"><h3><a href="https://github.com/pcoronaf/PhoinixDR/issues">Issues</a></h3><p>Bug reports and feature requests. For a recovery that went wrong, include the <code>phoinix explain</code> output and, when you can, an image of the volume.</p></div>
+    <div class="card"><h3><a href="https://github.com/pcoronaf/PhoinixDR/discussions">Discussions</a></h3><p>Questions, recovery stories, ideas and design conversations.</p></div>
+    <div class="card"><h3><a href="docs/contributing.html">Contributing</a></h3><p>How the workspace is organised, the coding rules (read-only, no panics on malformed media, conservative dependencies) and how to add a filesystem engine or a carving signature.</p></div>
+    <div class="card"><h3><a href="docs/security.html">Security</a></h3><p>The threat model and how to report a vulnerability privately.</p></div>
+    <div class="card"><h3><a href="docs/code-of-conduct.html">Code of conduct</a></h3><p>What we expect from each other.</p></div>
+    <div class="card"><h3><a href="docs/testing/real-hardware.html">Test on real hardware</a></h3><p>A repeatable procedure for trying PhoinixDR on your own USB sticks and disks and reporting what you see.</p></div>
+  </div>
+  <h2>Ways to help</h2>
+  <ul>
+    <li><strong>Try it on a real device</strong> and report both successes and failures with the evidence PhoinixDR prints.</li>
+    <li><strong>Contribute fixtures:</strong> small disk images with known content and deletion scenarios make the recovery engines verifiable.</li>
+    <li><strong>Review the engineering:</strong> filesystem parsers, the health model and the decision records are meant to be challenged. See the <a href="docs/about/development-declaration.html">Development Declaration</a>.</li>
+    <li><strong>Documentation and translations.</strong></li>
+  </ul>
+  <h2>Roadmap</h2>
+  <p>Milestones M0 to M11 of the technical specification are implemented. Next: calibration of the health model on larger corpora, HFS+/APFS, XFS/Btrfs, LVM and RAID reassembly. Follow the <a href="docs/changelog.html">changelog</a>.</p>
+</main>
+<footer class="foot">
+  <p>PhoinixDR · Open Source Data Recovery · by <a href="https://github.com/pcoronaf">@pcoronaf</a> · MIT OR Apache-2.0 ·
+  <a href="docs/about/vibecoded.html">Yes, PHOINIX is vibecoded</a> ·
+  <a href="docs/about/origin.html">Where PHOINIX came from</a></p>
+</footer>
+</body>
+</html>

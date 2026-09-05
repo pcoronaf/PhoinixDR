@@ -153,6 +153,7 @@ export default function App() {
         <span className="crumb">{view.name === "home" ? "" : view.name === "devices" ? "Choose a source" : view.name === "setup" ? "Scan" : view.name === "scanning" ? "Scanning" : "Results"}</span>
         <span className="spacer" />
         {api.isDemo && <span className="tag">browser demo</span>}
+        <span className="byline muted">{info ? `v${info.version} · by ${info.author ?? "@pcoronaf"}` : "by @pcoronaf"}</span>
         <label className="option small"><input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} /><span>Advanced</span></label>
       </header>
       {banner && <div className="banner">{banner} <button className="link" onClick={() => setBanner(null)}>dismiss</button></div>}

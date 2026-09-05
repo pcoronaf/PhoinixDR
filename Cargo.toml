@@ -29,7 +29,7 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/pcoronaf/PhoinixDR"
-authors = ["PHOINIX contributors"]
+authors = ["pcoronaf (@pcoronaf)", "PHOINIX contributors"]
 keywords = ["data-recovery", "forensics", "ntfs", "undelete"]
 categories = ["filesystem"]
 

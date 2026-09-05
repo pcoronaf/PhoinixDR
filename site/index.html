@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoinixDR · Open Source Data Recovery</title>
+<meta name="description" content="PhoinixDR recovers lost files from NTFS, FAT, exFAT and EXT volumes, disk images and lost partitions, and tells you how likely each file is to be intact. Open source, read-only by design, by @pcoronaf.">
+<link rel="icon" href="assets/favicon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="28" height="28"> PhoinixDR</a>
+  <nav>
+    <a href="docs/index.html">Documentation</a>
+    <a href="docs/user-guide/desktop.html">User guide</a>
+    <a href="download.html">Download</a>
+    <a href="community.html">Community</a>
+    <a href="https://github.com/pcoronaf/PhoinixDR">GitHub</a>
+  </nav>
+</header>
+<main>
+  <section class="hero">
+    <img src="assets/logo.svg" alt="PhoinixDR logo">
+    <div class="tag">Open Source Data Recovery</div>
+    <h1>PHOINIX</h1>
+    <p class="lead">Recover lost files.<br>Understand your chances.</p>
+    <p class="sub">Evidence-driven recovery from disks, USB sticks, SD cards and disk images. Nothing is ever written to the source.</p>
+    <div class="buttons">
+      <a class="btn primary" href="https://github.com/pcoronaf/PhoinixDR/releases/latest/download/PhoinixDR-windows-x64-portable.exe">Download for Windows</a>
+      <a class="btn" href="download.html">Other platforms</a>
+      <a class="btn" href="https://github.com/pcoronaf/PhoinixDR">View on GitHub</a>
+    </div>
+    <p class="note">Single executable, no installation. Windows 10 (21H2+) or 11. <a href="download.html">Checksums and details</a>.</p>
+  </section>
+
+  <section class="block">
+    <h2>Recover deleted files</h2>
+    <div class="fs">
+      <span>NTFS</span><span>FAT12 / FAT16 / FAT32</span><span>exFAT</span><span>EXT2 / EXT3 / EXT4</span><span>… and any volume by file carving</span>
+    </div>
+    <p>Native readers for each filesystem find deleted records, reconstruct names and paths, and on ext3/ext4 pull layouts back out of the journal. Anything without a recognisable filesystem is carved by signature.</p>
+  </section>
+
+  <section class="block two">
+    <div>
+      <h2>Know before you recover</h2>
+      <p>PHOINIX doesn't just find deleted files. It analyzes the evidence that determines whether the original data is still recoverable.</p>
+      <p>Every file carries a <strong>recovery likelihood</strong> and an <strong>assessment confidence</strong>, and every number comes with its reasons: is the layout known, are its clusters reused, does the content still validate as a JPEG, a PDF, a ZIP?</p>
+      <p><a href="docs/recovery/health-model.html">How the health model works →</a></p>
+    </div>
+    <div class="demo">
+      <div class="row"><span>proposal.docx</span><span class="good">Excellent</span><span class="good">98%</span></div>
+      <div class="row"><span>family.jpg</span><span class="good">Very good</span><span class="good">91%</span></div>
+      <div class="row"><span>archive.zip</span><span class="mid">Poor</span><span class="mid">37%</span></div>
+      <div class="row"><span>wiped.jpg</span><span class="bad">Very poor</span><span class="bad">20%</span></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>One engine, every situation</h2>
+    <div class="cards">
+      <div class="card"><h3>Quick Scan</h3><p>Deleted files through filesystem metadata: names, paths, timestamps and layouts in seconds.</p></div>
+      <div class="card"><h3>Deep Scan</h3><p>Carves the unallocated space by signature and validates each file's structure. Finds what metadata no longer describes.</p></div>
+      <div class="card"><h3>Partition Recovery</h3><p>Finds lost volumes by their own structures and mounts them virtually. The partition table is never rewritten.</p></div>
+      <div class="card"><h3>File Carving</h3><p>JPEG, PNG, GIF, BMP, PDF, ZIP and Office, SQLite, RIFF, MP4, 7z, and your own signatures.</p></div>
+      <div class="card"><h3>Disk Images</h3><p>RAW, split RAW, E01 and split E01, VHD, VHDX, VMDK, with hash verification and case reports for forensic work.</p></div>
+      <div class="card"><h3>Command line</h3><p>The same engine as <code>phoinix</code>: scriptable, JSON everywhere, explainable scores.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Open source by design</h2>
+    <p>Read-only towards the source, explainable scores, deterministic fixtures with cryptographic ground truth, decision records for every architectural choice. PHOINIX is built in the open so that the code and the decisions behind it can be inspected and challenged. <a href="docs/about/vibecoded.html">Yes, PHOINIX is vibecoded</a>, and deliberately so; read <a href="docs/about/origin.html">where it came from</a>.</p>
+    <div class="buttons" style="justify-content:flex-start">
+      <a class="btn" href="https://github.com/pcoronaf/PhoinixDR">View Source</a>
+      <a class="btn" href="docs/index.html">Documentation</a>
+      <a class="btn" href="community.html">Contribute</a>
+    </div>
+  </section>
+</main>
+<footer class="foot">
+  <p>PhoinixDR · Open Source Data Recovery · by <a href="https://github.com/pcoronaf">@pcoronaf</a> · MIT OR Apache-2.0 ·
+  <a href="docs/about/vibecoded.html">Yes, PHOINIX is vibecoded</a> ·
+  <a href="docs/about/origin.html">Where PHOINIX came from</a></p>
+</footer>
+</body>
+</html>

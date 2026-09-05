@@ -43,6 +43,8 @@ pub enum ScanCompletion {
 pub struct AppInfo {
     /// Application version.
     pub version: String,
+    /// Author attribution.
+    pub author: String,
     /// Where sessions are stored.
     pub sessions_dir: PathBuf,
     /// Whether the process can enumerate devices at all.
@@ -272,6 +274,7 @@ pub async fn recover(
 pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION").to_owned(),
+        author: "@pcoronaf".to_owned(),
         sessions_dir: state.workspace.sessions_dir().to_path_buf(),
         device_access: state.workspace.devices().is_ok(),
     }

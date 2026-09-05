@@ -13,8 +13,17 @@ mod source;
 use clap::{Parser, Subcommand};
 
 /// PHOINIX — open-source, evidence-driven data recovery.
+/// Version string shown by `--version`.
+const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " by @pcoronaf");
+
 #[derive(Debug, Parser)]
-#[command(name = "phoinix", version, about, long_about = None)]
+#[command(
+    name = "phoinix",
+    version = VERSION,
+    about = "PhoinixDR — open-source, evidence-driven data recovery, by @pcoronaf",
+    long_about = "PhoinixDR — open-source, evidence-driven data recovery.\n\nBy @pcoronaf. Nothing is ever written to the source. Every recovery figure is backed by evidence you can print with `explain`.",
+    after_help = "PhoinixDR by @pcoronaf — https://github.com/pcoronaf/PhoinixDR"
+)]
 struct Cli {
     /// Increase log verbosity (-v: info, -vv: debug, -vvv: trace). Filenames
     /// may appear at debug level and above; recovered content is never logged.

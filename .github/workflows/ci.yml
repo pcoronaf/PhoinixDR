@@ -92,3 +92,31 @@ jobs:
         working-directory: apps/desktop/src-tauri
       - run: cargo clippy --all-targets -- -D warnings
         working-directory: apps/desktop/src-tauri
+
+  site:
+    name: site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install markdown==3.10.3
+      - run: python3 site/build.py --out _site
+      - name: No dangling internal links
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          root = "_site"; bad = []
+          for dp, _, fs in os.walk(root):
+              for f in fs:
+                  if not f.endswith(".html"): continue
+                  p = os.path.join(dp, f)
+                  for href in re.findall(r'(?:href|src)="([^"]+)"', open(p, encoding="utf-8").read()):
+                      if href.startswith(("http", "mailto:", "#")): continue
+                      t = href.split("#")[0]
+                      if t and not os.path.exists(os.path.normpath(os.path.join(dp, t))):
+                          bad.append((os.path.relpath(p, root), href))
+          for b in bad: print("dangling:", b)
+          sys.exit(1 if bad else 0)
+          PY

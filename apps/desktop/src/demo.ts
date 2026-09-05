@@ -218,7 +218,7 @@ export function demoRecover(ids: string[], rows: CandidateSummary[], destination
   });
 }
 
-export const demoAppInfo: AppInfo = { version: "0.1.0-demo", sessions_dir: "(browser demo)", device_access: true };
+export const demoAppInfo: AppInfo = { version: "0.1.0-demo", author: "@pcoronaf", sessions_dir: "(browser demo)", device_access: true };
 
 export function demoPartitions(path: string): PartitionCandidate[] {
   const listed: PartitionCandidate = {

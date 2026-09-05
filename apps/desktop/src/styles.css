@@ -133,3 +133,5 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .recovered tr.bad td { color: var(--bad); }
 .case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .case-grid input { width: 100%; box-sizing: border-box; }
+.byline { font-size: 12px; font-weight: 400; margin-left: 8px; }
+.topbar .byline { margin-left: 12px; }

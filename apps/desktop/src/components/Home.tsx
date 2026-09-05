@@ -15,8 +15,8 @@ export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenS
   return (
     <div className="home">
       <div className="hero">
-        <h1>PhoinixDR</h1>
-        <p className="muted">Evidence-driven data recovery. Nothing is written to the source, ever.</p>
+        <h1>PhoinixDR <span className="byline">by @pcoronaf</span></h1>
+        <p className="muted">Open-source, evidence-driven data recovery. Nothing is written to the source, ever.</p>
       </div>
       <h2>Recover files from</h2>
       <div className="choices">
@@ -30,7 +30,7 @@ export function Home({ info, sessions, onPhysical, onRemovable, onImage, onOpenS
         </button>
         <button className="choice" onClick={onImage}>
           <strong>Disk image</strong>
-          <span>Raw / DD image files</span>
+          <span>RAW/DD, E01, split RAW, VHD, VHDX and VMDK image files</span>
         </button>
       </div>
       {info && !info.device_access && (

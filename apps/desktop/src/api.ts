@@ -84,7 +84,15 @@ async function tauriApi(): Promise<Api> {
     onScanComplete: on<ScanCompletion>("scan-complete"),
     onRecoverEvent: on<RecoverEvent>("recover-event"),
     pickImageFile: async () => {
-      const r = await dialog.open({ multiple: false, directory: false, title: "Choose a disk image" });
+      const r = await dialog.open({
+        multiple: false,
+        directory: false,
+        title: "Choose a disk image",
+        filters: [
+          { name: "Disk images", extensions: ["img", "dd", "raw", "bin", "iso", "E01", "e01", "s01", "001", "vhd", "vhdx", "vmdk"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+      });
       return typeof r === "string" ? r : null;
     },
     pickSessionFile: async () => {

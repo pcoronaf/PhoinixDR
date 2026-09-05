@@ -353,6 +353,7 @@ export type RecoverEvent =
 
 export interface AppInfo {
   version: string;
+  author?: string;
   sessions_dir: string;
   device_access: boolean;
 }
