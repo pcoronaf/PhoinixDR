@@ -43,11 +43,16 @@ contenido, un archivo sin validador estructural o un medio desconocido
 reducen la confianza sin cambiar la probabilidad. Véase el
 [modelo de salud](../recovery/health-model.md) (en inglés).
 
-### ¿Por qué necesito permisos de administrador?
+### ¿Por qué necesito permisos de administrador? ¿Hay alternativa?
 
 Leer `\\.\PhysicalDriveN` (Windows) o `/dev/sdX` (Linux) es una operación
-privilegiada en ambos sistemas. Las imágenes de disco no necesitan
-elevación.
+privilegiada en ambos sistemas, así que escanear un dispositivo
+directamente implica iniciar PhoinixDR como administrador (o con `sudo`)
+y recuperar en un solo paso. La alternativa es crear primero una imagen
+del dispositivo con una herramienta de adquisición y abrir la imagen en
+PhoinixDR, que entonces no necesita elevación; la necesita la herramienta
+de adquisición. Véase
+[dos formas de recuperar](getting-started.md#dos-formas-de-recuperar).
 
 ### La aplicación de escritorio no arranca en Windows.
 

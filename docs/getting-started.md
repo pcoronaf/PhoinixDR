@@ -89,6 +89,27 @@ The fixtures under `tests/fixtures` are committed; the scripts under
 `tests/generated` rebuild them (they need mkntfs, mkfs.fat, mkfs.exfat,
 mke2fs, ewfacquire and qemu-img, and root for loop mounts).
 
+## Two ways to recover
+
+PhoinixDR can work on the device itself or on an image of it. Pick one
+before you start:
+
+1. **Directly from the device, in one step.** Start PhoinixDR *as
+   administrator* (Windows: right-click, *Run as administrator*; Linux:
+   `sudo`), choose *Physical disk* or *Removable device*, scan and
+   recover. Fastest; PhoinixDR only ever reads from the device.
+2. **From a disk image.** First make an image of the device with an
+   imaging tool (FTK Imager or Arsenal Image Mounter on Windows, `dd`
+   or `ewfacquire` on Linux) and then open the image file in PhoinixDR
+   with *Disk image*. PhoinixDR itself needs no elevation for this; the
+   imaging tool does, since it reads the same raw device. This is the
+   recommended path for a failing drive, for anything you may need to
+   examine again, and for forensic work (E01 hashes are verified and
+   reported).
+
+Both paths give the same results on a healthy device. In both, recover to
+a different disk than the one you are recovering from.
+
 ## First recovery
 
 ```bash

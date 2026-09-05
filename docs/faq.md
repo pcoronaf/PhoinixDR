@@ -39,10 +39,15 @@ on: a scan with content examination off, a file without a structural
 validator or an unknown medium lowers confidence without changing the
 likelihood. See the [health model](recovery/health-model.md).
 
-### Why do I need administrator rights?
+### Why do I need administrator rights? Is there a way around it?
 
 Reading `\\.\PhysicalDriveN` (Windows) or `/dev/sdX` (Linux) is a
-privileged operation on both systems. Disk images do not need elevation.
+privileged operation on both systems, so scanning a device directly means
+starting PhoinixDR as administrator (or with `sudo`) and recovering in one
+step. The alternative is to image the device first with an imaging tool
+and open the image in PhoinixDR, which then needs no elevation; the
+imaging tool needs it instead. See
+[two ways to recover](getting-started.md#two-ways-to-recover).
 
 ### The desktop application does not start on Windows.
 

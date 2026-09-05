@@ -18,6 +18,28 @@ inglés; esta guía indica entre paréntesis los textos que verá en pantalla.
 La página de inicio muestra la versión y el autor en la barra superior y
 lista las sesiones de escaneo recientes.
 
+## Dos formas de recuperar
+
+PhoinixDR puede trabajar sobre el propio dispositivo o sobre una imagen de
+este. Elija una antes de empezar; el resto de esta guía vale para ambas:
+
+1. **Directamente desde el dispositivo, en un solo paso.** Inicie
+   PhoinixDR *como administrador* (Windows: clic derecho, *Ejecutar como
+   administrador*; Linux: `sudo`), elija *Physical disk* o *Removable
+   device*, escanee y recupere. Es lo más rápido; PhoinixDR solo lee del
+   dispositivo.
+2. **Desde una imagen de disco.** Cree primero una imagen del dispositivo
+   con una herramienta de adquisición (FTK Imager o Arsenal Image Mounter
+   en Windows, `dd` o `ewfacquire` en Linux) y abra después el archivo de
+   imagen en PhoinixDR con *Disk image*. PhoinixDR no necesita elevación
+   para ello; la herramienta de adquisición sí, porque lee el mismo
+   dispositivo en bruto. Es la vía recomendada para un disco que falla,
+   para todo lo que quizá tenga que examinar de nuevo y para el trabajo
+   forense (los hashes de un E01 se verifican y se recogen en el informe).
+
+Las dos vías dan los mismos resultados en un dispositivo sano. En ambas,
+recupere a un disco distinto del que está recuperando.
+
 ## 1. Elegir una fuente
 
 | opción | qué lista |

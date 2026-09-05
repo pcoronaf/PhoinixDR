@@ -49,6 +49,7 @@
   <h2>Build from source</h2>
   <p>PhoinixDR is a Rust workspace with a Tauri 2 desktop shell. The <a href="docs/getting-started.html">getting-started guide</a> lists the steps for Windows and Linux; macOS builds the command line but device access is not supported there yet.</p>
   <h2>Before you start</h2>
+  <p>There are two ways to recover. <strong>Directly:</strong> run PhoinixDR as administrator, pick the disk or USB stick, scan and recover in one step. <strong>From an image:</strong> image the device first with an imaging tool (FTK Imager, <code>dd</code>, ewfacquire), then open the image in PhoinixDR, which then needs no elevation. The image path is the safer choice for a failing drive and for evidence. <a href="docs/getting-started.html#two-ways-to-recover">Details</a>.</p>
   <ul>
     <li>Stop using the affected disk. Every write can overwrite what you want back.</li>
     <li>Recover to a different disk. PhoinixDR refuses a destination on the source disk.</li>

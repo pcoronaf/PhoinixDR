@@ -89,6 +89,28 @@ Los fixtures de `tests/fixtures` están en el repositorio; los scripts de
 `tests/generated` los reconstruyen (necesitan mkntfs, mkfs.fat, mkfs.exfat,
 mke2fs, ewfacquire y qemu-img, y permisos de root para los montajes loop).
 
+## Dos formas de recuperar
+
+PhoinixDR puede trabajar sobre el propio dispositivo o sobre una imagen de
+este. Elija una antes de empezar:
+
+1. **Directamente desde el dispositivo, en un solo paso.** Inicie
+   PhoinixDR *como administrador* (Windows: clic derecho, *Ejecutar como
+   administrador*; Linux: `sudo`), elija *Physical disk* o *Removable
+   device*, escanee y recupere. Es lo más rápido; PhoinixDR solo lee del
+   dispositivo.
+2. **Desde una imagen de disco.** Cree primero una imagen del dispositivo
+   con una herramienta de adquisición (FTK Imager o Arsenal Image Mounter
+   en Windows, `dd` o `ewfacquire` en Linux) y abra después el archivo de
+   imagen en PhoinixDR con *Disk image*. PhoinixDR no necesita elevación
+   para ello; la herramienta de adquisición sí, porque lee el mismo
+   dispositivo en bruto. Es la vía recomendada para un disco que falla,
+   para todo lo que quizá tenga que examinar de nuevo y para el trabajo
+   forense (los hashes de un E01 se verifican y se recogen en el informe).
+
+Las dos vías dan los mismos resultados en un dispositivo sano. En ambas,
+recupere a un disco distinto del que está recuperando.
+
 ## Primera recuperación
 
 ```bash

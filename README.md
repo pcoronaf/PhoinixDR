@@ -55,8 +55,11 @@ runtime that ships with Windows 10 (21H2+) and Windows 11
 `PhoinixDR-<version>-windows-x64-portable.exe` from the
 [latest release](https://github.com/pcoronaf/PhoinixDR/releases/latest)
 together with the command-line `phoinix.exe`, the Linux tarball and
-`SHA256SUMS.txt`. Run it as administrator to scan physical disks; disk
-images need no elevation. See [getting started](docs/getting-started.md).
+`SHA256SUMS.txt`. There are two ways to recover: run PhoinixDR as
+administrator and recover straight from the disk or USB stick, or image
+the device first with an imaging tool and open the image in PhoinixDR,
+which then needs no elevation. See
+[getting started](docs/getting-started.md#two-ways-to-recover).
 
 ## Principles
 
