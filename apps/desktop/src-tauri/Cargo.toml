@@ -6,7 +6,7 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/pcoronaf/PhoinixDR"
-authors = ["PHOINIX contributors"]
+authors = ["pcoronaf (@pcoronaf)", "PHOINIX contributors"]
 
 # The desktop shell is its own workspace: the recovery core builds and tests
 # without any GUI toolchain (see docs/desktop/architecture.md).
@@ -14,7 +14,7 @@ authors = ["PHOINIX contributors"]
 
 [lib]
 name = "phoinix_desktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
