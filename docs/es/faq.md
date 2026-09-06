@@ -115,6 +115,25 @@ ellas; la tabla nunca se escribe (ADR-0011). Las herramientas de
 reparación cambian el disco del que intenta recuperar y quedan fuera del
 alcance por diseño.
 
+### ¿Qué hace la casilla Advanced?
+
+Muestra el detalle técnico que hay detrás de la interfaz sin cambiar el
+escaneo ni la recuperación: el comando `phoinix` equivalente al escaneo
+actual y al archivo seleccionado, un registro en directo de lo que hace el
+motor, la referencia del candidato en el sistema de archivos, las
+comprobaciones de validación de estructura y un bloque de diagnóstico.
+Véase [Modo avanzado](user-guide/desktop.md#modo-avanzado).
+
+### ¿Cómo obtengo un registro para un informe de error?
+
+Marque **Advanced** antes de escanear; la página de escaneo muestra
+entonces el registro del motor con un botón *Copy log*, y la página de
+resultados conserva *Copy scan log*. En la línea de comandos, ejecute el
+mismo comando con `-vv` y adjunte stderr. En ambos casos el registro
+describe estructuras y recuentos, nunca el contenido de sus archivos.
+Añada la salida de `phoinix explain` del archivo en cuestión y, cuando
+pueda, una imagen del volumen.
+
 ### ¿Cómo se construyó PhoinixDR?
 
 Con una amplia asistencia de IA y una ingeniería deliberada. Lea la

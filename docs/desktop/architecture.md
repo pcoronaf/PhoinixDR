@@ -37,7 +37,9 @@ checks.
 
 | command | payload | result |
 |---|---|---|
-| `app_info` | – | version, sessions directory, device access |
+| `app_info` | – | version, author, disclaimer, sessions directory, device access, whether the process is elevated, platform |
+| `relaunch_elevated` | – | starts an elevated copy through the system prompt (UAC / polkit); whether this instance exits |
+| `set_engine_log` | `enabled` | switches the live engine log; `engine-log` events (batches of `LogLine`) while on |
 | `list_devices` | – | `DeviceInfo[]` |
 | `inspect_source` | `path` | `SourceInfo` |
 | `find_partitions` | `path`, `verify?` | `PartitionCandidate[]`; `search-event` while running |
@@ -57,20 +59,24 @@ data directory (`app_info.sessions_dir`).
 
 1. **Home**: physical disk, removable device or disk image; recent
    sessions.
-2. **Source**: devices with size, bus, medium, accessibility.
+2. **Source**: devices with size, bus, medium, accessibility. When a
+   device is not accessible, a notice offers **Restart as administrator**
+   (`relaunch_elevated`).
 3. **Scan**: volume, "Search for lost partitions" (structure search with
    progress; candidates with status, confidence and repair; a chosen
    candidate is scanned as a virtual mount), Quick Scan / Deep Scan (deep
    is forced when no filesystem is recognised), deep-scan options (whole
    volume, file types), content examination.
 4. **Scanning**: phase, progress (records; bytes for carving), candidates
-   so far, cancel.
+   so far, cancel. **Advanced** adds the equivalent `phoinix scan` command
+   line and the live engine log (see below), both with copy buttons.
 5. **Results**: folder tree, table (name, health badge with confidence on
    hover, size, type, modified, original location, carved tag), search,
    health / source / type filters, sortable columns, multi-select; detail
    panel with the evidence reasons, structure validation and a preview
    tab. **Advanced** (top bar) adds object references, extents, allocation
-   state, timestamps and storage.
+   state, timestamps and storage, the `phoinix explain` / `phoinix recover`
+   command lines for the selected file, and *Copy scan log*.
 6. **Recover**: destination picker with the safety check (a destination on
    the source disk is refused unless the expert override is ticked; the
    source image can never be overwritten), folder tree / timestamps / SHA-256
@@ -80,10 +86,37 @@ data directory (`app_info.sessions_dir`).
 
 The MVP runs the engine in the application process. Physical disks need
 an elevated process (Administrator on Windows, root or a `disk` group on
-Linux); disk images do not. The Home screen says so when devices cannot be
-enumerated. The privileged helper (`phoinixd`) of the specification, which
+Linux); disk images do not. The Home screen and the device picker say so
+when devices cannot be opened and offer **Restart as administrator**: the
+backend (`elevate.rs`, no `unsafe`) starts the current executable through
+`Start-Process -Verb RunAs` on Windows (UAC prompt; this instance exits once
+the elevated copy runs) or `pkexec` on Linux (this instance stays, since
+pkexec cannot report the outcome before the user answers), and `app_info`
+reports whether the process is already elevated (`fltmc.exe` exit status,
+or the effective uid). The privileged helper (`phoinixd`) of the specification, which
 would let the GUI stay unprivileged, is future work; the service layer is
 already the boundary it would sit behind.
+
+## Engine log (Advanced mode)
+
+The engine reports what it does through `tracing`; the command line prints
+it with `-v`/`-vv`. The desktop installs a second `tracing` layer
+(`enginelog.rs`) beside the stderr formatter. It accepts records from
+`phoinix*` targets at `debug` or above, only while the Advanced switch is
+on (one atomic load per record when off), renders the message and fields
+to one line, and hands them to a bounded queue; a thread batches them
+(at most every 80 ms or 256 lines) into `engine-log` events. When the
+queue is full, records are dropped rather than slowing the engine. The
+front-end keeps the last 2000 lines, shows them on the scanning page, and
+offers *Copy log*. The session layer logs the scan lifecycle (request,
+opened volume, phases, counts, outcome) so the log is structured on every
+filesystem. Nothing is written to disk, and the engine never logs
+recovered content.
+
+The front-end also renders the command line equivalent to the current
+scan and to the selected candidate (`lib/cli.ts`), from the same
+`ScanRequest` and candidate reference the commands use, so a user can
+reproduce a desktop result with `phoinix`.
 
 ## Building and running
 

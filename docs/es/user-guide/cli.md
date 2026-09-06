@@ -193,6 +193,17 @@ phoinix ntfs extract volume.img --record 64 --stream Zone.Identifier --output sa
 phoinix read disk.img --offset 512 --length 512 --hex
 ```
 
+## Registro
+
+`-v` imprime en stderr lo que hace el motor a nivel `info`, `-vv` añade
+`debug` y `-vvv` `trace`. Las líneas indican la imagen o el dispositivo
+abierto, el sistema de archivos encontrado, los registros recorridos, la
+pasada de tallado y los recuentos, y nunca contienen contenido recuperado.
+La aplicación de escritorio muestra los mismos registros en directo en el
+modo **Advanced**, junto con el comando `phoinix` equivalente a lo que está
+haciendo, de modo que un informe puede llevar cualquiera de los dos. La
+variable `RUST_LOG` sustituye el filtro (`RUST_LOG=phoinix_fs_ntfs=trace`).
+
 ## Códigos de salida
 
 | código | significado |

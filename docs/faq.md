@@ -107,6 +107,23 @@ No. Lost partitions are mounted virtually and recovered from; the table is
 never written (ADR-0011). Repair tools change the disk you are trying to
 recover from and are out of scope by design.
 
+### What does the Advanced checkbox do?
+
+It shows the technical detail behind the interface without changing the
+scan or the recovery: the `phoinix` command equivalent to the current scan
+and to the selected file, a live log of what the engine is doing, the
+candidate's filesystem reference, the structure validation checks and a
+diagnostics block. See [Advanced mode](user-guide/desktop.md#advanced-mode).
+
+### How do I get a log for a bug report?
+
+Tick **Advanced** before scanning; the scanning page then shows the engine
+log with a *Copy log* button, and the results page keeps *Copy scan log*.
+On the command line, run the same command with `-vv` and attach stderr.
+Either way the log describes structures and counts, never the content of
+your files. Add the `phoinix explain` output for the file in question and,
+when you can, an image of the volume.
+
 ### How was PhoinixDR built?
 
 With extensive AI assistance and deliberate engineering. Read the

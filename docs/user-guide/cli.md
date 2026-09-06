@@ -180,6 +180,16 @@ phoinix ntfs extract volume.img --record 64 --stream Zone.Identifier --output ou
 phoinix read disk.img --offset 512 --length 512 --hex
 ```
 
+## Logging
+
+`-v` prints what the engine does to stderr at `info` level, `-vv` adds
+`debug`, `-vvv` `trace`. The lines name the image or device opened, the
+filesystem found, the records walked, the carving pass and the counts, and
+never contain recovered content. The desktop application shows the same
+records live in **Advanced** mode, together with the `phoinix` command
+equivalent to what it is doing, so a report can carry either. Set
+`RUST_LOG` to override the filter (`RUST_LOG=phoinix_fs_ntfs=trace`).
+
 ## Exit codes
 
 | code | meaning |
