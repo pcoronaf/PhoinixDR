@@ -58,6 +58,19 @@ pub struct Hit {
     pub signature: usize,
 }
 
+/// The two stages of a carving run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CarveStage {
+    /// Reading the eligible ranges and matching signature headers
+    /// (`bytes_scanned` of `bytes_total`).
+    #[default]
+    Search,
+    /// Going back to every hit to assemble, validate and score the file
+    /// (`hits_done` of `hits`). This stage reads the source again, one hit
+    /// at a time, and can take longer than the search.
+    Assemble,
+}
+
 /// Progress of a scan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ScanProgress {
@@ -67,6 +80,13 @@ pub struct ScanProgress {
     pub bytes_total: u64,
     /// Hits found so far.
     pub hits: usize,
+    /// Which stage is running.
+    pub stage: CarveStage,
+    /// Hits assembled (or rejected) so far; meaningful in
+    /// [`CarveStage::Assemble`].
+    pub hits_done: usize,
+    /// Candidates produced so far by the assembly stage.
+    pub candidates: usize,
 }
 
 /// Tests the aligned positions of `chunk` (which starts at `base`) and
@@ -112,6 +132,23 @@ pub fn find_headers(
     options: &ScanOptions,
     progress: &mut dyn FnMut(&ScanProgress),
 ) -> Result<Vec<Hit>, CarveError> {
+    find_headers_with(reader, ranges, set, options, progress, &|| false)
+}
+
+/// [`find_headers`] with a cancellation predicate, polled after every
+/// chunk; when it returns `true` the hits found so far are returned.
+///
+/// # Errors
+///
+/// Propagates block errors.
+pub fn find_headers_with(
+    reader: &dyn BlockReader,
+    ranges: &[ByteRange],
+    set: &SignatureSet,
+    options: &ScanOptions,
+    progress: &mut dyn FnMut(&ScanProgress),
+    cancel: &dyn Fn() -> bool,
+) -> Result<Vec<Hit>, CarveError> {
     let overlap = set.max_header_span().saturating_sub(1);
     let chunk_bytes = options.chunk_bytes.max(overlap.saturating_add(4096));
     let threads = options.thread_count().max(1);
@@ -119,7 +156,7 @@ pub fn find_headers(
     let mut state = ScanProgress {
         bytes_scanned: 0,
         bytes_total: total,
-        hits: 0,
+        ..ScanProgress::default()
     };
     let mut hits: Vec<Hit> = Vec::new();
     let mut buf = vec![0u8; chunk_bytes.saturating_add(overlap)];
@@ -178,6 +215,10 @@ pub fn find_headers(
             state.bytes_scanned = state.bytes_scanned.saturating_add(scan_to as u64);
             state.hits = hits.len();
             progress(&state);
+            if cancel() {
+                tracing::info!(hits = hits.len(), "header search cancelled");
+                break 'ranges;
+            }
             if hits.len() >= options.max_hits {
                 tracing::warn!(
                     max = options.max_hits,

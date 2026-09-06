@@ -112,9 +112,16 @@ cada volumen con su sistema de archivos y la confianza de la detección.
   <figcaption>Escaneo en curso: fase, recuentos y velocidad, con un botón Cancel que conserva los resultados parciales.</figcaption>
 </figure>
 
-El progreso muestra la fase (metadatos, tallado), los recuentos y el
-rendimiento. El escaneo puede cancelarse; los resultados parciales se
-conservan.
+El progreso muestra la fase, los recuentos y el rendimiento. Un escaneo
+profundo tiene dos etapas de tallado, cada una con su propio progreso: la
+**búsqueda de cabeceras** lee el espacio libre una vez (bytes escaneados)
+y después **Examining carved files** (examinando archivos tallados) vuelve a
+cada coincidencia para ensamblar, validar y puntuar el archivo
+(coincidencias examinadas). La segunda etapa lee de nuevo la fuente,
+coincidencia a coincidencia, y en un volumen grande con muchas
+coincidencias puede durar más que la búsqueda. El escaneo puede cancelarse
+en cualquier fase; lo encontrado hasta ese momento se conserva y se guarda
+como sesión parcial.
 
 ## 4. Resultados
 

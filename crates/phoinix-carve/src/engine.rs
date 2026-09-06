@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use phoinix_block::BlockReader;
 use phoinix_core::{CandidateId, FileSystemType, SourceId};
@@ -23,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::CarveError;
 use crate::assemble::{Assembly, assembler_for};
 use crate::probe::Probe;
-use crate::scanner::{Hit, ScanOptions, ScanProgress, find_headers};
+use crate::scanner::{CarveStage, Hit, ScanOptions, ScanProgress, find_headers_with};
 use crate::signature::{CarveSignature, SignatureSet};
 
 /// Carving parameters.
@@ -71,6 +72,10 @@ pub struct CarveReport {
     pub too_small: usize,
     /// Candidates produced.
     pub candidates: usize,
+    /// Whether the run was cancelled; the candidates are then those
+    /// assembled before the cancellation.
+    #[serde(default)]
+    pub cancelled: bool,
     /// Carved candidates merged into metadata candidates by
     /// [`CarveEngine::deduplicate`].
     pub merged_into_metadata: usize,
@@ -178,32 +183,84 @@ impl CarveEngine {
         &self,
         progress: &mut dyn FnMut(&ScanProgress),
     ) -> Result<(Vec<RecoveryCandidate>, CarveReport), CarveError> {
+        self.carve_with_cancel(progress, &|| false)
+    }
+
+    /// [`Self::carve`] with a cancellation predicate, polled after every
+    /// chunk of the header search and after every hit of the assembly
+    /// stage. When it returns `true` the run stops and returns what it has:
+    /// the candidates assembled so far, with `cancelled` set in the report.
+    ///
+    /// Progress is reported in both stages ([`ScanProgress::stage`]): the
+    /// assembly stage reads the source again for every hit and can take
+    /// longer than the search on a large volume.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CarveError`] for I/O failures; individual hits never fail
+    /// the run.
+    pub fn carve_with_cancel(
+        &self,
+        progress: &mut dyn FnMut(&ScanProgress),
+        cancel: &dyn Fn() -> bool,
+    ) -> Result<(Vec<RecoveryCandidate>, CarveReport), CarveError> {
         let ranges = self.ranges()?;
         let mut report = CarveReport {
             bytes_eligible: ranges.iter().map(|r| r.length).sum(),
             ..Default::default()
         };
-        let hits = find_headers(
+        let mut state = ScanProgress::default();
+        let hits = find_headers_with(
             &*self.reader,
             &ranges,
             &self.signatures,
             &self.options.scan,
             &mut |p| {
                 report.bytes_scanned = p.bytes_scanned;
+                state = *p;
                 progress(p);
             },
+            cancel,
         )?;
         report.hits = hits.len();
+        if cancel() {
+            report.cancelled = true;
+            return Ok((Vec::new(), report));
+        }
         tracing::info!(
             hits = hits.len(),
             ranges = ranges.len(),
             eligible = report.bytes_eligible,
-            "header search complete"
+            "header search complete; assembling hits"
         );
         let mut candidates = Vec::new();
         let mut covered_until = 0u64;
         let mut probe = Probe::new(&*self.reader, self.reader.len());
-        for hit in hits {
+        state.stage = CarveStage::Assemble;
+        state.hits = hits.len();
+        state.hits_done = 0;
+        state.candidates = 0;
+        progress(&state);
+        let mut last_report = Instant::now();
+        for (index, hit) in hits.iter().enumerate() {
+            let hit = *hit;
+            // Progress every 64 hits or 200 ms, whichever comes first, and a
+            // cancellation poll after every hit.
+            if index % 64 == 0 || last_report.elapsed() >= Duration::from_millis(200) {
+                state.hits_done = index;
+                state.candidates = candidates.len();
+                progress(&state);
+                last_report = Instant::now();
+            }
+            if cancel() {
+                tracing::info!(
+                    assembled = index,
+                    candidates = candidates.len(),
+                    "assembly cancelled"
+                );
+                report.cancelled = true;
+                break;
+            }
             if hit.offset < covered_until {
                 report.nested_skipped += 1;
                 continue;
@@ -233,7 +290,18 @@ impl CarveEngine {
                 }
             }
         }
+        state.hits_done = report.hits;
+        state.candidates = candidates.len();
+        progress(&state);
         report.candidates = candidates.len();
+        tracing::info!(
+            candidates = candidates.len(),
+            rejected = report.rejected,
+            nested_skipped = report.nested_skipped,
+            too_small = report.too_small,
+            cancelled = report.cancelled,
+            "assembly finished"
+        );
         Ok((candidates, report))
     }
 
@@ -632,6 +700,59 @@ mod tests {
             whole_volume: true,
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn reports_both_stages_and_stops_when_cancelled() {
+        let entropy: Vec<u8> = (0..3000u32).map(|i| (i % 253) as u8).collect();
+        let files = vec![
+            jpeg::tests::sample_jpeg(&entropy),
+            png::tests::sample_png(&[9u8; 2000]),
+            gif::tests::sample_gif(),
+            bmp::tests::sample_bmp(),
+        ];
+        let (image, _) = layout(&files);
+        let e = engine(image.clone());
+        let mut stages = Vec::new();
+        let (candidates, report) = e
+            .carve(&mut |p| stages.push((p.stage, p.hits_done, p.candidates)))
+            .unwrap();
+        assert_eq!(candidates.len(), files.len());
+        assert!(!report.cancelled);
+        assert!(stages.iter().any(|(s, ..)| *s == CarveStage::Search));
+        let last = stages.last().unwrap();
+        assert_eq!(*last, (CarveStage::Assemble, files.len(), files.len()));
+
+        // Cancel once the assembly stage has produced one candidate: the
+        // run returns that candidate and flags the cancellation.
+        // The predicate is polled once before each hit of the assembly stage
+        // (after the stage has been announced), so the second poll after the
+        // announcement comes after exactly one hit was assembled.
+        let assembling = std::cell::Cell::new(false);
+        let polls = std::cell::Cell::new(0usize);
+        let (partial, report) = e
+            .carve_with_cancel(
+                &mut |p| {
+                    if p.stage == CarveStage::Assemble {
+                        assembling.set(true);
+                    }
+                },
+                &|| {
+                    if !assembling.get() {
+                        return false;
+                    }
+                    polls.set(polls.get() + 1);
+                    polls.get() >= 2
+                },
+            )
+            .unwrap();
+        assert!(report.cancelled, "{report:?}");
+        assert_eq!(partial.len(), 1, "{report:?}");
+
+        // Cancelled during the header search: nothing assembled.
+        let (none, report) = e.carve_with_cancel(&mut |_| {}, &|| true).unwrap();
+        assert!(none.is_empty());
+        assert!(report.cancelled);
     }
 
     #[test]

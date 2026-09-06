@@ -114,6 +114,12 @@ Deep-scan options: `--carve-align` (default 512; `1` tests every byte and
 is slow), `--carve-min-size`, `--carve-threads`, `--carve-signatures
 file.json` for your own signatures (see [deep scan](../carving/deep-scan.md)).
 
+When stderr is a terminal, a deep scan reports its two carving stages:
+the header search (bytes scanned, hits so far) and then the examination of
+every hit (hits examined, files assembled). The second stage reads the
+source again, one hit at a time, and on a large volume with many hits can
+take longer than the search.
+
 ### 5. Understand a candidate
 
 ```bash

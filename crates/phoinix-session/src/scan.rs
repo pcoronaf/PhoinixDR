@@ -193,21 +193,33 @@ fn scan_into(
         .with_signatures(signatures)
         .with_options(options);
         let base = session.candidates.len() as u64;
-        let mut cancelled = false;
-        let (carved, mut report) = carver.carve(&mut |p| {
-            if cancel.load(Ordering::Relaxed) {
-                cancelled = true;
-            }
-            sink(ScanEvent::Progress {
-                phase: ScanPhase::Carving,
-                done: p.bytes_scanned,
-                total: Some(p.bytes_total),
-                candidates: base + p.hits as u64,
-            });
-        })?;
-        if cancelled || cancel.load(Ordering::Relaxed) {
-            return Err(SessionError::Cancelled);
-        }
+        let mut assembling = false;
+        let (carved, mut report) = carver.carve_with_cancel(
+            &mut |p| match p.stage {
+                phoinix_carve::CarveStage::Search => sink(ScanEvent::Progress {
+                    phase: ScanPhase::Carving,
+                    done: p.bytes_scanned,
+                    total: Some(p.bytes_total),
+                    candidates: base + p.hits as u64,
+                }),
+                phoinix_carve::CarveStage::Assemble => {
+                    if !assembling {
+                        assembling = true;
+                        sink(ScanEvent::Phase {
+                            phase: ScanPhase::Assembling,
+                        });
+                    }
+                    sink(ScanEvent::Progress {
+                        phase: ScanPhase::Assembling,
+                        done: p.hits_done as u64,
+                        total: Some(p.hits as u64),
+                        candidates: base + p.candidates as u64,
+                    });
+                }
+            },
+            &|| cancel.load(Ordering::Relaxed),
+        )?;
+        let cancelled = report.cancelled || cancel.load(Ordering::Relaxed);
         sink(ScanEvent::Phase {
             phase: ScanPhase::Finishing,
         });
@@ -231,6 +243,11 @@ fn scan_into(
             });
         }
         session.candidates.extend(carved);
+        if cancelled {
+            // Partial results: whatever was assembled before the cancellation
+            // is in the session, like the metadata candidates.
+            return Err(SessionError::Cancelled);
+        }
         sink(ScanEvent::Progress {
             phase: ScanPhase::Finishing,
             done: 1,

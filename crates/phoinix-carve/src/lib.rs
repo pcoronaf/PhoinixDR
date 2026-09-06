@@ -33,5 +33,5 @@ pub mod signature;
 
 pub use engine::{CarveEngine, CarveOptions, CarveReport};
 pub use error::CarveError;
-pub use scanner::{Hit, ScanOptions, ScanProgress};
+pub use scanner::{CarveStage, Hit, ScanOptions, ScanProgress};
 pub use signature::{AssemblerKind, CarveSignature, SignatureSet};

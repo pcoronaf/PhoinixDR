@@ -121,6 +121,13 @@ prueba cada byte y es lento), `--carve-min-size`, `--carve-threads`,
 `--carve-signatures archivo.json` para sus propias firmas (véase
 [escaneo profundo](../../carving/deep-scan.md), en inglés).
 
+Cuando stderr es un terminal, un escaneo profundo informa de sus dos etapas
+de tallado: la búsqueda de cabeceras (bytes escaneados, coincidencias hasta
+el momento) y después el examen de cada coincidencia (coincidencias
+examinadas, archivos ensamblados). La segunda etapa lee de nuevo la fuente,
+coincidencia a coincidencia, y en un volumen grande con muchas coincidencias
+puede durar más que la búsqueda.
+
 ### 5. Entender un candidato
 
 ```bash

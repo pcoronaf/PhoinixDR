@@ -172,8 +172,11 @@ pub enum ScanPhase {
     Opening,
     /// Walking filesystem metadata.
     Metadata,
-    /// Carving unallocated space.
+    /// Carving unallocated space (header search).
     Carving,
+    /// Going back to every carving hit to assemble, validate and score the
+    /// file; `done`/`total` count hits.
+    Assembling,
     /// Deduplicating and finishing.
     Finishing,
 }

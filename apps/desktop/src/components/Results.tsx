@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Api } from "../api";
 import type { CandidateSummary, EngineLogLine, Preview, RecoveryCandidate, ScanRequest, SessionSummary } from "../types";
 import { applyFilters, buildTree, CATEGORY_LABEL, CATEGORY_ORDER, DEFAULT_FILTERS, sortRows, typeOptions, type Filters, type SortKey, type TreeNode } from "../lib/filters";
@@ -20,6 +20,11 @@ interface Props {
   onNewScan: () => void;
 }
 
+/** Fixed row height of the candidates table (see styles.css). */
+const ROW_HEIGHT = 32;
+/** Rows rendered beyond the viewport on each side. */
+const OVERSCAN = 12;
+
 export function Results({ api, session, rows, advanced, request = null, log = [], onRecover, onNewScan }: Props) {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: "likelihood", asc: false });
@@ -39,6 +44,28 @@ export function Results({ api, session, rows, advanced, request = null, log = []
       return next;
     });
   const selectAllFiltered = (): void => setSelected(new Set(filtered.map((r) => r.id)));
+  // Only the rows in view are rendered: a deep scan of a large volume can
+  // produce hundreds of thousands of candidates.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewHeight, setViewHeight] = useState(800);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setViewHeight(el.clientHeight || 800);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setViewHeight(el.clientHeight || 800));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => {
+    setScrollTop(0);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [filters, sort]);
+  const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const last = Math.min(filtered.length, Math.ceil((scrollTop + viewHeight) / ROW_HEIGHT) + OVERSCAN);
+  const visible = filtered.slice(first, last);
+  const columns = advanced ? 8 : 7;
   const clear = (): void => setSelected(new Set());
   const sortBy = (key: SortKey): void => setSort((s) => ({ key, asc: s.key === key ? !s.asc : key === "name" || key === "path" }));
 
@@ -58,22 +85,23 @@ export function Results({ api, session, rows, advanced, request = null, log = []
       </aside>
       <section className="table-area">
         <FilterBar filters={filters} setFilters={setFilters} types={types} total={rows.length} shown={filtered.length} />
-        <div className="table-scroll">
+        <div className="table-scroll" ref={scrollRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
           <table className="candidates">
             <thead>
               <tr>
                 <th className="check"><input type="checkbox" checked={filtered.length > 0 && filtered.every((r) => selected.has(r.id))} onChange={(e) => (e.target.checked ? selectAllFiltered() : clear())} /></th>
                 <th onClick={() => sortBy("name")}>Name</th>
-                <th onClick={() => sortBy("likelihood")}>Recovery</th>
-                <th onClick={() => sortBy("size")} className="num">Size</th>
-                <th>Type</th>
-                <th onClick={() => sortBy("modified")}>Modified</th>
+                <th onClick={() => sortBy("likelihood")} className="col-health">Recovery</th>
+                <th onClick={() => sortBy("size")} className="num col-size">Size</th>
+                <th className="col-type">Type</th>
+                <th onClick={() => sortBy("modified")} className="col-modified">Modified</th>
                 <th onClick={() => sortBy("path")}>Original location</th>
-                {advanced && <th>Ref</th>}
+                {advanced && <th className="col-ref">Ref</th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {first > 0 && <tr className="spacer" style={{ height: first * ROW_HEIGHT }}><td colSpan={columns} /></tr>}
+              {visible.map((r) => (
                 <tr key={r.id} className={`${focus === r.id ? "focus" : ""} ${selected.has(r.id) ? "selected" : ""}`} onClick={() => setFocus(r.id)}>
                   <td className="check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} /></td>
                   <td className="name">{r.name}{r.source === "file_carving" && <span className="tag">carved</span>}{r.source === "journal" && <span className="tag">journal</span>}</td>
@@ -85,6 +113,7 @@ export function Results({ api, session, rows, advanced, request = null, log = []
                   {advanced && <td className="mono">{r.reference}</td>}
                 </tr>
               ))}
+              {last < filtered.length && <tr className="spacer" style={{ height: (filtered.length - last) * ROW_HEIGHT }}><td colSpan={columns} /></tr>}
             </tbody>
           </table>
           {filtered.length === 0 && <p className="muted center">No candidates match the current filters.</p>}

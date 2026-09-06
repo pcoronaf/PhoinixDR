@@ -174,7 +174,7 @@ export interface ScanRequest {
   carve: CarveSettings;
 }
 
-export type ScanPhase = "opening" | "metadata" | "carving" | "finishing";
+export type ScanPhase = "opening" | "metadata" | "carving" | "assembling" | "finishing";
 
 export interface CandidateSummary {
   id: string;
@@ -201,6 +201,7 @@ export interface CarveReport {
   too_small: number;
   candidates: number;
   merged_into_metadata: number;
+  cancelled?: boolean;
 }
 
 export interface SessionSummary {

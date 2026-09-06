@@ -6,7 +6,7 @@
 
 use std::io::{IsTerminal, Write};
 
-use phoinix_carve::{CarveReport, ScanProgress};
+use phoinix_carve::{CarveReport, CarveStage, ScanProgress};
 use phoinix_core::fmt::{bytes_iec, bytes_si};
 use phoinix_fs::RecoveryCandidate;
 use phoinix_health::{CandidateSource, HealthCategory};
@@ -72,22 +72,41 @@ impl Progress {
     }
 
     fn update(&mut self, p: &ScanProgress) {
-        if !self.enabled || p.bytes_total == 0 {
+        if !self.enabled {
             return;
         }
-        let percent = p.bytes_scanned.saturating_mul(100) / p.bytes_total;
-        if percent == self.last_percent {
-            return;
-        }
-        self.last_percent = percent;
         let mut err = std::io::stderr().lock();
-        let _ = write!(
-            err,
-            "\rDeep scan: {percent}% ({} of {}), {} hit(s)   ",
-            bytes_si(p.bytes_scanned),
-            bytes_si(p.bytes_total),
-            p.hits
-        );
+        match p.stage {
+            CarveStage::Search => {
+                if p.bytes_total == 0 {
+                    return;
+                }
+                let percent = p.bytes_scanned.saturating_mul(100) / p.bytes_total;
+                if percent == self.last_percent {
+                    return;
+                }
+                self.last_percent = percent;
+                let _ = write!(
+                    err,
+                    "\rDeep scan: header search {percent}% ({} of {}), {} hit(s)   ",
+                    bytes_si(p.bytes_scanned),
+                    bytes_si(p.bytes_total),
+                    p.hits
+                );
+            }
+            CarveStage::Assemble => {
+                // A new line for the second stage, then in-place updates.
+                if self.last_percent != u64::MAX - 1 {
+                    let _ = writeln!(err);
+                    self.last_percent = u64::MAX - 1;
+                }
+                let _ = write!(
+                    err,
+                    "\rDeep scan: examining hit {} of {}, {} file(s) assembled   ",
+                    p.hits_done, p.hits, p.candidates
+                );
+            }
+        }
         let _ = err.flush();
     }
 

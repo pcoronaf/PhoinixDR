@@ -158,7 +158,24 @@ export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void, log
         emit({ kind: "progress", phase: "carving", done: Math.min(done, 3_500_000), total: 3_500_000, candidates: demoRows.length + 3 });
         if (done < 3_500_000) window.setTimeout(step, 120);
         else {
-          say("info", "phoinix_carve::engine", "header search finished hits=3 nested_skipped=0 rejected=0");
+          say("info", "phoinix_carve::engine", "header search complete; assembling hits hits=3 ranges=1 eligible=3500000");
+          emit({ kind: "phase", phase: "assembling" });
+          let examined = 0;
+          const assemble = (): void => {
+            examined += 1;
+            emit({ kind: "progress", phase: "assembling", done: examined, total: 3, candidates: demoRows.length + examined });
+            if (examined < 3) {
+              window.setTimeout(assemble, 250);
+              return;
+            }
+            finish();
+          };
+          window.setTimeout(assemble, 250);
+        }
+      };
+      const finish = (): void => {
+        {
+          say("info", "phoinix_carve::engine", "assembly finished candidates=3 rejected=0 nested_skipped=0 too_small=0 cancelled=false");
           say("info", "phoinix_session::scan", "carving finished carved=3 merged_into_metadata=2");
           emit({ kind: "phase", phase: "finishing" });
           emit({ kind: "candidates", items: demoCarved });

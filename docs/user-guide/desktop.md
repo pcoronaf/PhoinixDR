@@ -103,8 +103,14 @@ its filesystem and detection confidence.
   <figcaption>Scanning: phase, counts and throughput, with a Cancel button that keeps partial results.</figcaption>
 </figure>
 
-Progress shows the phase (metadata, carving), counts and throughput. The
-scan can be cancelled; partial results are kept.
+Progress shows the phase, counts and throughput. A deep scan has two
+carving stages, each with its own progress: the **header search** reads the
+free space once (bytes scanned), then **Examining carved files** goes back
+to every hit to assemble, validate and score the file (hits examined). The
+second stage reads the source again one hit at a time and, on a large
+volume with many hits, can take longer than the search. The scan can be
+cancelled in any phase; whatever was found so far is kept and saved as a
+partial session.
 
 ## 4. Results
 

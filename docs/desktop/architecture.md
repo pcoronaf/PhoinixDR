@@ -67,8 +67,9 @@ data directory (`app_info.sessions_dir`).
    candidate is scanned as a virtual mount), Quick Scan / Deep Scan (deep
    is forced when no filesystem is recognised), deep-scan options (whole
    volume, file types), content examination.
-4. **Scanning**: phase, progress (records; bytes for carving), candidates
-   so far, cancel. **Advanced** adds the equivalent `phoinix scan` command
+4. **Scanning**: phase, progress (records; bytes for the header search;
+   hits for the assembly stage of a deep scan), candidates so far, cancel
+   (in every phase, partial results kept). **Advanced** adds the equivalent `phoinix scan` command
    line and the live engine log (see below), both with copy buttons.
 5. **Results**: folder tree, table (name, health badge with confidence on
    hover, size, type, modified, original location, carved tag), search,

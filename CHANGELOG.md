@@ -6,6 +6,14 @@ GitHub Releases.
 
 ## Unreleased
 
+- Fixed: after the header search of a deep scan reached 100 %, the window
+  stayed on the scanning page with no progress, sometimes for hours on
+  large volumes, while the engine assembled and validated every hit; Cancel
+  did nothing in that stage. The assembly stage now reports its own
+  progress ("Examining carved files", hits examined), can be cancelled
+  with partial results kept, and the command line prints it too.
+- Desktop: the results table renders only the rows in view, so scans with
+  hundreds of thousands of candidates no longer stall the window.
 - Desktop, Advanced mode: the scanning page shows the equivalent
   `phoinix scan` command and a live engine log (what the command line
   prints with `-vv`), with copy buttons; the detail panel shows the

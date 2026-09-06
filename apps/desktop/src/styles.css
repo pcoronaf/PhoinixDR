@@ -101,11 +101,19 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .filters { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
 .filters input[type="search"] { flex: 1; min-width: 180px; }
 .table-scroll { flex: 1; overflow: auto; }
-.candidates tr { cursor: pointer; }
+.candidates tbody tr { cursor: pointer; height: 32px; }
+.candidates tbody tr.spacer { cursor: default; padding: 0; }
+.candidates tbody tr.spacer td { padding: 0; border: 0; }
+/* Fixed layout: single-line rows of a known height (virtualised list); Name and Original location share the remaining width and truncate with an ellipsis; below the minimum width the table scrolls horizontally. */
+.candidates { table-layout: fixed; min-width: 880px; }
+.candidates td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.candidates th.col-health { width: 140px; }
+.candidates th.col-size { width: 80px; }
+.candidates th.col-type { width: 100px; }
+.candidates th.col-modified { width: 160px; }
+.candidates th.col-ref { width: 96px; }
 .candidates tr.focus { background: var(--focus); }
 .candidates tr.selected td.name { font-weight: 600; }
-.candidates td.name { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.candidates td.path { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .check { width: 32px; }
 .actionbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel); }
 .detail { border-left: 1px solid var(--line); overflow: auto; background: var(--panel); }
