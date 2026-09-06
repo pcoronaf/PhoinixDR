@@ -4,6 +4,30 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- Deep scan, second stage: content examination of a carved file now reads
+  at most 8 MiB and samples 8 blocks for zeros instead of re-reading up to
+  256 MiB per file; a JPEG whose entropy data gives way to data without
+  marker bytes, or a footer search that runs into a whole window of zeros,
+  stops there instead of walking to the size limit. On a drive full of
+  partly overwritten remnants this turns hours into minutes. The progress
+  line shows the bytes read.
+- Unreadable regions (I/O errors, driver timeouts such as Windows error
+  121) no longer abort a deep scan: the chunk is retried in 64 KiB blocks,
+  what still fails is skipped and treated as zeros, the scan reports the
+  unreadable bytes and regions, and a carved file overlapping such a
+  region carries a negative reason and a capped likelihood.
+- Zero sampling of a candidate's content runs regardless of the *Examine
+  content* option, in the carver and in the NTFS, FAT, exFAT and ext
+  engines, so files discarded by TRIM or wiped are rated low instead of
+  looking intact.
+- Solid-state sources: the scan setup page (and the command line) warn that
+  deleted data on an SSD is usually discarded by TRIM within seconds and
+  explain when recovery is still possible.
+- Sessions of a physical device are labelled with the drive's model and
+  serial number in the recent-sessions list and the results page.
+
 ## 0.1.3
 
 - Fixed: after the header search of a deep scan reached 100 %, the window

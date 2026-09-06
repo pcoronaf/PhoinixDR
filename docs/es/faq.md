@@ -78,11 +78,18 @@ de la versión publicada, o compile desde el código fuente.
 
 ### ¿Puedo recuperar desde un SSD?
 
-Sí, con una salvedad: tras un borrado, la unidad puede haber descartado
-(TRIM) los bloques, en cuyo caso se leen como ceros. PhoinixDR no tiene
-evidencia sobre el estado de la NAND, así que avisa y reduce la confianza
-en lugar de fingir que lo sabe. El contenido lleno de ceros de un tipo
-reconocido se notifica como contradicción con su formato.
+Raramente, y PhoinixDR lo avisa antes de escanear. Windows indica al SSD
+qué bloques ocupaba un archivo borrado y la unidad los descarta (TRIM) en
+segundos; desde entonces se leen como ceros aunque el registro del sistema
+de archivos siga describiendo el archivo a la perfección. Ninguna
+herramienta puede leer más allá de eso. Recuperar desde un SSD solo
+funciona cuando TRIM no estaba en vigor: una carcasa USB que no lo
+transmite, TRIM desactivado o datos perdidos por un reformateo antes de que
+TRIM actuara. La página de configuración del escaneo muestra un aviso para
+las fuentes de estado sólido, y el contenido de cada candidato se muestrea
+en busca de ceros con independencia de la opción *Examine content*, de modo
+que un archivo descartado muestra una probabilidad baja con el motivo
+«zero-filled» en lugar de un registro de aspecto intacto.
 
 ### ¿Qué sistemas de archivos e imágenes se admiten?
 

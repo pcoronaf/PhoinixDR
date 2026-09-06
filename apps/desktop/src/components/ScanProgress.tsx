@@ -7,6 +7,10 @@ export interface ProgressState {
   done: number;
   total: number | null;
   candidates: number;
+  /** Bytes read from the source in the current phase, when reported. */
+  bytesRead: number | null;
+  /** Bytes the device could not read so far, when any. */
+  unreadable: number | null;
   message: string | null;
 }
 
@@ -30,7 +34,9 @@ function detail(state: ProgressState): string {
     case "carving":
       return state.total ? `${formatBytes(state.done)} of ${formatBytes(state.total)} (${percent(state.done, state.total)})` : "";
     case "assembling":
-      return state.total ? `hit ${state.done} of ${state.total} examined (${percent(state.done, state.total)}); each hit is read back from the source, so this stage can take longer than the search` : "";
+      return state.total
+        ? `hit ${state.done} of ${state.total} examined (${percent(state.done, state.total)})${state.bytesRead !== null ? `, ${formatBytes(state.bytesRead)} read` : ""}; each hit is read back from the source`
+        : "";
     case "metadata":
       return `${state.done} records examined`;
     default:
@@ -60,6 +66,9 @@ export function ScanProgress({ state, onCancel, cancelling, advanced = false, co
         {text ? " · " : ""}
         {state.candidates} candidate{state.candidates === 1 ? "" : "s"} so far
       </p>
+      {state.unreadable !== null && state.unreadable > 0 && (
+        <p className="warn">{formatBytes(state.unreadable)} could not be read from the device so far; the regions were skipped and are treated as zeros.</p>
+      )}
       {state.message && <p className="error">{state.message}</p>}
       <div className="actions">
         <button onClick={onCancel} disabled={cancelling}>{cancelling ? "Cancelling…" : "Cancel"}</button>

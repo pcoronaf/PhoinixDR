@@ -240,6 +240,22 @@ pub fn score(evidence: &RecoveryEvidence, model: &ScoringModel) -> RecoveryHealt
             let cap = scaled_cap(model.cap_incomplete_extents, known);
             s.cap_at(cap.max(if known == 0.0 { 0 } else { 5 }));
         }
+        if x.unreadable_bytes > 0 {
+            // The device refused to read part of the content; that part is
+            // zero-filled on recovery whatever the clusters hold.
+            let share = evidence
+                .metadata
+                .logical_size
+                .filter(|size| *size > 0)
+                .map_or(0.5, |size| {
+                    (x.unreadable_bytes as f64 / size as f64).clamp(0.0, 1.0)
+                });
+            s.bad(format!(
+                "{} bytes of the content lie in a region the device could not read",
+                group(x.unreadable_bytes)
+            ));
+            s.cap_at(scaled_cap(model.cap_incomplete_extents, 1.0 - share).max(5));
+        }
         if a.map_available && a.clusters_total > 0 {
             let ratio = a.allocated_ratio().unwrap_or(0.0);
             if a.clusters_allocated == 0 && a.clusters_unknown == 0 {
@@ -702,6 +718,22 @@ mod tests {
         let h = score(&e, &ScoringModel::default());
         assert!(h.likelihood <= 34, "{h:?}");
         assert!(h.confidence >= 90);
+    }
+
+    #[test]
+    fn unreadable_content_is_reported_and_capped() {
+        let mut e = non_resident(1, 100, 0);
+        e.extents.unreadable_bytes = 200_000;
+        e.metadata.logical_size = Some(400_000);
+        let h = score(&e, &ScoringModel::default());
+        assert!(
+            h.reasons
+                .iter()
+                .any(|r| !r.positive && r.text.contains("could not read")),
+            "{:?}",
+            h.reasons
+        );
+        assert!(h.likelihood <= ScoringModel::default().cap_incomplete_extents);
     }
 
     #[test]

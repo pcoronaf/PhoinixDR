@@ -27,6 +27,11 @@ pub struct ScanSession {
     pub id: String,
     /// Source path.
     pub source: PathBuf,
+    /// A human label for a device source (model and serial number), so
+    /// sessions from different drives that had the same device path can be
+    /// told apart. `None` for images and unknown devices.
+    #[serde(default)]
+    pub source_label: Option<String>,
     /// The scanned volume.
     pub volume: VolumeInfo,
     /// Quick or deep.
@@ -66,6 +71,7 @@ impl ScanSession {
             version: FORMAT_VERSION,
             id: uuid_text(),
             source,
+            source_label: None,
             volume,
             mode,
             started: now(),
@@ -111,6 +117,7 @@ impl ScanSession {
             id: self.id.clone(),
             file: self.file.clone(),
             source: self.source.clone(),
+            source_label: self.source_label.clone(),
             partition: self.volume.partition,
             filesystem: self.volume.filesystem,
             mode: self.mode,

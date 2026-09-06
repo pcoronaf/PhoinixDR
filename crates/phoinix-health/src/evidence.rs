@@ -61,6 +61,10 @@ pub struct ExtentEvidence {
     /// may have been added or moved after it was written.
     #[serde(default)]
     pub stale: bool,
+    /// Bytes of the content that lie in regions the device could not read
+    /// (I/O errors during the scan); they are zero-filled on recovery.
+    #[serde(default)]
+    pub unreadable_bytes: u64,
 }
 
 impl Default for ExtentEvidence {
@@ -91,6 +95,7 @@ impl ExtentEvidence {
             heuristic: false,
             start_inferred: false,
             stale: false,
+            unreadable_bytes: 0,
         }
     }
 }

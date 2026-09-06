@@ -403,3 +403,34 @@ fn build_engines(
         storage,
     })
 }
+
+/// A human label for a device source, "model · S/N serial", so that
+/// sessions from different drives that occupied the same device path can be
+/// told apart. `None` for image files and for devices that cannot be
+/// enumerated.
+#[must_use]
+pub fn device_label(path: &Path) -> Option<String> {
+    let enumerator = platform_enumerator();
+    if !enumerator.is_device_path(path) {
+        return None;
+    }
+    let wanted = path.to_string_lossy();
+    let devices = enumerator.enumerate().ok()?;
+    let device = devices.into_iter().find(|d| {
+        d.path.as_str() == wanted || d.parent.as_ref().is_some_and(|p| p.as_str() == wanted)
+    })?;
+    let mut label = device.display_name.trim().to_owned();
+    if label.is_empty() {
+        label = device.model.clone().unwrap_or_else(|| wanted.to_string());
+    }
+    if let Some(serial) = device
+        .serial
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        label.push_str(" · S/N ");
+        label.push_str(serial);
+    }
+    Some(label)
+}

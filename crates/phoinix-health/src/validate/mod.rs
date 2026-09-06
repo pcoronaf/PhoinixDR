@@ -146,7 +146,8 @@ fn validator_for(id: &str) -> Option<Box<dyn FileValidator>> {
 }
 
 /// Number of 4 KiB blocks sampled for the zero-fill ratio.
-const ZERO_SAMPLE_BLOCKS: u64 = 64;
+/// Blocks of 4 KiB sampled for zero content by [`examine`].
+pub const ZERO_SAMPLE_BLOCKS: u64 = 64;
 
 /// Examines `stream` and produces content evidence: type detection, a
 /// structural validation when a validator exists, and a zero-fill sample.
@@ -159,14 +160,95 @@ pub fn examine(
     len: u64,
     budget: u64,
 ) -> std::io::Result<ContentEvidence> {
+    examine_with(stream, len, budget, ZERO_SAMPLE_BLOCKS)
+}
+
+/// Samples the content for zero-filled blocks without detecting or
+/// validating its type: the head block plus up to `samples` blocks of
+/// 4 KiB spread over the stream. This is the cheap check that catches
+/// clusters discarded by TRIM or wiped, and it runs even when content
+/// examination is switched off.
+///
+/// # Errors
+///
+/// Propagates read errors.
+pub fn sample_content(
+    stream: &mut dyn ReadSeek,
+    len: u64,
+    samples: u64,
+) -> std::io::Result<ContentEvidence> {
     let mut evidence = ContentEvidence::default();
     if len == 0 {
         return Ok(evidence);
     }
+    let head = read_head(stream, len)?;
+    evidence.bytes_examined = head.len() as u64;
+    sample_zero_blocks(stream, len, samples, &head, &mut evidence)?;
+    Ok(evidence)
+}
+
+fn read_head(stream: &mut dyn ReadSeek, len: u64) -> std::io::Result<Vec<u8>> {
     let head_len = usize::try_from(len.min(4096)).unwrap_or(4096);
     let mut head = vec![0u8; head_len];
     stream.seek(SeekFrom::Start(0))?;
     stream.read_exact(&mut head)?;
+    Ok(head)
+}
+
+/// Zero-fill sampling: the head block plus up to `samples` blocks of 4 KiB
+/// spread over the stream.
+fn sample_zero_blocks(
+    stream: &mut dyn ReadSeek,
+    len: u64,
+    samples: u64,
+    head: &[u8],
+    evidence: &mut ContentEvidence,
+) -> std::io::Result<()> {
+    let block = 4096u64;
+    let blocks = len.div_ceil(block);
+    let samples = blocks.min(samples.max(1));
+    let mut zero = 0u64;
+    let mut buf = vec![0u8; 4096];
+    evidence.head_is_zero = head.iter().all(|b| *b == 0);
+    for i in 0..samples {
+        let index = if blocks <= samples {
+            i
+        } else {
+            i * blocks / samples
+        };
+        let offset = index * block;
+        let want = usize::try_from((len - offset).min(block)).unwrap_or(4096);
+        stream.seek(SeekFrom::Start(offset))?;
+        let slot = buf.get_mut(..want).unwrap_or(&mut []);
+        stream.read_exact(slot)?;
+        if slot.iter().all(|b| *b == 0) {
+            zero += 1;
+        }
+    }
+    if samples > 0 {
+        evidence.zero_block_ratio = Some(zero as f64 / samples as f64);
+        evidence.bytes_examined = evidence.bytes_examined.max(samples * block).min(len);
+    }
+    Ok(())
+}
+
+/// [`examine`] with an explicit number of zero-sample blocks (each costs a
+/// seek on a rotational device).
+///
+/// # Errors
+///
+/// Propagates read errors.
+pub fn examine_with(
+    stream: &mut dyn ReadSeek,
+    len: u64,
+    budget: u64,
+    samples: u64,
+) -> std::io::Result<ContentEvidence> {
+    let mut evidence = ContentEvidence::default();
+    if len == 0 {
+        return Ok(evidence);
+    }
+    let head = read_head(stream, len)?;
     evidence.bytes_examined = head.len() as u64;
 
     // Refine ZIP into OOXML/ODF families using the first local header name.
@@ -187,33 +269,7 @@ pub fn examine(
         evidence.validation = Some(result);
     }
     evidence.detected_type = detected;
-
-    // Zero-fill sampling: up to 64 blocks of 4 KiB spread over the stream.
-    let block = 4096u64;
-    let blocks = len.div_ceil(block);
-    let samples = blocks.min(ZERO_SAMPLE_BLOCKS);
-    let mut zero = 0u64;
-    let mut buf = vec![0u8; 4096];
-    evidence.head_is_zero = head.iter().all(|b| *b == 0);
-    for i in 0..samples {
-        let index = if blocks <= ZERO_SAMPLE_BLOCKS {
-            i
-        } else {
-            i * blocks / samples
-        };
-        let offset = index * block;
-        let want = usize::try_from((len - offset).min(block)).unwrap_or(4096);
-        stream.seek(SeekFrom::Start(offset))?;
-        let slot = buf.get_mut(..want).unwrap_or(&mut []);
-        stream.read_exact(slot)?;
-        if slot.iter().all(|b| *b == 0) {
-            zero += 1;
-        }
-    }
-    if samples > 0 {
-        evidence.zero_block_ratio = Some(zero as f64 / samples as f64);
-        evidence.bytes_examined = evidence.bytes_examined.max(samples * block).min(len);
-    }
+    sample_zero_blocks(stream, len, samples, &head, &mut evidence)?;
     Ok(evidence)
 }
 

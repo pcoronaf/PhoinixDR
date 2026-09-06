@@ -69,6 +69,7 @@ pub fn run_scan(
     );
     let mut session = ScanSession::new(request.source.clone(), volume.info.clone(), request.mode);
     session.container = crate::source::container_of(&request.source);
+    session.source_label = crate::source::device_label(&request.source);
     sink(ScanEvent::Started {
         session_id: session.id.clone(),
         filesystem: volume.info.filesystem,
@@ -141,6 +142,8 @@ fn scan_into(
                             done: seen,
                             total: None,
                             candidates: session.candidates.len() as u64,
+                            bytes_read: None,
+                            unreadable_bytes: None,
                         });
                     }
                 }
@@ -158,6 +161,8 @@ fn scan_into(
             done: seen,
             total: Some(seen),
             candidates: session.candidates.len() as u64,
+            bytes_read: None,
+            unreadable_bytes: None,
         });
     }
     // ---- carving ---------------------------------------------------------
@@ -201,6 +206,8 @@ fn scan_into(
                     done: p.bytes_scanned,
                     total: Some(p.bytes_total),
                     candidates: base + p.hits as u64,
+                    bytes_read: None,
+                    unreadable_bytes: (p.unreadable_bytes > 0).then_some(p.unreadable_bytes),
                 }),
                 phoinix_carve::CarveStage::Assemble => {
                     if !assembling {
@@ -214,6 +221,8 @@ fn scan_into(
                         done: p.hits_done as u64,
                         total: Some(p.hits as u64),
                         candidates: base + p.candidates as u64,
+                        bytes_read: Some(p.bytes_read),
+                        unreadable_bytes: (p.unreadable_bytes > 0).then_some(p.unreadable_bytes),
                     });
                 }
             },
@@ -234,6 +243,8 @@ fn scan_into(
         tracing::info!(
             carved = carved.len(),
             merged_into_metadata = merged,
+            unreadable_bytes = report.unreadable_bytes,
+            unreadable_ranges = report.unreadable_ranges,
             "carving finished"
         );
         session.carving = Some(report);
@@ -253,6 +264,8 @@ fn scan_into(
             done: 1,
             total: Some(1),
             candidates: session.candidates.len() as u64,
+            bytes_read: None,
+            unreadable_bytes: None,
         });
     }
     debug_assert!(

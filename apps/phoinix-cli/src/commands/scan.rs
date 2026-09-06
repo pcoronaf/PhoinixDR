@@ -102,8 +102,11 @@ impl Progress {
                 }
                 let _ = write!(
                     err,
-                    "\rDeep scan: examining hit {} of {}, {} file(s) assembled   ",
-                    p.hits_done, p.hits, p.candidates
+                    "\rDeep scan: examining hit {} of {}, {} file(s) assembled, {} read   ",
+                    p.hits_done,
+                    p.hits,
+                    p.candidates,
+                    bytes_si(p.bytes_read)
                 );
             }
         }
@@ -136,6 +139,12 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             }
         }
         from_metadata = candidates.len();
+    }
+    if session.storage.rotational == Some(false) {
+        outln!(
+            "Note: {} is a solid-state drive. Data deleted from an SSD is usually discarded (TRIM) within seconds and then reads as zeros; recovery is only possible when TRIM was not in effect (a USB enclosure, TRIM disabled, or data lost through a reformat). Zero-filled candidates are flagged as such.",
+            args.source.source.display()
+        );
     }
     let mut carving: Option<CarveReport> = None;
     if args.deep {
@@ -244,12 +253,20 @@ pub fn run(args: Args) -> anyhow::Result<()> {
 }
 
 fn carving_summary(r: &CarveReport) -> String {
-    format!(
+    let mut text = format!(
         "Deep scan covered {} of eligible space: {} header hit(s), {} nested hit(s) skipped, {} rejected, {} merged into filesystem candidates.",
         bytes_si(r.bytes_scanned),
         r.hits,
         r.nested_skipped,
         r.rejected + r.too_small,
         r.merged_into_metadata
-    )
+    );
+    if r.unreadable_bytes > 0 {
+        text.push_str(&format!(
+            " {} in {} region(s) could not be read from the device and were skipped (treated as zeros).",
+            bytes_si(r.unreadable_bytes),
+            r.unreadable_ranges
+        ));
+    }
+    text
 }

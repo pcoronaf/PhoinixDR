@@ -5,7 +5,7 @@
 //! against the signature set. Chunks overlap by the longest header span so
 //! that a header straddling a chunk boundary is still matched.
 
-use phoinix_block::BlockReader;
+use phoinix_block::{BlockError, BlockReader};
 use phoinix_fs::ByteRange;
 
 use crate::CarveError;
@@ -87,6 +87,163 @@ pub struct ScanProgress {
     pub hits_done: usize,
     /// Candidates produced so far by the assembly stage.
     pub candidates: usize,
+    /// Bytes read from the source by the assembly stage so far.
+    pub bytes_read: u64,
+    /// Bytes the device could not read so far; they are treated as zeros
+    /// and recorded as unreadable ranges.
+    pub unreadable_bytes: u64,
+}
+
+/// Sub-read sizes tried, in order, when a read fails: a failed chunk is
+/// re-read in 64 KiB blocks and a failed block in 4 KiB pieces, so that a
+/// bad sector costs its own 4 KiB and not the data around it.
+const RETRY_BLOCKS: [usize; 2] = [64 * 1024, 4096];
+/// Consecutive failing pieces after which the rest of the enclosing piece is
+/// written off without further attempts: every failure can cost a driver
+/// timeout of many seconds.
+const MAX_CONSECUTIVE_FAILURES: usize = 4;
+
+/// Reads `target` at `pos`, filling it completely unless the source ends.
+fn read_full(reader: &dyn BlockReader, pos: u64, target: &mut [u8]) -> Result<usize, CarveError> {
+    let mut filled = 0usize;
+    while filled < target.len() {
+        let Some(tail) = target.get_mut(filled..) else {
+            break;
+        };
+        let n = reader.read_at(pos.saturating_add(filled as u64), tail)?;
+        if n == 0 {
+            break;
+        }
+        filled = filled.saturating_add(n);
+    }
+    Ok(filled)
+}
+
+/// Records `[offset, offset + length)` as unreadable, merging with the
+/// previous range when contiguous.
+fn push_unreadable(unreadable: &mut Vec<ByteRange>, offset: u64, length: u64) {
+    if let Some(last) = unreadable.last_mut()
+        && last.end() == offset
+    {
+        last.length = last.length.saturating_add(length);
+        return;
+    }
+    unreadable.push(ByteRange { offset, length });
+}
+
+/// Total bytes covered by `ranges` (assumed disjoint).
+#[must_use]
+pub fn unreadable_total(ranges: &[ByteRange]) -> u64 {
+    ranges.iter().map(|r| r.length).sum()
+}
+
+/// Sorts `ranges` and merges the ones that overlap or touch, so that the
+/// same bad region found by several reads is counted once.
+pub fn merge_ranges(ranges: &mut Vec<ByteRange>) {
+    ranges.sort_by_key(|r| r.offset);
+    let mut merged: Vec<ByteRange> = Vec::with_capacity(ranges.len());
+    for r in ranges.drain(..) {
+        if let Some(last) = merged.last_mut()
+            && r.offset <= last.end()
+        {
+            let end = last.end().max(r.end());
+            last.length = end - last.offset;
+        } else {
+            merged.push(r);
+        }
+    }
+    *ranges = merged;
+}
+
+/// Reads a chunk, tolerating I/O errors: a failed read is retried in the
+/// pieces of [`RETRY_BLOCKS`], down to 4 KiB; what still fails is
+/// zero-filled and recorded in `unreadable`, and after
+/// [`MAX_CONSECUTIVE_FAILURES`] failing pieces the rest of the enclosing
+/// piece is written off without further reads. Errors other than I/O errors
+/// (out of bounds, permission) still propagate.
+///
+/// # Errors
+///
+/// Propagates non-I/O block errors.
+pub fn read_tolerant(
+    reader: &dyn BlockReader,
+    pos: u64,
+    target: &mut [u8],
+    unreadable: &mut Vec<ByteRange>,
+) -> Result<usize, CarveError> {
+    read_tolerant_level(reader, pos, target, unreadable, 0)
+}
+
+fn read_tolerant_level(
+    reader: &dyn BlockReader,
+    pos: u64,
+    target: &mut [u8],
+    unreadable: &mut Vec<ByteRange>,
+    level: usize,
+) -> Result<usize, CarveError> {
+    match read_full(reader, pos, target) {
+        Ok(n) => return Ok(n),
+        Err(CarveError::Block(BlockError::Io(e))) => {
+            if level == 0 {
+                tracing::warn!(
+                    offset = pos,
+                    length = target.len(),
+                    error = %e,
+                    "read failed; retrying in smaller blocks"
+                );
+            } else {
+                tracing::debug!(offset = pos, length = target.len(), error = %e, "unreadable piece");
+            }
+        }
+        Err(e) => return Err(e),
+    }
+    let len = target.len();
+    let Some(&block) = RETRY_BLOCKS.get(level) else {
+        // Smallest granularity reached: this piece is unreadable.
+        target.fill(0);
+        push_unreadable(unreadable, pos, len as u64);
+        return Ok(len);
+    };
+    if len <= block {
+        return read_tolerant_level(reader, pos, target, unreadable, level + 1);
+    }
+    let mut filled = 0usize;
+    let mut failures = 0usize;
+    while filled < len {
+        let at = pos.saturating_add(filled as u64);
+        // Pieces are aligned to multiples of the block size, so that a bad
+        // sector's piece never spills over data on either side of it.
+        let to_boundary = block - usize::try_from(at % block as u64).unwrap_or(0);
+        let step = to_boundary.min(len.saturating_sub(filled));
+        if failures >= MAX_CONSECUTIVE_FAILURES {
+            if let Some(rest) = target.get_mut(filled..) {
+                rest.fill(0);
+            }
+            push_unreadable(unreadable, at, (len - filled) as u64);
+            tracing::warn!(
+                offset = at,
+                length = len - filled,
+                "unreadable region written off without further attempts"
+            );
+            return Ok(len);
+        }
+        let Some(slice) = target.get_mut(filled..filled.saturating_add(step)) else {
+            break;
+        };
+        let before = unreadable_total(unreadable);
+        let n = read_tolerant_level(reader, at, slice, unreadable, level + 1)?;
+        if n < step {
+            // The source ended inside this piece.
+            return Ok(filled.saturating_add(n));
+        }
+        if unreadable_total(unreadable).saturating_sub(before) >= step as u64 {
+            failures = failures.saturating_add(1);
+        } else {
+            failures = 0;
+        }
+        filled = filled.saturating_add(step);
+    }
+    Ok(filled)
 }
 
 /// Tests the aligned positions of `chunk` (which starts at `base`) and
@@ -132,15 +289,27 @@ pub fn find_headers(
     options: &ScanOptions,
     progress: &mut dyn FnMut(&ScanProgress),
 ) -> Result<Vec<Hit>, CarveError> {
-    find_headers_with(reader, ranges, set, options, progress, &|| false)
+    let mut unreadable = Vec::new();
+    find_headers_with(
+        reader,
+        ranges,
+        set,
+        options,
+        progress,
+        &|| false,
+        &mut unreadable,
+    )
 }
 
 /// [`find_headers`] with a cancellation predicate, polled after every
-/// chunk; when it returns `true` the hits found so far are returned.
+/// chunk (when it returns `true` the hits found so far are returned), and
+/// tolerance for unreadable regions, which are skipped and appended to
+/// `unreadable` (see [`read_tolerant`]).
 ///
 /// # Errors
 ///
-/// Propagates block errors.
+/// Propagates block errors other than I/O errors.
+#[allow(clippy::too_many_arguments)]
 pub fn find_headers_with(
     reader: &dyn BlockReader,
     ranges: &[ByteRange],
@@ -148,6 +317,7 @@ pub fn find_headers_with(
     options: &ScanOptions,
     progress: &mut dyn FnMut(&ScanProgress),
     cancel: &dyn Fn() -> bool,
+    unreadable: &mut Vec<ByteRange>,
 ) -> Result<Vec<Hit>, CarveError> {
     let overlap = set.max_header_span().saturating_sub(1);
     let chunk_bytes = options.chunk_bytes.max(overlap.saturating_add(4096));
@@ -172,17 +342,8 @@ pub fn find_headers_with(
             let Some(target) = buf.get_mut(..read_len) else {
                 break;
             };
-            let mut filled = 0usize;
-            while filled < read_len {
-                let Some(tail) = target.get_mut(filled..) else {
-                    break;
-                };
-                let n = reader.read_at(pos.saturating_add(filled as u64), tail)?;
-                if n == 0 {
-                    break;
-                }
-                filled = filled.saturating_add(n);
-            }
+            let filled = read_tolerant(reader, pos, target, unreadable)?;
+            state.unreadable_bytes = unreadable.iter().map(|r| r.length).sum();
             let Some(chunk) = buf.get(..filled) else {
                 break;
             };

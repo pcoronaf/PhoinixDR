@@ -21,7 +21,10 @@ inglés; esta guía indica entre paréntesis los textos que verá en pantalla.
   `sudo` o una regla udev que conceda acceso de lectura a los discos.
 
 La página de inicio muestra la versión y el autor en la barra superior y
-lista las sesiones de escaneo recientes.
+lista las sesiones de escaneo recientes. Una sesión de un dispositivo
+físico se etiqueta con el modelo y el número de serie de la unidad, de modo
+que los escaneos de discos distintos que ocuparon la misma ruta de
+dispositivo se distinguen.
 
 ## Dos formas de recuperar
 
@@ -118,10 +121,18 @@ profundo tiene dos etapas de tallado, cada una con su propio progreso: la
 y después **Examining carved files** (examinando archivos tallados) vuelve a
 cada coincidencia para ensamblar, validar y puntuar el archivo
 (coincidencias examinadas). La segunda etapa lee de nuevo la fuente,
-coincidencia a coincidencia, y en un volumen grande con muchas
-coincidencias puede durar más que la búsqueda. El escaneo puede cancelarse
-en cualquier fase; lo encontrado hasta ese momento se conserva y se guarda
-como sesión parcial.
+coincidencia a coincidencia; su línea de progreso muestra los bytes leídos.
+El escaneo puede cancelarse en cualquier fase; lo encontrado hasta ese
+momento se conserva y se guarda como sesión parcial.
+
+Una región que el dispositivo se niega a leer (un error de E/S o un tiempo
+de espera del controlador) no detiene el escaneo: se reintenta en bloques
+más pequeños, lo que sigue fallando se omite y se trata como ceros, la
+página de progreso y el resumen de resultados indican cuánto no pudo
+leerse, y un archivo tallado que se solapa con una región así lo dice en su
+evidencia. El examen del contenido lee como mucho unos pocos megabytes por
+archivo tallado; el muestreo de ceros, que detecta clústeres descartados o
+borrados, se ejecuta con independencia de la opción *Examine content*.
 
 ## 4. Resultados
 

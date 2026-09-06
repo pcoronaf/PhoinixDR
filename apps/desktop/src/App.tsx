@@ -17,7 +17,7 @@ type View =
   | { name: "scanning" }
   | { name: "results"; session: SessionSummary };
 
-const EMPTY_PROGRESS: ProgressState = { phase: null, done: 0, total: null, candidates: 0, message: null };
+const EMPTY_PROGRESS: ProgressState = { phase: null, done: 0, total: null, candidates: 0, bytesRead: null, unreadable: null, message: null };
 
 export default function App() {
   const [api, setApi] = useState<Api | null>(null);
@@ -33,6 +33,7 @@ export default function App() {
   const [advanced, setAdvanced] = useState(false);
   const [recovering, setRecovering] = useState<string[] | null>(null);
   const [lastSource, setLastSource] = useState<SourceInfo | null>(null);
+  const [lastDevice, setLastDevice] = useState<DeviceInfo | null>(null);
   const [lastRequest, setLastRequest] = useState<ScanRequest | null>(null);
   const [engineLog, setEngineLog] = useState<EngineLogLine[]>([]);
   const logRef = useRef<EngineLogLine[]>([]);
@@ -76,10 +77,10 @@ export default function App() {
     api.onScanEvent((e: ScanEvent) => {
       switch (e.kind) {
         case "phase":
-          setProgress((p) => ({ ...p, phase: e.phase, done: 0, total: null }));
+          setProgress((p) => ({ ...p, phase: e.phase, done: 0, total: null, bytesRead: null }));
           break;
         case "progress":
-          setProgress((p) => ({ ...p, phase: e.phase, done: e.done, total: e.total, candidates: e.candidates }));
+          setProgress((p) => ({ ...p, phase: e.phase, done: e.done, total: e.total, candidates: e.candidates, bytesRead: e.bytes_read ?? null, unreadable: e.unreadable_bytes ?? p.unreadable }));
           break;
         case "candidates":
           rowsRef.current = rowsRef.current.concat(e.items);
@@ -196,7 +197,10 @@ export default function App() {
             onRemovable={() => loadDevices(true)}
             onImage={async () => {
               const p = await api.pickImageFile();
-              if (p) inspect(p);
+              if (p) {
+                setLastDevice(null);
+                inspect(p);
+              }
             }}
             onOpenSession={openSession}
             onBrowseSession={async () => {
@@ -206,9 +210,12 @@ export default function App() {
           />
         )}
         {view.name === "devices" && (
-          <SourcePicker api={api} info={info} devices={devices} removableOnly={view.removable} loading={devicesLoading} error={devicesError} onChoose={(d) => inspect(d.path)} onBack={() => setView({ name: "home" })} onRefresh={() => loadDevices(view.removable)} />
+          <SourcePicker api={api} info={info} devices={devices} removableOnly={view.removable} loading={devicesLoading} error={devicesError} onChoose={(d) => {
+              setLastDevice(d);
+              inspect(d.path);
+            }} onBack={() => setView({ name: "home" })} onRefresh={() => loadDevices(view.removable)} />
         )}
-        {view.name === "setup" && <ScanSetup api={api} source={view.source} onScan={startScan} onBack={() => setView({ name: "home" })} />}
+        {view.name === "setup" && <ScanSetup api={api} source={view.source} device={lastDevice} onScan={startScan} onBack={() => setView({ name: "home" })} />}
         {view.name === "scanning" && (
           <ScanProgress
             advanced={advanced}

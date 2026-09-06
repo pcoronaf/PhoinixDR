@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import type { Api } from "../api";
-import type { HashVerification, PartitionCandidate, ScanMode, ScanRequest, SourceInfo, VolumeRange } from "../types";
+import type { DeviceInfo, HashVerification, PartitionCandidate, ScanMode, ScanRequest, SourceInfo, VolumeRange } from "../types";
 import { formatBytesSi, fsLabel, hasEngine, percent } from "../lib/format";
 
 interface Props {
   api: Api;
   source: SourceInfo;
+  /** The device the source was chosen from, when it is a device. */
+  device?: DeviceInfo | null;
   onScan: (request: ScanRequest) => void;
   onBack: () => void;
 }
@@ -116,7 +118,7 @@ function ContainerPanel({ api, source }: { api: Api; source: SourceInfo }) {
   );
 }
 
-export function ScanSetup({ api, source, onScan, onBack }: Props) {
+export function ScanSetup({ api, source, device = null, onScan, onBack }: Props) {
   const supported = source.volumes.find((v) => v.supported) ?? source.volumes[0] ?? null;
   const [partition, setPartition] = useState<number | null>(supported?.partition ?? null);
   const [lost, setLost] = useState<PartitionCandidate[] | null>(null);
@@ -181,6 +183,20 @@ export function ScanSetup({ api, source, onScan, onBack }: Props) {
         <button className="link" onClick={onBack}>Back</button>
       </div>
       <p className="mono muted">{source.path} · {formatBytesSi(source.size)} · {source.scheme === "None" ? "no partition table" : `${source.scheme} partition table`}</p>
+      {device && (
+        <p className="muted">
+          {device.display_name}
+          {device.serial ? ` · S/N ${device.serial}` : ""}
+          {device.rotational === false ? " · solid state" : device.rotational ? " · rotational" : ""}
+        </p>
+      )}
+      {device?.rotational === false && (
+        <p className="warn">
+          Solid-state drive: data deleted from an SSD is usually discarded (TRIM) within seconds and then reads as zeros, whatever tool is used.
+          Recovery is possible only when TRIM was not in effect: a USB enclosure that does not pass it through, TRIM disabled, or data lost through a reformat before it ran.
+          Zero-filled candidates are flagged as such in their evidence.
+        </p>
+      )}
       <ContainerPanel api={api} source={source} />
       {source.volumes.length > 1 && (
         <fieldset>

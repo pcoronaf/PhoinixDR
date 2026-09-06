@@ -114,6 +114,54 @@ unknown at 59; confidence loses 15 for the missing metadata and 10 for the
 contiguity assumption. Reused clusters, damaged structure and zero-filled
 content apply their usual caps.
 
+## Cost, early exit and unreadable regions
+
+A deep scan has two stages, both reported through `ScanProgress`
+(`CarveStage::Search`, then `Assemble`):
+
+1. **Header search**: one sequential pass over the eligible ranges in
+   8 MiB chunks. Its cost is the free space at the drive's streaming speed.
+2. **Assembly**: for every hit, the assembler walks the structure from the
+   hit through a cached 256 KiB probe window, then the content is examined.
+   This stage reads the source again, one hit at a time, and its cost is
+   what the hits point at, not the free space. Progress reports hits
+   examined, candidates produced and bytes read.
+
+Three rules keep the second stage proportional to the real files it finds
+rather than to the size limits of the signatures:
+
+- **Early exit.** A JPEG's entropy scan stops when a whole probe window
+  contains no `FF` byte at all (real entropy data carries a stuffed `FF`
+  every few hundred bytes), and a footer search stops when a whole window
+  is zero-filled. Both report the file as damaged and end it there instead
+  of walking on to the size limit (128 MiB for a JPEG). A header sitting on
+  overwritten, discarded or wiped data therefore costs one window, not a
+  hundred megabytes.
+- **Bounded examination.** For carved files the validators read at most
+  `CarveOptions::byte_budget` (8 MiB by default: the assembler has already
+  walked the structure, the validator only needs the head) and zero
+  sampling takes `zero_samples` blocks (8 by default; each is a seek on a
+  rotational device). The filesystem engines keep the 256 MiB budget and
+  64 samples for metadata candidates, which are far fewer.
+- **Zero sampling always runs.** Turning *Examine content* off skips the
+  validators but not the zero sampling, because a file whose clusters were
+  discarded by TRIM or wiped looks intact in every other respect.
+
+**Unreadable regions.** A read that fails with an I/O error (a bad sector,
+a driver timeout such as Windows error 121) does not abort the scan. The
+failed chunk is re-read in 64 KiB blocks aligned to 64 KiB boundaries, a
+failed block in 4 KiB pieces, and what still fails is zero-filled and
+recorded as an unreadable range; after four consecutive failing pieces the
+rest of the enclosing piece is written off without further attempts, since
+every failure can cost a timeout of many seconds. The probe used by the
+assemblers applies the same rule, so a file next to a bad sector is still
+assembled with the bad piece zeroed. Ranges found by both stages are merged
+and counted once in `CarveReport::unreadable_bytes` /
+`unreadable_ranges`; a carved candidate that overlaps one carries
+`extents.unreadable_bytes` and a diagnostic, and the scoring model turns
+that into a negative reason and a cap. Errors other than I/O errors
+(permission denied, out of bounds) still propagate.
+
 ## Deduplication
 
 A metadata candidate and a carved hit whose content starts at the same

@@ -4,7 +4,7 @@ use phoinix_health::{ValidationCheck, ValidationStatus};
 
 use super::{Assembler, Assembly, clamp_len, tolerate_truncation};
 use crate::CarveError;
-use crate::probe::Probe;
+use crate::probe::{Find, Probe, WINDOW_BYTES};
 
 /// Segments walked before giving up on a runaway file.
 const MAX_SEGMENTS: usize = 65_536;
@@ -56,10 +56,30 @@ fn walk(
     while pos.saturating_add(2) <= end && segments < MAX_SEGMENTS {
         segments += 1;
         if in_scan {
-            // Scan the entropy-coded data for the next marker.
-            let Some(ff) = probe.find(&[0xFF], pos, end)? else {
-                pos = end;
-                break;
+            // Scan the entropy-coded data for the next marker. Real entropy
+            // data carries a stuffed FF every few hundred bytes; a whole
+            // window without one is not JPEG data any more (overwritten,
+            // discarded or wiped), so the image ends there.
+            let ff = match probe.find_bounded(&[0xFF], pos, end, &|w| !w.contains(&0xFF))? {
+                Find::Found(ff) => ff,
+                Find::GaveUp(at) => {
+                    push_summary(checks, segments, dimensions, scans);
+                    checks.push(ValidationCheck::fail(
+                        "entropy data",
+                        format!(
+                            "no marker byte in the {WINDOW_BYTES} bytes after offset {}: the image data ends here (overwritten or discarded)",
+                            at - start
+                        ),
+                    ));
+                    return Ok(Some(
+                        Assembly::from_checks(at - start, false, std::mem::take(checks))
+                            .with_status(ValidationStatus::Damaged),
+                    ));
+                }
+                Find::Exhausted => {
+                    pos = end;
+                    break;
+                }
             };
             if ff.saturating_add(1) >= end {
                 pos = end;
@@ -227,6 +247,20 @@ pub(crate) mod tests {
 
     /// A structurally valid baseline JPEG (not decodable, but every marker
     /// is where a decoder expects it).
+    #[test]
+    fn entropy_scan_gives_up_when_the_data_stops_being_jpeg() {
+        // A JPEG cut before its EOI marker, followed by megabytes of zeros:
+        // the walk must end near the cut, not at the size limit.
+        let entropy: Vec<u8> = (0..3000u32).map(|i| (i % 253) as u8).collect();
+        let jpeg = sample_jpeg(&entropy);
+        let cut = &jpeg[..jpeg.len() - 2];
+        let zeros = vec![0u8; 3 * WINDOW_BYTES];
+        let r = run(&JpegAssembler, cut, &zeros).unwrap();
+        assert!(!r.end_known);
+        assert_eq!(r.status, ValidationStatus::Damaged);
+        assert!(r.length < 2 * WINDOW_BYTES as u64, "{}", r.length);
+    }
+
     pub fn sample_jpeg(entropy: &[u8]) -> Vec<u8> {
         let mut v = vec![0xFF, 0xD8];
         // APP0 JFIF

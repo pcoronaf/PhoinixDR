@@ -25,7 +25,8 @@ use phoinix_fs::{
     RecoveryCandidate,
 };
 use phoinix_health::validate::{
-    DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
+    DEFAULT_BYTE_BUDGET, ZERO_SAMPLE_BLOCKS, assess_zero_content, examine, expected_type_from_name,
+    sample_content,
 };
 use phoinix_health::{
     AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, MetadataEvidence,
@@ -496,6 +497,7 @@ impl ExtUndelete {
                     heuristic: false,
                     start_inferred: false,
                     stale,
+                    unreadable_bytes: 0,
                 };
                 let allocation = if resident {
                     AllocationEvidence {
@@ -558,14 +560,19 @@ impl ExtUndelete {
         };
         let expected_type = name.and_then(|w| expected_type_from_name(&w.entry.name));
         let mut content = ContentEvidence::default();
-        if self.examine_content
-            && extents.complete
+        // Content is examined when requested; zero sampling (the check that
+        // catches discarded or wiped clusters) always runs.
+        if extents.complete
             && size.is_some_and(|s| s > 0)
             && let Some(layout) = &d.layout
         {
             let stream = self.volume.open_layout(layout);
             let mut cursor = stream.cursor();
-            match examine(&mut cursor, stream.len(), DEFAULT_BYTE_BUDGET) {
+            match if self.examine_content {
+                examine(&mut cursor, stream.len(), DEFAULT_BYTE_BUDGET)
+            } else {
+                sample_content(&mut cursor, stream.len(), ZERO_SAMPLE_BLOCKS)
+            } {
                 Ok(mut c) => {
                     c.zero_assessment = assess_zero_content(
                         c.zero_block_ratio.unwrap_or(0.0),

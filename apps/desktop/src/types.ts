@@ -202,12 +202,16 @@ export interface CarveReport {
   candidates: number;
   merged_into_metadata: number;
   cancelled?: boolean;
+  unreadable_bytes?: number;
+  unreadable_ranges?: number;
 }
 
 export interface SessionSummary {
   id: string;
   file: string | null;
   source: string;
+  /** Model and serial number of a device source, when known. */
+  source_label?: string | null;
   partition: number | null;
   filesystem: FileSystemType;
   mode: ScanMode;
@@ -223,7 +227,7 @@ export interface SessionSummary {
 export type ScanEvent =
   | { kind: "started"; session_id: string; filesystem: FileSystemType; volume: VolumeInfo }
   | { kind: "phase"; phase: ScanPhase }
-  | { kind: "progress"; phase: ScanPhase; done: number; total: number | null; candidates: number }
+  | { kind: "progress"; phase: ScanPhase; done: number; total: number | null; candidates: number; bytes_read?: number | null; unreadable_bytes?: number | null }
   | { kind: "candidates"; items: CandidateSummary[] }
   | { kind: "finished"; summary: SessionSummary }
   | { kind: "failed"; message: string }

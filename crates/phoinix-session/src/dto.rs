@@ -267,6 +267,13 @@ pub enum ScanEvent {
         total: Option<u64>,
         /// Candidates found so far.
         candidates: u64,
+        /// Bytes read from the source in this phase, when the engine counts
+        /// them (the assembly stage of a deep scan).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes_read: Option<u64>,
+        /// Bytes the device could not read so far (skipped, treated as zeros).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        unreadable_bytes: Option<u64>,
     },
     /// New candidates (batched).
     Candidates {
@@ -299,6 +306,9 @@ pub struct SessionSummary {
     pub file: Option<PathBuf>,
     /// Source path.
     pub source: PathBuf,
+    /// Model and serial number of a device source, when known.
+    #[serde(default)]
+    pub source_label: Option<String>,
     /// Partition index, if any.
     pub partition: Option<u32>,
     /// Filesystem of the volume.

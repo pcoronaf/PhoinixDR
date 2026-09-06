@@ -23,7 +23,8 @@ use phoinix_fs::{
     DeletedFileProvider, Extent, FileSystemObjectId, FsError, RecoveryCandidate,
 };
 use phoinix_health::validate::{
-    DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
+    DEFAULT_BYTE_BUDGET, ZERO_SAMPLE_BLOCKS, assess_zero_content, examine, expected_type_from_name,
+    sample_content,
 };
 use phoinix_health::{
     AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, MetadataEvidence,
@@ -367,6 +368,7 @@ impl NtfsUndelete {
             heuristic: false,
             start_inferred: false,
             stale: false,
+            unreadable_bytes: 0,
             compressed,
             encrypted,
         };
@@ -403,15 +405,17 @@ impl NtfsUndelete {
         };
 
         let expected_type = file.name().and_then(expected_type_from_name);
-        let mut content = if self.examine_content
-            && stream.storage.is_readable()
-            && complete
-            && stream.logical_size > 0
-        {
+        // Content is examined when requested; zero sampling (the check that
+        // catches discarded or wiped clusters) always runs.
+        let mut content = if stream.storage.is_readable() && complete && stream.logical_size > 0 {
             match self.volume.open_stream(file, stream.name.as_deref()) {
                 Ok(s) => {
                     let mut cursor = s.cursor();
-                    match examine(&mut cursor, s.len(), self.byte_budget) {
+                    match if self.examine_content {
+                        examine(&mut cursor, s.len(), self.byte_budget)
+                    } else {
+                        sample_content(&mut cursor, s.len(), ZERO_SAMPLE_BLOCKS)
+                    } {
                         Ok(mut c) => {
                             c.zero_assessment = assess_zero_content(
                                 c.zero_block_ratio.unwrap_or(0.0),

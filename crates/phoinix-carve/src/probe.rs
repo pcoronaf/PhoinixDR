@@ -5,6 +5,9 @@
 //! costs one block read per window instead of one I/O per field.
 
 use phoinix_block::BlockReader;
+use phoinix_fs::ByteRange;
+
+use crate::scanner::read_tolerant;
 
 use crate::CarveError;
 
@@ -17,6 +20,20 @@ pub struct Probe<'a> {
     limit: u64,
     window_offset: u64,
     window: Vec<u8>,
+    bytes_read: u64,
+    unreadable: Vec<ByteRange>,
+}
+
+/// Outcome of a bounded search ([`Probe::find_bounded`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Find {
+    /// The pattern starts at this offset.
+    Found(u64),
+    /// The search stopped at this offset because a whole window satisfied
+    /// the give-up predicate (the data no longer looks like the file).
+    GaveUp(u64),
+    /// The range was exhausted without a match.
+    Exhausted,
 }
 
 impl<'a> Probe<'a> {
@@ -29,7 +46,21 @@ impl<'a> Probe<'a> {
             limit: limit.min(reader.len()),
             window_offset: 0,
             window: Vec::new(),
+            bytes_read: 0,
+            unreadable: Vec::new(),
         }
+    }
+
+    /// Regions the device could not read since the last call; they were
+    /// zero-filled so that a file next to a bad sector is still assembled.
+    pub fn take_unreadable(&mut self) -> Vec<ByteRange> {
+        std::mem::take(&mut self.unreadable)
+    }
+
+    /// Bytes fetched from the reader so far (windows and large reads).
+    #[must_use]
+    pub const fn bytes_read(&self) -> u64 {
+        self.bytes_read
     }
 
     /// Exclusive end of the readable region.
@@ -43,21 +74,10 @@ impl<'a> Probe<'a> {
         let remaining = self.limit.saturating_sub(offset);
         let len = usize::try_from(remaining.min(WINDOW_BYTES as u64)).unwrap_or(WINDOW_BYTES);
         self.window.resize(len, 0);
-        let mut filled = 0usize;
-        while filled < len {
-            let Some(tail) = self.window.get_mut(filled..) else {
-                break;
-            };
-            let n = self
-                .reader
-                .read_at(offset.saturating_add(filled as u64), tail)?;
-            if n == 0 {
-                break;
-            }
-            filled = filled.saturating_add(n);
-        }
+        let filled = read_tolerant(self.reader, offset, &mut self.window, &mut self.unreadable)?;
         self.window.truncate(filled);
         self.window_offset = offset;
+        self.bytes_read = self.bytes_read.saturating_add(filled as u64);
         Ok(())
     }
 
@@ -80,19 +100,8 @@ impl<'a> Probe<'a> {
         }
         if len > WINDOW_BYTES {
             let mut buf = vec![0u8; len];
-            let mut filled = 0usize;
-            while filled < len {
-                let Some(tail) = buf.get_mut(filled..) else {
-                    break;
-                };
-                let n = self
-                    .reader
-                    .read_at(offset.saturating_add(filled as u64), tail)?;
-                if n == 0 {
-                    break;
-                }
-                filled = filled.saturating_add(n);
-            }
+            let filled = read_tolerant(self.reader, offset, &mut buf, &mut self.unreadable)?;
+            self.bytes_read = self.bytes_read.saturating_add(filled as u64);
             if filled < len {
                 return Err(CarveError::Truncated {
                     offset,
@@ -227,8 +236,30 @@ impl<'a> Probe<'a> {
     ///
     /// Propagates block errors.
     pub fn find(&mut self, pattern: &[u8], from: u64, to: u64) -> Result<Option<u64>, CarveError> {
+        match self.find_bounded(pattern, from, to, &|_| false)? {
+            Find::Found(at) => Ok(Some(at)),
+            Find::GaveUp(_) | Find::Exhausted => Ok(None),
+        }
+    }
+
+    /// Like [`find`](Self::find), but stops early when a whole window of
+    /// data satisfies `give_up` (for example: no marker byte at all for a
+    /// JPEG, or nothing but zeros for a file that needs a footer). This
+    /// keeps a header sitting on overwritten or discarded data from being
+    /// walked to the size limit.
+    ///
+    /// # Errors
+    ///
+    /// Propagates block errors.
+    pub fn find_bounded(
+        &mut self,
+        pattern: &[u8],
+        from: u64,
+        to: u64,
+        give_up: &dyn Fn(&[u8]) -> bool,
+    ) -> Result<Find, CarveError> {
         if pattern.is_empty() {
-            return Ok(None);
+            return Ok(Find::Exhausted);
         }
         let to = to.min(self.limit);
         let mut pos = from;
@@ -240,12 +271,15 @@ impl<'a> Probe<'a> {
                 break;
             }
             if let Some(i) = find_in(&buf, pattern) {
-                return Ok(Some(pos.saturating_add(i as u64)));
+                return Ok(Find::Found(pos.saturating_add(i as u64)));
+            }
+            if buf.len() == WINDOW_BYTES && give_up(&buf) {
+                return Ok(Find::GaveUp(pos));
             }
             let advance = buf.len().saturating_sub(overlap).max(1);
             pos = pos.saturating_add(advance as u64);
         }
-        Ok(None)
+        Ok(Find::Exhausted)
     }
 }
 

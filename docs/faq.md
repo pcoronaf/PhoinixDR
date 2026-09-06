@@ -73,11 +73,16 @@ release, or build from source.
 
 ### Can I recover from an SSD?
 
-Yes, with a caveat: after deletion the drive may have discarded (TRIM) the
-blocks, in which case they read as zeros. PhoinixDR has no evidence about
-NAND state, so it warns and lowers confidence rather than pretending to
-know. Zero-filled content of a recognised type is reported as
-contradicting its format.
+Rarely, and PhoinixDR says so before you scan. Windows tells an SSD which
+blocks a deleted file occupied, and the drive discards (TRIM) them within
+seconds; from then on they read as zeros even though the filesystem record
+still describes the file perfectly. No tool can read past that. Recovery
+from an SSD works only when TRIM was not in effect: a USB enclosure that
+does not pass it through, TRIM disabled, or data lost through a reformat
+before TRIM ran. The scan setup page shows a warning for solid-state
+sources, and every candidate's content is sampled for zeros regardless of
+the *Examine content* option, so a discarded file shows a low likelihood
+with the reason "zero-filled" instead of an intact-looking record.
 
 ### Which filesystems and images are supported?
 

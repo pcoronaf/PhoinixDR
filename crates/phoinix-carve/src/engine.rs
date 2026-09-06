@@ -13,7 +13,7 @@ use phoinix_fs::{
     AllocationView, ByteRange, CandidateContent, CandidateTimestamps, DeletedFileProvider, Extent,
     ExtentStream, ExtentStreamCursor, FileSystemObjectId, FsError, RecoveryCandidate,
 };
-use phoinix_health::validate::{DEFAULT_BYTE_BUDGET, examine};
+use phoinix_health::validate::{examine_with, sample_content};
 use phoinix_health::{
     AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, FileTypeDetection,
     MetadataEvidence, RecoveryDiagnostic, RecoveryEvidence, ScoringModel, StorageEvidence,
@@ -24,7 +24,9 @@ use serde::{Deserialize, Serialize};
 use crate::CarveError;
 use crate::assemble::{Assembly, assembler_for};
 use crate::probe::Probe;
-use crate::scanner::{CarveStage, Hit, ScanOptions, ScanProgress, find_headers_with};
+use crate::scanner::{
+    CarveStage, Hit, ScanOptions, ScanProgress, find_headers_with, merge_ranges, unreadable_total,
+};
 use crate::signature::{CarveSignature, SignatureSet};
 
 /// Carving parameters.
@@ -36,11 +38,22 @@ pub struct CarveOptions {
     pub whole_volume: bool,
     /// Drop assembled files shorter than this.
     pub min_size: u64,
-    /// Run the content validators and zero sampling on carved files.
+    /// Run the content validators on carved files. Zero sampling runs
+    /// regardless (see `zero_samples`).
     pub examine_content: bool,
-    /// Validator byte budget per file.
+    /// Validator byte budget per file. The assembler has already walked the
+    /// structure, so the validator only needs the head of the file; the
+    /// default keeps a large remnant from being read a second time in full.
     pub byte_budget: u64,
+    /// Blocks of 4 KiB sampled for zero content per carved file (each is a
+    /// seek on a rotational device).
+    pub zero_samples: u64,
 }
+
+/// Default validator budget for carved files.
+pub const CARVE_BYTE_BUDGET: u64 = 8 * 1024 * 1024;
+/// Default zero-sample blocks for carved files.
+pub const CARVE_ZERO_SAMPLES: u64 = 8;
 
 impl Default for CarveOptions {
     fn default() -> Self {
@@ -49,7 +62,8 @@ impl Default for CarveOptions {
             whole_volume: false,
             min_size: 0,
             examine_content: true,
-            byte_budget: DEFAULT_BYTE_BUDGET,
+            byte_budget: CARVE_BYTE_BUDGET,
+            zero_samples: CARVE_ZERO_SAMPLES,
         }
     }
 }
@@ -76,6 +90,13 @@ pub struct CarveReport {
     /// assembled before the cancellation.
     #[serde(default)]
     pub cancelled: bool,
+    /// Bytes the device could not read during the header search; they were
+    /// skipped and treated as zeros.
+    #[serde(default)]
+    pub unreadable_bytes: u64,
+    /// Number of unreadable regions.
+    #[serde(default)]
+    pub unreadable_ranges: usize,
     /// Carved candidates merged into metadata candidates by
     /// [`CarveEngine::deduplicate`].
     pub merged_into_metadata: usize,
@@ -210,6 +231,7 @@ impl CarveEngine {
             ..Default::default()
         };
         let mut state = ScanProgress::default();
+        let mut unreadable: Vec<ByteRange> = Vec::new();
         let hits = find_headers_with(
             &*self.reader,
             &ranges,
@@ -221,8 +243,19 @@ impl CarveEngine {
                 progress(p);
             },
             cancel,
+            &mut unreadable,
         )?;
         report.hits = hits.len();
+        merge_ranges(&mut unreadable);
+        report.unreadable_bytes = unreadable_total(&unreadable);
+        report.unreadable_ranges = unreadable.len();
+        if report.unreadable_ranges > 0 {
+            tracing::warn!(
+                bytes = report.unreadable_bytes,
+                ranges = report.unreadable_ranges,
+                "unreadable regions skipped during the header search"
+            );
+        }
         if cancel() {
             report.cancelled = true;
             return Ok((Vec::new(), report));
@@ -249,6 +282,7 @@ impl CarveEngine {
             if index % 64 == 0 || last_report.elapsed() >= Duration::from_millis(200) {
                 state.hits_done = index;
                 state.candidates = candidates.len();
+                state.bytes_read = probe.bytes_read();
                 progress(&state);
                 last_report = Instant::now();
             }
@@ -268,7 +302,16 @@ impl CarveEngine {
             let Some(signature) = self.signatures.get(hit.signature) else {
                 continue;
             };
-            match self.assemble_hit(&mut probe, &hit, signature) {
+            let assembled = self.assemble_hit(&mut probe, &hit, signature);
+            let newly = probe.take_unreadable();
+            if !newly.is_empty() {
+                unreadable.extend(newly);
+                merge_ranges(&mut unreadable);
+                report.unreadable_bytes = unreadable_total(&unreadable);
+                report.unreadable_ranges = unreadable.len();
+                state.unreadable_bytes = report.unreadable_bytes;
+            }
+            match assembled {
                 Ok(Some(assembly)) => {
                     if assembly.length < self.options.min_size.max(signature.min_size) {
                         report.too_small += 1;
@@ -281,7 +324,12 @@ impl CarveEngine {
                     if sound {
                         covered_until = hit.offset.saturating_add(assembly.length);
                     }
-                    candidates.push(self.build_candidate(hit.offset, signature, assembly));
+                    candidates.push(self.build_candidate(
+                        hit.offset,
+                        signature,
+                        assembly,
+                        &unreadable,
+                    ));
                 }
                 Ok(None) => report.rejected += 1,
                 Err(e) => {
@@ -292,6 +340,7 @@ impl CarveEngine {
         }
         state.hits_done = report.hits;
         state.candidates = candidates.len();
+        state.bytes_read = probe.bytes_read();
         progress(&state);
         report.candidates = candidates.len();
         tracing::info!(
@@ -299,6 +348,7 @@ impl CarveEngine {
             rejected = report.rejected,
             nested_skipped = report.nested_skipped,
             too_small = report.too_small,
+            bytes_read = probe.bytes_read(),
             cancelled = report.cancelled,
             "assembly finished"
         );
@@ -345,7 +395,7 @@ impl CarveEngine {
                 signature: index,
             };
             if let Some(assembly) = self.assemble_hit(&mut probe, &hit, signature)? {
-                return Ok(self.build_candidate(offset, signature, assembly));
+                return Ok(self.build_candidate(offset, signature, assembly, &[]));
             }
         }
         Err(CarveError::NotFound(format!(
@@ -359,8 +409,10 @@ impl CarveEngine {
         offset: u64,
         signature: &CarveSignature,
         assembly: Assembly,
+        unreadable: &[ByteRange],
     ) -> RecoveryCandidate {
         let length = assembly.length;
+        let unreadable_bytes = overlap_bytes(unreadable, offset, length);
         let type_id = assembly
             .type_id
             .clone()
@@ -381,6 +433,11 @@ impl CarveEngine {
         if !assembly.end_known {
             diagnostics.push(RecoveryDiagnostic::warning(format!(
                 "The end of the file could not be determined; {length} bytes were carved up to the last plausible structure or the size limit"
+            )));
+        }
+        if unreadable_bytes > 0 {
+            diagnostics.push(RecoveryDiagnostic::warning(format!(
+                "{unreadable_bytes} bytes of this file lie in a region the device could not read; they are zero-filled"
             )));
         }
         let summary = self.space.summarize(ByteRange { offset, length });
@@ -405,6 +462,7 @@ impl CarveEngine {
             heuristic: false,
             start_inferred: false,
             stale: false,
+            unreadable_bytes,
         };
         let metadata = MetadataEvidence {
             valid_record: false,
@@ -423,10 +481,22 @@ impl CarveEngine {
         let assembly_result =
             ValidationResult::with_status(assembly.status, assembly.checks.clone());
         let mut content = ContentEvidence::default();
-        if self.options.examine_content && length > 0 {
+        if length > 0 {
             let stream = self.stream(offset, length);
             let mut cursor = stream.cursor();
-            match examine(&mut cursor, length, self.options.byte_budget) {
+            // Zero sampling always runs: it is cheap and it is what tells a
+            // discarded (TRIM) or wiped file from an intact one.
+            let examined = if self.options.examine_content {
+                examine_with(
+                    &mut cursor,
+                    length,
+                    self.options.byte_budget,
+                    self.options.zero_samples,
+                )
+            } else {
+                sample_content(&mut cursor, length, self.options.zero_samples)
+            };
+            match examined {
                 Ok(c) => content = c,
                 Err(e) => diagnostics.push(RecoveryDiagnostic::warning(format!(
                     "Content could not be examined: {e}"
@@ -657,6 +727,19 @@ impl DeletedFileProvider for CarveEngine {
     }
 }
 
+/// Bytes of `[offset, offset + length)` covered by `ranges`.
+fn overlap_bytes(ranges: &[ByteRange], offset: u64, length: u64) -> u64 {
+    let end = offset.saturating_add(length);
+    ranges
+        .iter()
+        .map(|r| {
+            let lo = r.offset.max(offset);
+            let hi = r.end().min(end);
+            hi.saturating_sub(lo)
+        })
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(
@@ -700,6 +783,111 @@ mod tests {
             whole_volume: true,
             ..Default::default()
         })
+    }
+
+    /// A reader whose reads overlapping `bad` fail with an I/O error, like
+    /// a drive with an unreadable region.
+    struct FailingReader {
+        inner: MemoryReader,
+        bad: ByteRange,
+    }
+
+    impl BlockReader for FailingReader {
+        fn id(&self) -> SourceId {
+            self.inner.id()
+        }
+        fn len(&self) -> u64 {
+            self.inner.len()
+        }
+        fn geometry(&self) -> &phoinix_block::BlockGeometry {
+            self.inner.geometry()
+        }
+        fn read_at(
+            &self,
+            offset: u64,
+            buffer: &mut [u8],
+        ) -> Result<usize, phoinix_block::BlockError> {
+            let end = offset + buffer.len() as u64;
+            if offset < self.bad.end() && end > self.bad.offset {
+                return Err(phoinix_block::BlockError::Io(std::io::Error::other(
+                    "The semaphore timeout period has expired.",
+                )));
+            }
+            self.inner.read_at(offset, buffer)
+        }
+    }
+
+    #[test]
+    fn unreadable_regions_are_skipped_and_reported() {
+        let entropy: Vec<u8> = (0..3000u32).map(|i| (i % 253) as u8).collect();
+        let jpeg = jpeg::tests::sample_jpeg(&entropy);
+        let png = png::tests::sample_png(&[9u8; 2000]);
+        // One file before a 64 KiB unreadable block, one after it.
+        let mut image = vec![0u8; 4096];
+        image.extend_from_slice(&jpeg);
+        image.resize(64 * 1024, 0);
+        let bad = ByteRange {
+            offset: 64 * 1024,
+            length: 64 * 1024,
+        };
+        image.resize(128 * 1024, 0);
+        let png_at = image.len() as u64;
+        image.extend_from_slice(&png);
+        image.resize(256 * 1024, 0);
+        let reader: Arc<dyn BlockReader> = Arc::new(FailingReader {
+            inner: MemoryReader::new(image),
+            bad,
+        });
+        let len = reader.len();
+        let e = CarveEngine::new(
+            reader,
+            Arc::new(WholeSource::new(len, 512)),
+            FileSystemType::Unknown,
+            StorageEvidence::default(),
+        )
+        .with_options(CarveOptions {
+            whole_volume: true,
+            ..Default::default()
+        });
+        let mut unreadable_seen = 0;
+        let (candidates, report) = e
+            .carve(&mut |p| unreadable_seen = unreadable_seen.max(p.unreadable_bytes))
+            .unwrap();
+        // The bad block is counted once (the probe hits it again while
+        // assembling), at 4 KiB granularity, plus at most the tail written
+        // off after consecutive failures.
+        assert!(
+            report.unreadable_bytes >= bad.length
+                && report.unreadable_bytes < bad.length + 64 * 1024,
+            "{report:?}"
+        );
+        assert_eq!(report.unreadable_ranges, 1, "{report:?}");
+        assert!(unreadable_seen >= bad.length);
+        assert_eq!(candidates.len(), 2, "{report:?}");
+        let refs: Vec<String> = candidates
+            .iter()
+            .map(|c| c.filesystem_object.short_reference())
+            .collect();
+        assert!(refs.contains(&"c4096".to_owned()), "{refs:?}");
+        assert!(refs.contains(&format!("c{png_at}")), "{refs:?}");
+    }
+
+    #[test]
+    fn overlap_with_unreadable_ranges_is_counted() {
+        let ranges = [
+            ByteRange {
+                offset: 100,
+                length: 50,
+            },
+            ByteRange {
+                offset: 400,
+                length: 100,
+            },
+        ];
+        assert_eq!(overlap_bytes(&ranges, 0, 100), 0);
+        assert_eq!(overlap_bytes(&ranges, 120, 100), 30);
+        assert_eq!(overlap_bytes(&ranges, 0, 1000), 150);
+        assert_eq!(overlap_bytes(&[], 0, 1000), 0);
     }
 
     #[test]

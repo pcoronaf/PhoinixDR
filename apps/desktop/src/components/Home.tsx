@@ -54,7 +54,11 @@ export function Home({ api, info, sessions, onPhysical, onRemovable, onImage, on
           <tbody>
             {sessions.map((s) => (
               <tr key={s.id}>
-                <td className="mono">{s.source}{s.partition !== null ? ` (partition ${s.partition})` : ""}</td>
+                <td>
+                  {s.source_label && <strong>{s.source_label}</strong>}
+                  {s.source_label && <br />}
+                  <span className="mono muted">{s.source}{s.partition !== null ? ` (partition ${s.partition})` : ""}</span>
+                </td>
                 <td>{fsLabel(s.filesystem)}</td>
                 <td>{s.mode === "deep" ? "Deep" : "Quick"}{s.complete ? "" : " (partial)"}</td>
                 <td>{formatUnix(s.started)}</td>

@@ -21,6 +21,7 @@ evidence moves it within the cap, and every adjustment produces a reason.
 | ≥ 50 % allocated | cap 34 |
 | 100 % allocated | cap 15 |
 | extent map incomplete | cap 79 × (located share); 0 when nothing is located |
+| content overlaps a region the device could not read | cap 79 × (readable share, from the logical size; 0.5 when unknown), never below 5 |
 | allocation map unavailable | cap 74 |
 | structure damaged / invalid | cap 59 / 34 |
 | zeros contradict the format (`ZeroContentAssessment::ContradictsFormat`) | cap 20 |
@@ -40,6 +41,12 @@ Fragmentation alone never makes a file *Poor* when every extent is known and
 free.
 
 ## Zero-filled content
+
+Zero sampling (the head block plus up to 64 blocks of 4 KiB spread over
+the content; 8 for carved files) runs regardless of the *examine content*
+option, because clusters discarded by TRIM or wiped read as zeros while the
+metadata still describes the file perfectly; only the structural validators
+are optional.
 
 Zeros are not evidence of loss by themselves. Sampled zero blocks are
 interpreted with the file's context:

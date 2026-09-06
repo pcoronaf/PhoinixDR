@@ -11,7 +11,8 @@ use phoinix_fs::{
     RecoveryCandidate,
 };
 use phoinix_health::validate::{
-    DEFAULT_BYTE_BUDGET, assess_zero_content, examine, expected_type_from_name,
+    DEFAULT_BYTE_BUDGET, ZERO_SAMPLE_BLOCKS, assess_zero_content, examine, expected_type_from_name,
+    sample_content,
 };
 use phoinix_health::{
     AllocationEvidence, CandidateSource, ContentEvidence, ExtentEvidence, MetadataEvidence,
@@ -127,6 +128,7 @@ impl ExfatUndelete {
                     heuristic,
                     start_inferred: false,
                     stale: false,
+                    unreadable_bytes: 0,
                 };
                 (extents, allocation, r.clusters.clone())
             }
@@ -166,15 +168,16 @@ impl ExfatUndelete {
         };
         let expected_type = expected_type_from_name(&entry.name);
         let mut content = ContentEvidence::default();
-        if self.examine_content
-            && extents.complete
-            && entry.data_length > 0
-            && reconstruction.is_ok()
-        {
+        // Content is examined when requested; zero sampling always runs.
+        if extents.complete && entry.data_length > 0 && reconstruction.is_ok() {
             match self.volume.open_stream(entry) {
                 Ok(s) => {
                     let mut cursor = s.cursor();
-                    match examine(&mut cursor, s.len(), DEFAULT_BYTE_BUDGET) {
+                    match if self.examine_content {
+                        examine(&mut cursor, s.len(), DEFAULT_BYTE_BUDGET)
+                    } else {
+                        sample_content(&mut cursor, s.len(), ZERO_SAMPLE_BLOCKS)
+                    } {
                         Ok(mut c) => {
                             c.zero_assessment = assess_zero_content(
                                 c.zero_block_ratio.unwrap_or(0.0),

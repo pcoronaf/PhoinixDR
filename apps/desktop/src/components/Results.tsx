@@ -73,13 +73,16 @@ export function Results({ api, session, rows, advanced, request = null, log = []
     <div className="results">
       <aside className="tree">
         <div className="tree-head">
-          <strong>{session.source.split(/[\\/]/).pop()}</strong>
+          <strong>{session.source_label ?? session.source.split(/[\\/]/).pop()}</strong>
+          {session.source_label && <span className="mono muted">{session.source}</span>}
           <span className="muted">{fsLabel(session.filesystem)} · {session.mode === "deep" ? "deep" : "quick"} scan{session.complete ? "" : " (partial)"}{session.partition === null && session.source ? "" : ""}</span>
         </div>
         <Tree node={tree} depth={0} active={filters.folder} onPick={(key) => setFilters((f) => ({ ...f, folder: f.folder === key ? null : key }))} />
         {session.carving && (
           <div className="carve-stats muted">
             Deep scan: {session.carving.hits} hits, {session.carving.merged_into_metadata} merged into filesystem records, {session.carved} carved files listed.
+            {session.carving.unreadable_bytes ? ` ${formatBytes(session.carving.unreadable_bytes)} in ${session.carving.unreadable_ranges ?? 0} region(s) could not be read from the device and were skipped.` : ""}
+            {session.carving.cancelled ? " The deep scan was cancelled; carved files are those assembled before that." : ""}
           </div>
         )}
       </aside>

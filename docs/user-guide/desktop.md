@@ -19,7 +19,9 @@ recover. It never writes to the source.
   udev rule that grants read access to the disks.
 
 The home page shows the version and author in the top bar and lists recent
-scan sessions.
+scan sessions. A session of a physical device is labelled with the drive's
+model and serial number, so scans of different drives that occupied the
+same device path are told apart.
 
 ## Two ways to recover
 
@@ -107,10 +109,17 @@ Progress shows the phase, counts and throughput. A deep scan has two
 carving stages, each with its own progress: the **header search** reads the
 free space once (bytes scanned), then **Examining carved files** goes back
 to every hit to assemble, validate and score the file (hits examined). The
-second stage reads the source again one hit at a time and, on a large
-volume with many hits, can take longer than the search. The scan can be
-cancelled in any phase; whatever was found so far is kept and saved as a
-partial session.
+second stage reads the source again one hit at a time; its progress line
+shows the bytes read. The scan can be cancelled in any phase; whatever was
+found so far is kept and saved as a partial session.
+
+A region the device refuses to read (an I/O error or a driver timeout) does
+not stop the scan: it is retried in smaller blocks, what still fails is
+skipped and treated as zeros, the progress page and the results summary
+report how much was unreadable, and a carved file that overlaps such a
+region says so in its evidence. Content examination reads at most a few
+megabytes per carved file; zero sampling, which detects discarded or wiped
+clusters, runs regardless of the *Examine content* option.
 
 ## 4. Results
 
