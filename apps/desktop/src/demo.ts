@@ -12,6 +12,7 @@ import type {
   ScanRequest,
   SessionSummary,
   SourceInfo,
+  EngineLogLine,
 } from "./types";
 
 export const demoDevices: DeviceInfo[] = [
@@ -124,21 +125,32 @@ export function demoSession(request: ScanRequest, count: number): SessionSummary
   };
 }
 
-export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void): void {
+export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void, log: (line: EngineLogLine) => void = () => {}): void {
   const volume = demoSource(request.source).volumes[0]!;
+  const say = (level: EngineLogLine["level"], target: string, message: string): void => log({ time: Date.now(), level, target, message });
+  say("info", "phoinix_session::scan", `scan requested source=${request.source} mode=${request.mode === "deep" ? "Deep" : "Quick"} partition=${request.partition ?? "None"} examine_content=${request.examine_content}`);
+  say("info", "phoinix_image", `opening image path=${request.source} format=raw`);
+  say("info", "phoinix_block::raw", `opened RAW image path=${request.source} length=16357785600`);
+  say("debug", "phoinix_volume::mbr", "MBR read partitions=1");
+  say("info", "phoinix_fs_fat::volume", "FAT volume opened variant=FAT32 clusters=3993600 cluster_size=4096");
+  say("info", "phoinix_session::scan", "volume opened filesystem=FAT32 offset=1048576 length=16356737024 engine=true");
+  say("info", "phoinix_session::scan", "metadata scan: walking deleted records");
   emit({ kind: "phase", phase: "opening" });
   emit({ kind: "started", session_id: "demo-session", filesystem: "fat32", volume });
   emit({ kind: "phase", phase: "metadata" });
   let i = 0;
   const tick = (): void => {
     if (i < demoRows.length) {
+      say("debug", "phoinix_fs_fat::undelete", `deleted entry cluster=${2048 + i * 37} name=${demoRows[i]!.name}`);
       emit({ kind: "candidates", items: [demoRows[i]!] });
       emit({ kind: "progress", phase: "metadata", done: i + 1, total: null, candidates: i + 1 });
       i += 1;
       window.setTimeout(tick, 150);
       return;
     }
+    say("info", "phoinix_session::scan", `metadata scan finished records=${demoRows.length} candidates=${demoRows.length}`);
     if (request.mode === "deep") {
+      say("info", "phoinix_session::scan", "carving unallocated space by signature whole_volume=false min_size=0 alignment=512");
       emit({ kind: "phase", phase: "carving" });
       let done = 0;
       const step = (): void => {
@@ -146,14 +158,18 @@ export function demoScan(request: ScanRequest, emit: (e: ScanEvent) => void): vo
         emit({ kind: "progress", phase: "carving", done: Math.min(done, 3_500_000), total: 3_500_000, candidates: demoRows.length + 3 });
         if (done < 3_500_000) window.setTimeout(step, 120);
         else {
+          say("info", "phoinix_carve::engine", "header search finished hits=3 nested_skipped=0 rejected=0");
+          say("info", "phoinix_session::scan", "carving finished carved=3 merged_into_metadata=2");
           emit({ kind: "phase", phase: "finishing" });
           emit({ kind: "candidates", items: demoCarved });
+          say("info", "phoinix_session::scan", `scan finished candidates=${demoRows.length + demoCarved.length}`);
           emit({ kind: "finished", summary: demoSession(request, demoRows.length + demoCarved.length) });
         }
       };
       window.setTimeout(step, 120);
       return;
     }
+    say("info", "phoinix_session::scan", `scan finished candidates=${demoRows.length}`);
     emit({ kind: "finished", summary: demoSession(request, demoRows.length) });
   };
   window.setTimeout(tick, 200);

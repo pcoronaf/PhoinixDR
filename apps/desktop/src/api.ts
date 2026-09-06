@@ -20,6 +20,7 @@ import type {
   SessionSummary,
   SourceInfo,
   VerifyEvent,
+  EngineLogLine,
 } from "./types";
 import * as demo from "./demo";
 
@@ -30,6 +31,9 @@ export interface Api {
   appInfo(): Promise<AppInfo>;
   /** Starts an elevated copy of PhoinixDR; resolves to whether this instance is about to exit. */
   relaunchElevated(): Promise<boolean>;
+  /** Turns the live engine log on or off; resolves to the new state. */
+  setEngineLog(enabled: boolean): Promise<boolean>;
+  onEngineLog(cb: (lines: EngineLogLine[]) => void): Promise<Unlisten>;
   listDevices(): Promise<DeviceInfo[]>;
   inspectSource(path: string): Promise<SourceInfo>;
   findPartitions(path: string): Promise<PartitionCandidate[]>;
@@ -68,6 +72,8 @@ async function tauriApi(): Promise<Api> {
     isDemo: false,
     appInfo: () => invoke<AppInfo>("app_info"),
     relaunchElevated: () => invoke<boolean>("relaunch_elevated"),
+    setEngineLog: (enabled) => invoke<boolean>("set_engine_log", { enabled }),
+    onEngineLog: on<EngineLogLine[]>("engine-log"),
     listDevices: () => invoke<DeviceInfo[]>("list_devices"),
     inspectSource: (path) => invoke<SourceInfo>("inspect_source", { path }),
     findPartitions: (path) => invoke<PartitionCandidate[]>("find_partitions", { path }),
@@ -127,12 +133,22 @@ function demoApi(): Api {
   const searchListeners = new Set<(e: SearchEvent) => void>();
   const completeListeners = new Set<(e: ScanCompletion) => void>();
   const recoverListeners = new Set<(e: RecoverEvent) => void>();
+  const logListeners = new Set<(lines: EngineLogLine[]) => void>();
+  let engineLog = false;
   let lastRequest: ScanRequest | null = null;
   return {
     isDemo: true,
     appInfo: async () => demo.demoAppInfo,
     relaunchElevated: async () => {
       throw new Error("Not available in the browser demo.");
+    },
+    setEngineLog: async (enabled) => {
+      engineLog = enabled;
+      return enabled;
+    },
+    onEngineLog: async (cb) => {
+      logListeners.add(cb);
+      return () => logListeners.delete(cb);
     },
     listDevices: async () => demo.demoDevices,
     inspectSource: async (path) => demo.demoSource(path),
@@ -153,11 +169,17 @@ function demoApi(): Api {
     startScan: async (request) => {
       rows = [];
       lastRequest = request;
-      demo.demoScan(request, (e) => {
-        if (e.kind === "candidates") rows = rows.concat(e.items);
-        scanListeners.forEach((cb) => cb(e));
-        if (e.kind === "finished") completeListeners.forEach((cb) => cb({ kind: "session", summary: e.summary, cancelled: false }));
-      });
+      demo.demoScan(
+        request,
+        (e) => {
+          if (e.kind === "candidates") rows = rows.concat(e.items);
+          scanListeners.forEach((cb) => cb(e));
+          if (e.kind === "finished") completeListeners.forEach((cb) => cb({ kind: "session", summary: e.summary, cancelled: false }));
+        },
+        (line) => {
+          if (engineLog) logListeners.forEach((cb) => cb([line]));
+        },
+      );
     },
     cancelScan: async () => false,
     listSessions: async () => (lastRequest ? [demo.demoSession(lastRequest, rows.length)] : []),

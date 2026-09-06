@@ -6,6 +6,12 @@ GitHub Releases.
 
 ## Unreleased
 
+- Desktop, Advanced mode: the scanning page shows the equivalent
+  `phoinix scan` command and a live engine log (what the command line
+  prints with `-vv`), with copy buttons; the detail panel shows the
+  `phoinix explain` and `phoinix recover` commands for the selected file.
+  The log is forwarded from the engine only while Advanced is on. The
+  session layer logs the scan lifecycle (request, volume, phases, counts).
 - Documentation: the desktop guide (English and Spanish) now includes
   screenshots of every step, from the home page to the recovery result.
 - Desktop: a **Restart as administrator** button appears when a device is

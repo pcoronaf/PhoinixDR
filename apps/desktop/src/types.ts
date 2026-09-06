@@ -351,6 +351,14 @@ export type RecoverEvent =
   | { kind: "finished"; items: RecoverItem[]; failures: number; report?: string | null }
   | { kind: "verifying"; done: number; total: number };
 
+/** One record of the engine log (what `phoinix -vv` prints). */
+export interface EngineLogLine {
+  time: number;
+  level: "error" | "warn" | "info" | "debug" | "trace";
+  target: string;
+  message: string;
+}
+
 export interface AppInfo {
   version: string;
   author?: string;

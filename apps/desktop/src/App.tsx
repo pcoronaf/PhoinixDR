@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi, type Api } from "./api";
-import type { AppInfo, CandidateSummary, DeviceInfo, ScanCompletion, ScanEvent, ScanRequest, SessionSummary, SourceInfo } from "./types";
+import type { AppInfo, CandidateSummary, DeviceInfo, EngineLogLine, ScanCompletion, ScanEvent, ScanRequest, SessionSummary, SourceInfo } from "./types";
 import { Home } from "./components/Home";
 import { SourcePicker } from "./components/SourcePicker";
 import { ScanSetup } from "./components/ScanSetup";
 import { ScanProgress, type ProgressState } from "./components/ScanProgress";
+import { scanCommand } from "./lib/cli";
 import { Results } from "./components/Results";
 import { RecoverDialog } from "./components/RecoverDialog";
 import logoMark from "./assets/logo-mark.png";
@@ -32,6 +33,9 @@ export default function App() {
   const [advanced, setAdvanced] = useState(false);
   const [recovering, setRecovering] = useState<string[] | null>(null);
   const [lastSource, setLastSource] = useState<SourceInfo | null>(null);
+  const [lastRequest, setLastRequest] = useState<ScanRequest | null>(null);
+  const [engineLog, setEngineLog] = useState<EngineLogLine[]>([]);
+  const logRef = useRef<EngineLogLine[]>([]);
   const [banner, setBanner] = useState<string | null>(null);
   const rowsRef = useRef<CandidateSummary[]>([]);
 
@@ -42,6 +46,27 @@ export default function App() {
       setSessions(await a.listSessions().catch(() => []));
     });
   }, []);
+
+  // Advanced mode forwards the engine log while it is on.
+  useEffect(() => {
+    if (!api) return;
+    api.setEngineLog(advanced).catch(() => {});
+  }, [api, advanced]);
+
+  // Engine log lines (batched by the backend); keep the last 2000.
+  useEffect(() => {
+    if (!api) return;
+    let unlisten: (() => void) | null = null;
+    api.onEngineLog((lines) => {
+      logRef.current = logRef.current.concat(lines).slice(-2000);
+      setEngineLog(logRef.current);
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [api]);
 
   // Scan events.
   useEffect(() => {
@@ -123,6 +148,9 @@ export default function App() {
     setRows([]);
     setProgress(EMPTY_PROGRESS);
     setBanner(null);
+    setLastRequest(request);
+    logRef.current = [];
+    setEngineLog([]);
     setView({ name: "scanning" });
     try {
       await api.startScan(request);
@@ -183,6 +211,9 @@ export default function App() {
         {view.name === "setup" && <ScanSetup api={api} source={view.source} onScan={startScan} onBack={() => setView({ name: "home" })} />}
         {view.name === "scanning" && (
           <ScanProgress
+            advanced={advanced}
+            command={lastRequest ? scanCommand(lastRequest) : null}
+            log={engineLog}
             state={progress}
             cancelling={cancelling}
             onCancel={async () => {
@@ -191,7 +222,7 @@ export default function App() {
             }}
           />
         )}
-        {view.name === "results" && <Results api={api} session={view.session} rows={rows} advanced={advanced} onRecover={(ids) => setRecovering(ids)} onNewScan={() => setView({ name: "home" })} />}
+        {view.name === "results" && <Results api={api} session={view.session} rows={rows} advanced={advanced} request={lastRequest} log={engineLog} onRecover={(ids) => setRecovering(ids)} onNewScan={() => setView({ name: "home" })} />}
       </main>
       {recovering && <RecoverDialog api={api} rows={rows} ids={recovering} acquisition={lastSource?.container?.acquisition ?? null} onClose={() => setRecovering(null)} />}
     </div>

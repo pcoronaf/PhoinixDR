@@ -1,20 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../api";
-import type { CandidateSummary, Preview, RecoveryCandidate, SessionSummary } from "../types";
+import type { CandidateSummary, EngineLogLine, Preview, RecoveryCandidate, ScanRequest, SessionSummary } from "../types";
 import { applyFilters, buildTree, CATEGORY_LABEL, CATEGORY_ORDER, DEFAULT_FILTERS, sortRows, typeOptions, type Filters, type SortKey, type TreeNode } from "../lib/filters";
 import { formatBytes, formatDate, fsLabel } from "../lib/format";
 import { HealthBadge } from "./HealthBadge";
+import { CommandLine, CopyButton, logText } from "./Advanced";
+import { explainCommand, recoverCommand } from "../lib/cli";
 
 interface Props {
   api: Api;
   session: SessionSummary;
   rows: CandidateSummary[];
   advanced: boolean;
+  /** The request that produced the session, when known (for the command lines). */
+  request?: ScanRequest | null;
+  /** The engine log of the scan, for the Copy scan log action. */
+  log?: EngineLogLine[];
   onRecover: (ids: string[]) => void;
   onNewScan: () => void;
 }
 
-export function Results({ api, session, rows, advanced, onRecover, onNewScan }: Props) {
+export function Results({ api, session, rows, advanced, request = null, log = [], onRecover, onNewScan }: Props) {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: "likelihood", asc: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -86,13 +92,14 @@ export function Results({ api, session, rows, advanced, onRecover, onNewScan }: 
         <div className="actionbar">
           <span>{selected.size} selected · {filtered.length} shown of {rows.length}</span>
           <div>
+            {advanced && log.length > 0 && <CopyButton text={logText(log)} label="Copy scan log" />}
             <button className="link" onClick={onNewScan}>New scan</button>
             <button className="primary" disabled={selected.size === 0} onClick={() => onRecover([...selected])}>Recover {selected.size > 0 ? `${selected.size} file${selected.size === 1 ? "" : "s"}` : ""}…</button>
           </div>
         </div>
       </section>
       <aside className="detail">
-        {focused ? <Detail api={api} row={focused} advanced={advanced} /> : <p className="muted center">Select a file to see why PhoinixDR rates it this way, and a preview.</p>}
+        {focused ? <Detail api={api} row={focused} advanced={advanced} session={session} request={request} /> : <p className="muted center">Select a file to see why PhoinixDR rates it this way, and a preview.</p>}
       </aside>
     </div>
   );
@@ -145,7 +152,10 @@ function FilterBar({ filters, setFilters, types, total, shown }: { filters: Filt
   );
 }
 
-function Detail({ api, row, advanced }: { api: Api; row: CandidateSummary; advanced: boolean }) {
+function Detail({ api, row, advanced, session, request }: { api: Api; row: CandidateSummary; advanced: boolean; session: SessionSummary; request: ScanRequest | null }) {
+  const sameScan = request !== null && request.source === session.source;
+  const volume = sameScan ? request.volume ?? null : null;
+  const partition = sameScan ? request.partition : session.partition;
   const [tab, setTab] = useState<"evidence" | "preview">("evidence");
   const [detail, setDetail] = useState<RecoveryCandidate | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -207,6 +217,12 @@ function Detail({ api, row, advanced }: { api: Api; row: CandidateSummary; advan
               <dt>Timestamps</dt><dd>created {formatDate(detail.timestamps.created_iso)} · modified {formatDate(detail.timestamps.modified_iso)} · accessed {formatDate(detail.timestamps.accessed_iso)}</dd>
               <dt>Storage</dt><dd>{detail.evidence.storage.device_kind}{detail.evidence.storage.rotational === false ? ", solid state (TRIM state unknown)" : detail.evidence.storage.rotational ? ", rotational" : ""}</dd>
             </dl>
+          )}
+          {advanced && (
+            <CommandLine
+              title="Command line"
+              commands={[explainCommand(session.source, partition, volume, row.reference), recoverCommand(session.source, partition, volume, [row.reference], null)]}
+            />
           )}
         </div>
       )}

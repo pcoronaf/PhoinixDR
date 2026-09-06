@@ -289,6 +289,14 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     }
 }
 
+/// Turns the live engine log (`engine-log` events) on or off. Returns the
+/// new state.
+#[tauri::command]
+pub fn set_engine_log(switch: State<'_, crate::enginelog::EngineLogSwitch>, enabled: bool) -> bool {
+    switch.set(enabled);
+    switch.enabled()
+}
+
 /// Starts an elevated copy of PhoinixDR through the operating system's
 /// consent prompt (UAC on Windows, polkit on Linux). Returns whether this
 /// instance is about to exit: on Windows it closes once the elevated copy

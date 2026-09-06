@@ -185,6 +185,41 @@ ruta del informe se muestra cuando se ha escrito uno.
   <figcaption>Tras la recuperación: bytes escritos, estado de verificación y ruta de salida de cada archivo.</figcaption>
 </figure>
 
+## Modo avanzado
+
+La casilla **Advanced** (avanzado) de la barra superior muestra el detalle
+técnico que hay detrás de la interfaz. No cambia nada del escaneo ni de la
+recuperación.
+
+<figure>
+  <img src="../../user-guide/images/09-advanced-scan.png" alt="Página de escaneo en modo avanzado con la línea de comandos equivalente y el registro del motor en directo" width="960">
+  <figcaption>Escaneo en modo avanzado: la línea de comandos equivalente sobre el registro del motor en directo.</figcaption>
+</figure>
+
+- **Línea de comandos equivalente.** Mientras se escanea, la página muestra
+  el comando `phoinix scan …` que lo reproduce, con la misma fuente,
+  partición, modo y opciones de tallado. En los resultados, el panel de
+  detalle muestra los comandos `phoinix explain` y `phoinix recover` del
+  archivo seleccionado. Cada comando tiene un botón *Copy* (copiar).
+- **Registro del motor.** Los mismos registros que la línea de comandos
+  imprime con `-vv`: qué imagen o dispositivo se abrió, el sistema de
+  archivos encontrado, cuántos registros se recorrieron, la pasada de
+  tallado y los recuentos finales. El registro se reenvía desde el motor
+  solo mientras Advanced está activado; la aplicación de escritorio nunca lo
+  escribe en disco y nunca contiene contenido recuperado. *Copy log* lo deja
+  en el portapapeles para un informe de error, y la página de resultados
+  conserva después *Copy scan log*.
+- **En los resultados:** una columna *Ref* con la referencia del candidato
+  en el sistema de archivos (el valor que usan los comandos anteriores), las
+  comprobaciones de validación de estructura desplegadas y un bloque de
+  diagnóstico con la evidencia en bruto (objeto, extensiones, asignación,
+  muestras de contenido, marcas de tiempo, almacenamiento).
+
+<figure>
+  <img src="../../user-guide/images/10-advanced-results.png" alt="Resultados en modo avanzado con la columna Ref, el diagnóstico y las líneas de comandos" width="960">
+  <figcaption>Resultados en modo avanzado: la columna Ref, el bloque de diagnóstico y las líneas de comandos del archivo seleccionado.</figcaption>
+</figure>
+
 ## Sesiones
 
 Cada escaneo se guarda como sesión (`.phx`) en el directorio de datos de

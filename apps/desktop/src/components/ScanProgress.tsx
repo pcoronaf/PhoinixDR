@@ -1,5 +1,6 @@
-import type { ScanPhase } from "../types";
+import type { EngineLogLine, ScanPhase } from "../types";
 import { formatBytes, percent } from "../lib/format";
+import { CommandLine, EngineLogPane } from "./Advanced";
 
 export interface ProgressState {
   phase: ScanPhase | null;
@@ -16,7 +17,17 @@ const LABEL: Record<ScanPhase, string> = {
   finishing: "Finishing",
 };
 
-export function ScanProgress({ state, onCancel, cancelling }: { state: ProgressState; onCancel: () => void; cancelling: boolean }) {
+interface Props {
+  state: ProgressState;
+  onCancel: () => void;
+  cancelling: boolean;
+  /** Advanced mode: show the equivalent command line and the live engine log. */
+  advanced?: boolean;
+  command?: string | null;
+  log?: EngineLogLine[];
+}
+
+export function ScanProgress({ state, onCancel, cancelling, advanced = false, command = null, log = [] }: Props) {
   const pct = state.phase === "carving" ? percent(state.done, state.total) : "";
   return (
     <div className="panel progress">
@@ -31,6 +42,8 @@ export function ScanProgress({ state, onCancel, cancelling }: { state: ProgressS
       <div className="actions">
         <button onClick={onCancel} disabled={cancelling}>{cancelling ? "Cancelling…" : "Cancel"}</button>
       </div>
+      {advanced && command && <CommandLine title="Equivalent command line" commands={[command]} />}
+      {advanced && <EngineLogPane lines={log} />}
     </div>
   );
 }

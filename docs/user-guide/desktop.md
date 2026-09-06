@@ -171,6 +171,38 @@ shown when one was written.
   <figcaption>After recovery: bytes written, verification state and output path for every file.</figcaption>
 </figure>
 
+## Advanced mode
+
+The **Advanced** checkbox in the top bar shows the technical detail behind
+the interface. It changes nothing about the scan or the recovery.
+
+<figure>
+  <img src="images/09-advanced-scan.png" alt="Scanning page in Advanced mode with the equivalent command line and the live engine log" width="960">
+  <figcaption>Scanning in Advanced mode: the equivalent command line above the live engine log.</figcaption>
+</figure>
+
+- **Equivalent command line.** While a scan runs, the page shows the
+  `phoinix scan …` command that reproduces it, with the same source,
+  partition, mode and carving options. In the results, the detail panel
+  shows the `phoinix explain` and `phoinix recover` commands for the
+  selected file. Every command has a *Copy* button.
+- **Engine log.** The same records the command line prints with `-vv`:
+  which image or device was opened, the filesystem found, how many records
+  were walked, the carving pass, and the counts at the end. The log is
+  forwarded from the engine only while Advanced is on; it is never
+  written to disk by the desktop application and never contains recovered
+  content. *Copy log* puts it on the clipboard for a bug report, and the
+  results page keeps *Copy scan log* available afterwards.
+- **In the results:** a *Ref* column with the candidate's filesystem
+  reference (the value the commands above use), the structure validation
+  checks expanded, and a diagnostics block with the raw evidence (object,
+  extents, allocation, content samples, timestamps, storage).
+
+<figure>
+  <img src="images/10-advanced-results.png" alt="Results in Advanced mode with the Ref column, diagnostics and command lines" width="960">
+  <figcaption>Results in Advanced mode: the Ref column, the diagnostics block and the command lines for the selected file.</figcaption>
+</figure>
+
 ## Sessions
 
 Every scan is saved as a session (`.phx`) in the application data

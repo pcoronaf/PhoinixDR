@@ -39,6 +39,14 @@ pub fn run_scan(
     sink(ScanEvent::Phase {
         phase: ScanPhase::Opening,
     });
+    tracing::info!(
+        source = %request.source.display(),
+        mode = ?request.mode,
+        partition = ?request.partition,
+        volume_offset = ?request.volume.as_ref().map(|v| v.offset),
+        examine_content = request.examine_content,
+        "scan requested"
+    );
     let choice = VolumeChoice::from_request(request.partition, request.volume.as_ref());
     let volume = match open_volume_with(&request.source, &choice, request.examine_content) {
         Ok(v) => v,
@@ -52,6 +60,13 @@ pub fn run_scan(
             };
         }
     };
+    tracing::info!(
+        filesystem = %volume.info.filesystem,
+        offset = volume.info.offset,
+        length = volume.info.length,
+        engine = volume.engine.is_some(),
+        "volume opened"
+    );
     let mut session = ScanSession::new(request.source.clone(), volume.info.clone(), request.mode);
     session.container = crate::source::container_of(&request.source);
     sink(ScanEvent::Started {
@@ -64,16 +79,23 @@ pub fn run_scan(
     match &result {
         Ok(()) => {
             session.complete = true;
+            tracing::info!(candidates = session.candidates.len(), "scan finished");
             sink(ScanEvent::Finished {
                 summary: session.summary(),
             });
         }
-        Err(SessionError::Cancelled) => sink(ScanEvent::Cancelled {
-            summary: session.summary(),
-        }),
-        Err(e) => sink(ScanEvent::Failed {
-            message: e.to_string(),
-        }),
+        Err(SessionError::Cancelled) => {
+            tracing::info!(candidates = session.candidates.len(), "scan cancelled");
+            sink(ScanEvent::Cancelled {
+                summary: session.summary(),
+            });
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "scan failed");
+            sink(ScanEvent::Failed {
+                message: e.to_string(),
+            });
+        }
     }
     ScanOutcome {
         session: Some(session),
@@ -99,6 +121,7 @@ fn scan_into(
         sink(ScanEvent::Phase {
             phase: ScanPhase::Metadata,
         });
+        tracing::info!("metadata scan: walking deleted records");
         let mut batch: Vec<CandidateSummary> = Vec::new();
         let mut seen = 0u64;
         for item in engine.deleted_files() {
@@ -125,6 +148,11 @@ fn scan_into(
             }
         }
         flush(&mut batch, sink);
+        tracing::info!(
+            records = seen,
+            candidates = session.candidates.len(),
+            "metadata scan finished"
+        );
         sink(ScanEvent::Progress {
             phase: ScanPhase::Metadata,
             done: seen,
@@ -150,6 +178,12 @@ fn scan_into(
         if request.carve.alignment > 0 {
             options.scan.alignment = request.carve.alignment;
         }
+        tracing::info!(
+            whole_volume = options.whole_volume,
+            min_size = options.min_size,
+            alignment = options.scan.alignment,
+            "carving unallocated space by signature"
+        );
         let carver = CarveEngine::new(
             volume.reader.clone(),
             volume.space.clone(),
@@ -185,6 +219,11 @@ fn scan_into(
             None => (carved, 0),
         };
         report.merged_into_metadata = merged;
+        tracing::info!(
+            carved = carved.len(),
+            merged_into_metadata = merged,
+            "carving finished"
+        );
         session.carving = Some(report);
         for chunk in carved.chunks(BATCH) {
             sink(ScanEvent::Candidates {

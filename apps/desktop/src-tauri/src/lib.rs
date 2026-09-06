@@ -6,21 +6,32 @@
 
 mod commands;
 mod elevate;
+mod enginelog;
 mod state;
 
 use tauri::Manager;
+use tracing_subscriber::Layer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 /// Builds and runs the application.
 pub fn run() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("phoinix=warn"));
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_writer(std::io::stderr)
+    let (engine_layer, engine_switch, engine_rx) = enginelog::layer();
+    let _ = tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stderr)
+                .with_filter(filter),
+        )
+        .with(engine_layer)
         .try_init();
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
+            enginelog::forward(app.handle().clone(), engine_rx);
+            app.manage(engine_switch);
             let sessions = app
                 .path()
                 .app_data_dir()
@@ -47,6 +58,7 @@ pub fn run() {
             commands::verify_source,
             commands::app_info,
             commands::relaunch_elevated,
+            commands::set_engine_log,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {
