@@ -97,11 +97,11 @@ pub struct ScanProgress {
 /// Sub-read sizes tried, in order, when a read fails: a failed chunk is
 /// re-read in 64 KiB blocks and a failed block in 4 KiB pieces, so that a
 /// bad sector costs its own 4 KiB and not the data around it.
-const RETRY_BLOCKS: [usize; 2] = [64 * 1024, 4096];
+pub const RETRY_BLOCKS: [usize; 2] = [64 * 1024, 4096];
 /// Consecutive failing pieces after which the rest of the enclosing piece is
 /// written off without further attempts: every failure can cost a driver
 /// timeout of many seconds.
-const MAX_CONSECUTIVE_FAILURES: usize = 4;
+pub const MAX_CONSECUTIVE_FAILURES: usize = 4;
 
 /// Reads `target` at `pos`, filling it completely unless the source ends.
 fn read_full(reader: &dyn BlockReader, pos: u64, target: &mut [u8]) -> Result<usize, CarveError> {
