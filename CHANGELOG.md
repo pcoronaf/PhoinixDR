@@ -4,7 +4,7 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.4
 
 - Deep scan, second stage: content examination of a carved file now reads
   at most 8 MiB and samples 8 blocks for zeros instead of re-reading up to
