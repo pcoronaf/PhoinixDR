@@ -24,7 +24,7 @@ members = [
 exclude = ["apps/desktop/src-tauri"]
 
 [workspace.package]
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"

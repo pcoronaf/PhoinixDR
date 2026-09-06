@@ -2163,7 +2163,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-block"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-core",
  "serde",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-carve"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "crc32fast",
  "phoinix-block",
@@ -2189,7 +2189,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "serde",
  "thiserror 2.0.20",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-desktop"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-core",
  "phoinix-device",
@@ -2217,7 +2217,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-device"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
@@ -2231,7 +2231,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-fs"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
@@ -2243,7 +2243,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-fs-exfat"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
@@ -2256,7 +2256,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-fs-ext"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
@@ -2270,7 +2270,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-fs-fat"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
@@ -2283,7 +2283,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-fs-ntfs"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-core",
@@ -2296,7 +2296,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-health"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "crc32fast",
  "phoinix-core",
@@ -2307,7 +2307,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-image"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "flate2",
  "hex",
@@ -2323,7 +2323,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-partition-recovery"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-carve",
@@ -2342,7 +2342,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-recovery"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-core",
  "phoinix-device",
@@ -2358,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-session"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "phoinix-block",
  "phoinix-carve",
@@ -2382,7 +2382,7 @@ dependencies = [
 
 [[package]]
 name = "phoinix-volume"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "bitflags 2.13.1",
  "crc32fast",

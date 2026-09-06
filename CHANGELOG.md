@@ -4,7 +4,7 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.3
 
 - Fixed: after the header search of a deep scan reached 100 %, the window
   stayed on the scanning page with no progress, sometimes for hours on
