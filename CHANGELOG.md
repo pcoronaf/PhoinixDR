@@ -4,7 +4,7 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.6
 
 - M12.2 Free space and verification scans. Secure erase gains two
   free-space targets: the raw one reads an NTFS, FAT, exFAT or ext volume
