@@ -4,7 +4,7 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.7
 
 - M12.3 Files and folders. `phoinix erase files` and the *Erase files and
   folders* list on the desktop erase page overwrite the chosen files (and
