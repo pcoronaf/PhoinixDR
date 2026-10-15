@@ -4,6 +4,11 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- Documentation: plan for M12 (secure erase) and ADR-0014, which keeps the
+  recovery stack read-only and puts all writing in a separate crate.
+
 ## 0.1.4
 
 - Deep scan, second stage: content examination of a carved file now reads

@@ -38,6 +38,10 @@
 - [Windows portable release requirement](release/windows-portable.md)
 - [Release process](release/process.md): how a version is built, tagged and published
 
+## Planned
+
+- [M12: Secure erase](erase/plan.md): a separate write-capable crate, methods, safety rules, verification with the recovery engine and a sanitization certificate
+
 ## Testing
 
 - [Undelete corpora](ntfs/undelete-corpus.md): the generated fixtures and what each scenario asserts

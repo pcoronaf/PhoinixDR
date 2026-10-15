@@ -46,6 +46,10 @@ el sitio muestra la versión en inglés.
 - [Corpus de recuperación](../ntfs/undelete-corpus.md)
 - [Procedimiento de prueba en hardware real](../testing/real-hardware.md)
 
+## Planificado
+
+- [M12: Borrado seguro](../erase/plan.md) (en inglés): un crate aparte con capacidad de escritura, métodos, reglas de seguridad, verificación con el motor de recuperación y certificado de sanitización
+
 ## Decisiones (en inglés)
 
 - [Registros de decisiones de arquitectura](../decisions/README.md)
