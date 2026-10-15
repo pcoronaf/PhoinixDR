@@ -38,9 +38,10 @@
 - [Windows portable release requirement](release/windows-portable.md)
 - [Release process](release/process.md): how a version is built, tagged and published
 
-## Planned
+## Secure erase
 
-- [M12: Secure erase](erase/plan.md): a separate write-capable crate, methods, safety rules, verification with the recovery engine and a sanitization certificate
+- [M12 plan and status](erase/plan.md): the write-capable crate, methods and what they guarantee, safety rules, verification, certificate; M12.1 (devices and partitions) delivered
+- User guides: [desktop](user-guide/desktop.md#secure-erase), [command line](user-guide/cli.md#secure-erase)
 
 ## Testing
 

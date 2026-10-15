@@ -201,6 +201,40 @@ impl Workspace {
         }
     }
 
+    /// The erase guards of this workspace: its sessions directory and the
+    /// source of the current session.
+    #[must_use]
+    pub fn erase_guards(&self) -> phoinix_erase::Guards {
+        crate::erase::guards(&self.sessions_dir, self.current().map(|s| s.source.clone()))
+    }
+
+    /// Disks as erase targets, with the refusal rules applied.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SessionError`] when devices cannot be enumerated.
+    pub fn erase_targets(&self) -> Result<Vec<crate::erase::EraseTargetInfo>, SessionError> {
+        crate::erase::targets(&self.erase_guards())
+    }
+
+    /// Describes an erase target with this workspace's guards.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SessionError`] when the target cannot be read.
+    pub fn describe_erase_target(
+        &self,
+        target: &phoinix_erase::EraseTarget,
+    ) -> Result<phoinix_erase::TargetDescription, SessionError> {
+        crate::erase::describe(target, &self.erase_guards())
+    }
+
+    /// Starts an erase on a background thread.
+    #[must_use]
+    pub fn start_erase(&self, request: phoinix_erase::EraseRequest) -> crate::erase::EraseHandle {
+        crate::erase::start(request, self.erase_guards())
+    }
+
     /// Runs a scan synchronously (tests, CLI).
     pub fn scan(&self, request: &ScanRequest, sink: &mut dyn FnMut(ScanEvent)) -> ScanOutcome {
         scan::run_scan(request, sink, &AtomicBool::new(false))

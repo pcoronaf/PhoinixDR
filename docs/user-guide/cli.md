@@ -176,6 +176,39 @@ header), the source and its container, the stored and computed hashes with
 `--verify-source`, and every file with its health at recovery time, output
 path and SHA-256. See [reports](../images/containers.md#case-metadata-and-reports).
 
+## Secure erase
+
+`phoinix erase` is the only command that writes to a source. It overwrites
+a whole device, one partition or a regular file (a disk image before
+disposal), verifies the result and writes a sanitization certificate. The
+rules and the warnings are the same as in the desktop guide: the system
+disk, the executable's disk and the sessions disk are refused, a mounted
+volume must be unmounted first on Linux and is dismounted by the command
+on Windows, every multi-pass method shows the warning that links
+[El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html),
+and a solid-state target shows the flash warning.
+
+```bash
+phoinix erase list                                   # disks, serial numbers, mounted volumes, what is refused and why
+phoinix erase describe /dev/sdb                      # partitions, volumes, confirmation text; writes nothing
+phoinix erase device /dev/sdb                        # one pass of zeros, read-back sample, asks for the serial number
+phoinix erase device \\.\PhysicalDrive2 --method nist --certificate C:\certs\drive2.html --operator "P. Corona" --asset 1234
+phoinix erase partition /dev/sdb --partition 1 --method random --verify full
+phoinix erase file old-image.E01 --method zero       # a file as a raw range
+phoinix erase device /dev/sdb --resume               # continue a cancelled erase from its resume point
+```
+
+Options: `--method` (`zero`, `random`, `nist`, `dod-3`, `dod-7`,
+`schneier`, `vsitr`, `gutmann`, or `custom` with `--passes N` and
+optionally `--pattern HEX`), `--verify none|sample|full`, `--certificate`,
+`--operator`, `--organisation`, `--asset`, `--notes`, `--resume`,
+`--no-countdown`, `--json` (one event per line). On a terminal the command
+prints the target and asks you to type the serial number (or its last six
+characters; the file name for a file); without a terminal pass
+`--i-understand-this-destroys-data <serial>`. The exit code is 1 when the
+erase was cancelled, failed, left regions the device refused to write, or
+did not verify; the certificate carries the detail.
+
 ## NTFS developer commands
 
 ```bash

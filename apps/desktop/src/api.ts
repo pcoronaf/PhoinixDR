@@ -6,6 +6,12 @@ import type {
   CandidateSummary,
   DestinationInfo,
   DeviceInfo,
+  EngineLogLine,
+  EraseCatalogue,
+  EraseEvent,
+  EraseRequest,
+  EraseTarget,
+  EraseTargetInfo,
   HashVerification,
   PartitionCandidate,
   Preview,
@@ -19,8 +25,8 @@ import type {
   SearchEvent,
   SessionSummary,
   SourceInfo,
+  TargetDescription,
   VerifyEvent,
-  EngineLogLine,
 } from "./types";
 import * as demo from "./demo";
 
@@ -56,6 +62,14 @@ export interface Api {
   pickSessionFile(): Promise<string | null>;
   pickDirectory(): Promise<string | null>;
   pickReportFile(): Promise<string | null>;
+  /** Secure erase (M12). */
+  eraseCatalogue(): Promise<EraseCatalogue>;
+  eraseTargets(): Promise<EraseTargetInfo[]>;
+  describeEraseTarget(target: EraseTarget): Promise<TargetDescription>;
+  startErase(request: EraseRequest): Promise<void>;
+  cancelErase(): Promise<boolean>;
+  onEraseEvent(cb: (e: EraseEvent) => void): Promise<Unlisten>;
+  pickCertificateFile(): Promise<string | null>;
 }
 
 function inTauri(): boolean {
@@ -124,6 +138,24 @@ async function tauriApi(): Promise<Api> {
       });
       return typeof r === "string" ? r : null;
     },
+    eraseCatalogue: () => invoke<EraseCatalogue>("erase_catalogue"),
+    eraseTargets: () => invoke<EraseTargetInfo[]>("erase_targets"),
+    describeEraseTarget: (target) => invoke<TargetDescription>("describe_erase_target", { target }),
+    startErase: (request) => invoke<void>("start_erase", { request }),
+    cancelErase: () => invoke<boolean>("cancel_erase"),
+    onEraseEvent: on<EraseEvent>("erase-event"),
+    pickCertificateFile: async () => {
+      const r = await dialog.save({
+        title: "Save the sanitization certificate",
+        defaultPath: "sanitization-certificate.html",
+        filters: [
+          { name: "HTML certificate", extensions: ["html"] },
+          { name: "Markdown certificate", extensions: ["md"] },
+          { name: "JSON certificate", extensions: ["json"] },
+        ],
+      });
+      return typeof r === "string" ? r : null;
+    },
   };
 }
 
@@ -134,6 +166,8 @@ function demoApi(): Api {
   const completeListeners = new Set<(e: ScanCompletion) => void>();
   const recoverListeners = new Set<(e: RecoverEvent) => void>();
   const logListeners = new Set<(lines: EngineLogLine[]) => void>();
+  const eraseListeners = new Set<(e: EraseEvent) => void>();
+  let eraseCancel = false;
   let engineLog = false;
   let lastRequest: ScanRequest | null = null;
   return {
@@ -232,6 +266,22 @@ function demoApi(): Api {
     pickSessionFile: async () => null,
     pickDirectory: async () => window.prompt("Destination directory", "D:\\recovered"),
     pickReportFile: async () => window.prompt("Report file", "D:\\recovered\\report.html"),
+    eraseCatalogue: async () => demo.demoEraseCatalogue,
+    eraseTargets: async () => demo.demoEraseTargets(),
+    describeEraseTarget: async (target) => demo.demoDescribe(target),
+    startErase: async (request) => {
+      eraseCancel = false;
+      demo.demoErase(request, (e) => eraseListeners.forEach((cb) => cb(e)), () => eraseCancel);
+    },
+    cancelErase: async () => {
+      eraseCancel = true;
+      return true;
+    },
+    onEraseEvent: async (cb) => {
+      eraseListeners.add(cb);
+      return () => eraseListeners.delete(cb);
+    },
+    pickCertificateFile: async () => window.prompt("Certificate file", "D:\\certificates\\stick.html"),
   };
 }
 

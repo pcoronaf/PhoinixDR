@@ -129,6 +129,27 @@ Either way the log describes structures and counts, never the content of
 your files. Add the `phoinix explain` output for the file in question and,
 when you can, an image of the volume.
 
+### Is one overwrite pass enough to erase a disk?
+
+Yes, on any drive made this century. Multi-pass schemes (DoD 5220.22-M,
+Gutmann's 35 passes) come from 1990s drive encodings; Gutmann's own
+epilogue calls the full method "pointless for any drive", and NIST SP
+800-88 states that one overwrite protects drives made after 2001 against
+both keyboard and laboratory attack. PhoinixDR offers the multi-pass
+methods because some policies still require them, and shows a warning
+that links [El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html)
+when you choose one.
+
+### Can PhoinixDR securely erase an SSD?
+
+Only at the software level. An overwrite reaches an SSD's logical blocks,
+not its physical cells: the controller remaps writes, and over-provisioned
+or retired cells are never touched. That is enough against recovery
+software (NIST 800-88 *Clear*). A real purge needs the device's own
+sanitize command (ATA Secure Erase, NVMe Sanitize), planned for M12.4, or
+physical destruction. The erase page says so whenever the target is
+solid-state.
+
 ### How was PhoinixDR built?
 
 With extensive AI assistance and deliberate engineering. Read the

@@ -59,6 +59,12 @@ pub fn run() {
             commands::app_info,
             commands::relaunch_elevated,
             commands::set_engine_log,
+            commands::erase_catalogue,
+            commands::erase_targets,
+            commands::describe_erase_target,
+            commands::start_erase,
+            commands::cancel_erase,
+            commands::erase_running,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

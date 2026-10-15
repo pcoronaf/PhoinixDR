@@ -4,6 +4,13 @@ import type {
   AppInfo,
   CandidateSummary,
   DeviceInfo,
+  EngineLogLine,
+  EraseCatalogue,
+  EraseEvent,
+  EraseRequest,
+  EraseSummary,
+  EraseTarget,
+  EraseTargetInfo,
   PartitionCandidate,
   Preview,
   RecoverItem,
@@ -12,7 +19,7 @@ import type {
   ScanRequest,
   SessionSummary,
   SourceInfo,
-  EngineLogLine,
+  TargetDescription,
 } from "./types";
 
 export const demoDevices: DeviceInfo[] = [
@@ -292,4 +299,110 @@ export function demoPartitions(path: string): PartitionCandidate[] {
     confidence: 84,
   };
   return [listed, lost];
+}
+
+// ---------------------------------------------------------------------------
+// Secure erase demo
+
+export const demoEraseCatalogue: EraseCatalogue = {
+  methods: [
+    { id: "zero", label: "Zeros, one pass", note: "NIST 800-88 Clear. The fastest method and the default for magnetic disks; one pass is enough on any drive made this century.", passes: 1, multi_pass: false },
+    { id: "random", label: "Random data, one pass", note: "NIST 800-88 Clear. Leaves no readable pattern, so an erased disk cannot be told from an encrypted one.", passes: 1, multi_pass: false },
+    { id: "nist", label: "NIST SP 800-88 Clear (random, verified)", note: "The documented Clear procedure: one random pass followed by the read-back verification SP 800-88 asks for.", passes: 1, multi_pass: false },
+    { id: "dod-3", label: "DoD 5220.22-M (E), 3 passes", note: "The DoD 5220.22-M three-pass sequence (0x00, 0xFF, random). Removed from the NISPOM in 2007; kept because policies still name it.", passes: 3, multi_pass: true },
+    { id: "dod-7", label: "DoD 5220.22-M (ECE), 7 passes", note: "The DoD 5220.22-M ECE seven-pass sequence. Obsolete since 2007; kept because policies still name it.", passes: 7, multi_pass: true },
+    { id: "schneier", label: "Schneier, 7 passes", note: "0xFF, 0x00 and five random passes, from Applied Cryptography (1996).", passes: 7, multi_pass: true },
+    { id: "vsitr", label: "VSITR (BSI), 7 passes", note: "The German BSI 1999 sequence: alternating 0x00/0xFF three times, then 0xAA.", passes: 7, multi_pass: true },
+    { id: "gutmann", label: "Gutmann, 35 passes", note: "Peter Gutmann's 1996 sequence for MFM/RLL encodings. The author's epilogue: \u201cperforming the full 35-pass overwrite is pointless for any drive\u201d.", passes: 35, multi_pass: true },
+  ],
+  warning: "Erasing is irreversible. PhoinixDR will overwrite the target you confirm; nothing on it can be recovered afterwards, by PhoinixDR or by anyone. Check the model, serial number and size before confirming, and unplug every disk you do not intend to erase.",
+  multi_pass_warning: "More than one pass adds time and wear, not security. Multi-pass schemes come from 1990s drive encodings; Gutmann's own epilogue calls the full 35-pass method \u201cpointless for any drive\u201d, and NIST SP 800-88 states that one overwrite protects drives made after 2001 against both keyboard and laboratory attack. The method is offered because some policies still require it.",
+  flash_warning: "This is a solid-state device. Overwriting reaches the logical blocks, not the physical cells: the controller remaps writes, and over-provisioned or retired cells are never touched. An overwrite is a software-level clear (NIST 800-88 Clear); a purge needs the device's own sanitize command (ATA Secure Erase, NVMe Sanitize) or physical destruction.",
+  article_gutmann: "https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html",
+  article_files: "https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html",
+};
+
+function demoDescription(device: DeviceInfo, target: EraseTarget): TargetDescription {
+  const partitions = [{ index: 1, offset: 1_048_576, length: device.size - 1_048_576, type_name: device.removable ? "FAT32 (LBA)" : "Microsoft basic data" }];
+  const part = target.kind === "partition" ? partitions.find((p) => p.index === target.index) ?? null : null;
+  const refusals: TargetDescription["refusals"] = [];
+  if (!device.removable) refusals.push({ kind: "system_disk" });
+  if (target.kind === "partition" && !part) refusals.push({ kind: "no_such_partition", index: target.index });
+  return {
+    target,
+    path: device.path,
+    disk: device.path,
+    device,
+    offset: part ? part.offset : 0,
+    length: part ? part.length : device.size,
+    sector_size: 512,
+    partition: part,
+    partitions,
+    volumes: device.removable ? [{ node: "\\\\?\\Volume{demo}", mount: "E:\\", can_dismount: true }] : [{ node: "\\\\?\\Volume{sys}", mount: "C:\\", can_dismount: true }],
+    solid_state: device.rotational === false,
+    refusals,
+    confirmation: device.serial ?? device.path,
+    confirmation_short: device.serial && device.serial.length > 6 ? device.serial.slice(-6) : null,
+  };
+}
+
+export function demoEraseTargets(): EraseTargetInfo[] {
+  return demoDevices.map((device) => {
+    const d = { ...device, accessible: true, serial: device.serial === "?8" ? "0781C3A9D2F1" : device.serial };
+    const description = demoDescription(d, { kind: "whole_device", path: d.path });
+    return { device: d, description, refusals: description.refusals, error: null };
+  });
+}
+
+export function demoDescribe(target: EraseTarget): TargetDescription {
+  const device = demoEraseTargets().find((t) => t.device.path === target.path)?.device ?? demoEraseTargets()[1]!.device;
+  return demoDescription(device, target);
+}
+
+export function demoErase(request: EraseRequest, emit: (e: EraseEvent) => void, cancelled: () => boolean): void {
+  const description = demoDescribe(request.target);
+  const method = demoEraseCatalogue.methods.find((m) => m.id === request.method.id) ?? demoEraseCatalogue.methods[0]!;
+  const passes = request.method.id === "custom" && "passes" in request.method ? request.method.passes.length : method.passes;
+  const labels = ["0x00", "0xFF", "random"];
+  const total = description.length;
+  const summary = (done: number, verified: boolean): EraseSummary => ({
+    passes_completed: done,
+    passes,
+    bytes_written: done * total,
+    unwritable_bytes: 0,
+    unwritable_ranges: 0,
+    seconds: done * 3,
+    verification: verified ? { mode: request.verify, blocks_checked: 4096, blocks_mismatched: 0, bytes_checked: 4096 * 65536, skipped_unwritable_bytes: 0, first_mismatch: null, cancelled: false, passed: true } : null,
+    certificate: request.certificate,
+    verdict: verified ? `${passes} pass(es) completed; verified: 4096 blocks read back, all match` : `cancelled after ${done} of ${passes} pass(es): the target is PARTIALLY erased`,
+  });
+  emit({ kind: "started", description, method: method.label, passes, resumed_from: null });
+  let pass = 1;
+  let done = 0;
+  const step = (): void => {
+    if (cancelled()) {
+      emit({ kind: "cancelled", resume: { key: "demo", method: method.id, pass: pass - 1, offset: done, seed: "demo", bytes_written: (pass - 1) * total + done }, summary: summary(pass - 1, false) });
+      return;
+    }
+    if (done === 0) emit({ kind: "pass", pass, passes, pattern: labels[(pass - 1) % labels.length]! });
+    done = Math.min(total, done + total / 12);
+    emit({ kind: "progress", pass, passes, done, total, bytes_per_sec: 180_000_000, unwritable: 0 });
+    if (done >= total) {
+      if (pass >= passes) {
+        let v = 0;
+        const verify = (): void => {
+          v += 512;
+          emit({ kind: "verifying", done: Math.min(v, 4096), total: 4096 });
+          if (v < 4096) window.setTimeout(verify, 120);
+          else emit({ kind: "finished", summary: summary(passes, true) });
+        };
+        window.setTimeout(verify, 200);
+        return;
+      }
+      pass += 1;
+      done = 0;
+    }
+    window.setTimeout(step, 180);
+  };
+  window.setTimeout(step, 300);
 }

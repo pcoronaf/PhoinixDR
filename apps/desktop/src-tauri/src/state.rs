@@ -13,11 +13,18 @@ pub struct ActiveScan {
     pub cancel: Arc<AtomicBool>,
 }
 
+/// An erase in progress.
+pub struct ActiveErase {
+    /// Cancellation flag shared with the erase thread.
+    pub cancel: Arc<AtomicBool>,
+}
+
 /// State managed by Tauri.
 pub struct AppState {
     /// The workspace (sessions, current session).
     pub workspace: Arc<Workspace>,
     scan: Mutex<Option<ActiveScan>>,
+    erase: Mutex<Option<ActiveErase>>,
     recovering: AtomicBool,
 }
 
@@ -28,6 +35,7 @@ impl AppState {
         Self {
             workspace: Arc::new(Workspace::new(sessions_dir)),
             scan: Mutex::new(None),
+            erase: Mutex::new(None),
             recovering: AtomicBool::new(false),
         }
     }
@@ -44,6 +52,14 @@ impl AppState {
     #[must_use]
     pub fn scan_running(&self) -> bool {
         self.scan().is_some()
+    }
+
+    /// The active erase slot.
+    pub fn erase(&self) -> MutexGuard<'_, Option<ActiveErase>> {
+        match self.erase.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        }
     }
 
     /// Marks recovery as running; returns `false` if one already is.

@@ -11,11 +11,12 @@ interface Props {
   onPhysical: () => void;
   onRemovable: () => void;
   onImage: () => void;
+  onErase: () => void;
   onOpenSession: (s: SessionSummary) => void;
   onBrowseSession: () => void;
 }
 
-export function Home({ api, info, sessions, onPhysical, onRemovable, onImage, onOpenSession, onBrowseSession }: Props) {
+export function Home({ api, info, sessions, onPhysical, onRemovable, onImage, onErase, onOpenSession, onBrowseSession }: Props) {
   return (
     <div className="home">
       <div className="hero">
@@ -40,6 +41,15 @@ export function Home({ api, info, sessions, onPhysical, onRemovable, onImage, on
         </button>
       </div>
       {info && !info.device_access && <ElevateNotice api={api} info={info} context="home" />}
+      <div className="erase-section">
+        <h2>Erase a disk</h2>
+        <div className="choices">
+          <button className="choice erase-choice" onClick={onErase} disabled={info ? !info.device_access : false}>
+            <strong>Secure erase</strong>
+            <span>Overwrite a whole disk or a partition so that nothing on it can be recovered, with a verification and a sanitization certificate. Irreversible.</span>
+          </button>
+        </div>
+      </div>
       <div className="row-between">
         <h2>Recent sessions</h2>
         <button className="link" onClick={onBrowseSession}>Open a session file…</button>

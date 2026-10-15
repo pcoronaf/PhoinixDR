@@ -64,6 +64,9 @@ enum Command {
     /// Hash a source and compare with the hashes stored in its image
     /// container (E01).
     Verify(commands::verify::Args),
+    /// Secure erase of a device, partition or file (writes to the target; see docs/erase).
+    #[command(subcommand)]
+    Erase(commands::erase::Command),
 }
 
 fn init_tracing(verbosity: u8) {
@@ -92,6 +95,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Scan(args) => commands::scan::run(args),
         Command::Explain(args) => commands::explain::run(args),
         Command::Recover(args) => commands::recover::run(args),
+        Command::Erase(cmd) => commands::erase::run(cmd),
     }
 }
 

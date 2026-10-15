@@ -5,8 +5,10 @@ Thank you for helping build an open, evidence-driven recovery platform.
 ## Ground rules
 
 1. **Source media is read-only.** Do not add any API that can write to a
-   `BlockReader` source. Partition-table repair, if it ever exists, lives in a
-   separately privileged component.
+   `BlockReader` source. The only crate that opens a medium for writing is
+   `phoinix-erase` (ADR-0014); no recovery crate may depend on it, and it
+   reads back through the read-only stack. Partition-table repair, if it
+   ever exists, lives in a separately privileged component.
 2. **Typed errors in libraries.** Library crates use `thiserror`; `anyhow` is
    allowed only at application boundaries (`apps/`).
 3. **No panics on media-controlled values.** Do not use `unwrap`, `expect`,

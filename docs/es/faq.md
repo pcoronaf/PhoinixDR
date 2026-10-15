@@ -141,6 +141,29 @@ describe estructuras y recuentos, nunca el contenido de sus archivos.
 Añada la salida de `phoinix explain` del archivo en cuestión y, cuando
 pueda, una imagen del volumen.
 
+### ¿Basta una pasada de sobreescritura para borrar un disco?
+
+Sí, en cualquier disco fabricado en este siglo. Los esquemas de varias
+pasadas (DoD 5220.22-M, las 35 pasadas de Gutmann) proceden de las
+codificaciones de disco de los años noventa; el epílogo del propio Gutmann
+califica el método completo de «pointless for any drive», y NIST SP 800-88
+afirma que una sobreescritura protege los discos fabricados después de
+2001 tanto frente a ataques por teclado como de laboratorio. PhoinixDR
+ofrece los métodos de varias pasadas porque algunas políticas todavía los
+exigen, y muestra un aviso que enlaza
+[El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html)
+al elegir uno.
+
+### ¿Puede PhoinixDR borrar de forma segura un SSD?
+
+Solo a nivel de software. Una sobreescritura llega a los bloques lógicos
+del SSD, no a sus celdas físicas: el controlador reasigna las escrituras y
+las celdas de sobreaprovisionamiento o retiradas nunca se tocan. Eso basta
+contra el software de recuperación (*Clear* de NIST 800-88). Un *purge*
+real necesita el comando de sanitización del propio dispositivo (ATA Secure
+Erase, NVMe Sanitize), previsto para M12.4, o la destrucción física. La
+página de borrado lo advierte siempre que el objetivo es de estado sólido.
+
 ### ¿Cómo se construyó PhoinixDR?
 
 Con una amplia asistencia de IA y una ingeniería deliberada. Lea la

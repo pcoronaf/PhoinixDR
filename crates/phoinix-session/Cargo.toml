@@ -23,6 +23,7 @@ phoinix-health = { workspace = true }
 phoinix-carve = { workspace = true }
 phoinix-partition-recovery = { workspace = true }
 phoinix-recovery = { workspace = true }
+phoinix-erase = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

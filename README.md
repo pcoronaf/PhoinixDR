@@ -31,7 +31,8 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 > scan (signature carving of unallocated space), lost-partition recovery
 > (virtual mounts, no table writes), forensic and virtual-disk image
 > containers (E01, split E01, split RAW, VHD, VHDX, VMDK) with hash
-> verification and exportable recovery reports, evidence-based recovery
+> verification and exportable recovery reports, secure erase of disks and
+> partitions with verification and a sanitization certificate (M12.1), evidence-based recovery
 > health, a verified recovery writer, the `phoinix` CLI and a desktop
 > application (Tauri 2 + React) with sessions, previews and recovery.
 
@@ -64,7 +65,10 @@ which then needs no elevation. See
 ## Principles
 
 - **Read-only by default.** The block abstraction has no write primitive. No
-  crate in the recovery core can modify source media.
+  crate in the recovery core can modify source media. The one thing that
+  writes, the secure-erase mode, lives in its own crate and its own part of
+  the interface, writes only to the disk you confirm by serial number, and
+  verifies through the read-only stack ([ADR-0014](docs/decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md)).
 - **Recovery methods stay independent.** Undelete, carving, filesystem
   reconstruction and partition reconstruction produce different evidence and
   different confidence.

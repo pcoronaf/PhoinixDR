@@ -46,9 +46,10 @@ el sitio muestra la versión en inglés.
 - [Corpus de recuperación](../ntfs/undelete-corpus.md)
 - [Procedimiento de prueba en hardware real](../testing/real-hardware.md)
 
-## Planificado
+## Borrado seguro
 
-- [M12: Borrado seguro](../erase/plan.md) (en inglés): un crate aparte con capacidad de escritura, métodos, reglas de seguridad, verificación con el motor de recuperación y certificado de sanitización
+- [Plan y estado de M12](../erase/plan.md) (en inglés): el crate con capacidad de escritura, los métodos y lo que garantizan, reglas de seguridad, verificación, certificado; M12.1 (dispositivos y particiones) entregado
+- Guías: [escritorio](user-guide/desktop.md#borrado-seguro), [línea de comandos](user-guide/cli.md#borrado-seguro)
 
 ## Decisiones (en inglés)
 

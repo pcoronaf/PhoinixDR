@@ -27,6 +27,9 @@ phoinix-health = { workspace = true }
 phoinix-carve = { workspace = true }
 phoinix-partition-recovery = { workspace = true }
 phoinix-recovery = { workspace = true }
+phoinix-erase = { workspace = true }
+phoinix-session = { workspace = true }
+hex = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }

@@ -9,7 +9,8 @@
 //!                              ├── start_scan → events    (engines, phoinix-carve, dedup)
 //!                              ├── sessions (.phx JSON)   (metadata and evidence only)
 //!                              ├── recover → events       (phoinix-recovery, destination safety)
-//!                              └── preview                (reconstructed streams, no decoding)
+//!                              ├── preview                (reconstructed streams, no decoding)
+//!                              └── erase → events         (phoinix-erase: the write-capable crate, ADR-0014)
 //! ```
 //!
 //! No recovery logic lives here: the crate composes engines, turns their
@@ -20,6 +21,7 @@
 #![forbid(unsafe_code)]
 
 pub mod dto;
+pub mod erase;
 mod error;
 pub mod preview;
 pub mod recover;
@@ -28,6 +30,7 @@ pub mod session;
 pub mod source;
 mod workspace;
 
+pub use erase::{EraseHandle, EraseTargetInfo};
 pub use error::SessionError;
 pub use scan::ScanOutcome;
 pub use session::ScanSession;

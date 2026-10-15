@@ -1,6 +1,6 @@
 # M12: Secure erase
 
-Status: planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
+Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 to M12.4 planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
 
 PhoinixDR gains an erase mode: overwrite a whole device, a partition, the
 free space of a volume, or individual files and folders, with a chosen
@@ -137,10 +137,12 @@ apps/phoinix-cli         phoinix erase {device|partition|free-space|files} …
 apps/desktop             Erase page: target picker, method picker with warnings, confirmation, progress, certificate
 ```
 
-`phoinix-erase` depends on `phoinix-core`, `phoinix-device` (enumeration
-and the device path types only), `phoinix-fs`/engines (allocation views
-and file lookup, read-only) and `phoinix-session` (verification scans).
-No recovery crate depends on it. `#![forbid(unsafe_code)]`; the Windows
+`phoinix-erase` depends on `phoinix-core`, `phoinix-block` and
+`phoinix-device` (read-only, for verification and enumeration) and
+`phoinix-volume` (partition tables); from M12.2 also on the filesystem
+engines for allocation views and file lookup. No recovery crate depends on
+it. The session layer composes it for the front-ends and runs the
+verification scans of M12.2, so there is no cycle. `#![forbid(unsafe_code)]`; the Windows
 IOCTLs go through the `windows-sys` crate like the readers do.
 
 ## Delivery

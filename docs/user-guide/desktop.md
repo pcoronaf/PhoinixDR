@@ -218,6 +218,90 @@ the interface. It changes nothing about the scan or the recovery.
   <figcaption>Results in Advanced mode: the Ref column, the diagnostics block and the command lines for the selected file.</figcaption>
 </figure>
 
+## Secure erase
+
+PhoinixDR can also do the opposite of recovery: overwrite a whole disk or
+one partition so that nothing on it can be recovered, verify the result
+and write a sanitization certificate. It is a separate mode, reachable
+only from the home page, in a separate colour, and it is the only part of
+PhoinixDR that writes to a device (see
+[ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md)).
+Everything it writes is lost for good; read the warnings on each page.
+
+<figure>
+  <img src="images/11-erase-targets.png" alt="Erase a disk: the list of disks with the ones that cannot be erased greyed out" width="960">
+  <figcaption>Erase a disk: every disk with its model, serial number and size; the ones that cannot be erased say why.</figcaption>
+</figure>
+
+1. **Choose the disk.** The system disk, the disk the executable runs
+   from, the disk that holds the sessions directory and a source open for
+   recovery are refused. Disks with mounted volumes are listed with their
+   drive letters; on Windows the volumes are locked and dismounted before
+   the first write, on Linux you unmount them first.
+2. **Choose what to erase:** the whole disk, partition table included, or
+   one partition (its table entry stays).
+3. **Choose the method.** The default, one pass of zeros, is NIST SP 800-88
+   *Clear* and is enough on any drive made this century. The other methods
+   are listed with what they are worth: *random*, *NIST* (random plus the
+   verification 800-88 asks for), the DoD 5220.22-M sequences (obsolete
+   since 2007), Schneier, VSITR and Gutmann. Choosing any method with more
+   than one pass shows a warning: the extra passes add time and wear, not
+   security, as Gutmann's own epilogue and NIST 800-88 state; read
+   [El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html)
+   (pcoronaf, 2014). They are offered because some policies still require
+   them.
+4. **Solid-state devices.** An overwrite reaches the logical blocks, not
+   the physical cells: the controller remaps writes, and over-provisioned
+   or retired cells are never touched. On an SSD or a USB stick the page
+   says so; an overwrite is a software-level clear, enough against
+   recovery software, and a real purge needs the device's own sanitize
+   command (planned for M12.4) or physical destruction.
+5. **Verification.** After the last pass PhoinixDR reads the target back
+   through its read-only recovery stack and compares it with what was
+   written: every block for targets under 1 GB, a spread sample of 4096
+   blocks otherwise, or everything if you choose *Read back everything*.
+   Random passes are verifiable too: the run's seed is recorded and the
+   data is regenerated for the comparison.
+6. **Certificate.** Optionally choose a file (`.html`, `.md` or `.json`)
+   and fill in operator, organisation, asset number and notes. The
+   certificate is a NIST SP 800-88 §4.8 record: device model, serial number
+   and capacity, target range, method and passes, times, bytes written,
+   the verification result, and every region the device refused to write
+   (those bytes are not erased, and the certificate says so).
+7. **Confirm.** Type the device's serial number (or its last six
+   characters) and press *Erase*. A five-second countdown follows during
+   which *Cancel* is the only control.
+
+<figure>
+  <img src="images/12-erase-setup.png" alt="Erase setup with the Gutmann method selected and the multi-pass warning" width="960">
+  <figcaption>Setup: what to erase, the method with its note and the multi-pass warning, the certificate fields and the serial-number confirmation.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/13-erase-progress.png" alt="Erase in progress, pass 2 of 35" width="960">
+  <figcaption>Progress: pass, bytes written, throughput and time left. Cancel stops after the current block.</figcaption>
+</figure>
+
+Cancelling leaves the target partially erased and offers to resume from
+the last block written, with the same seed, so the certificate still
+describes one complete run. A region the device refuses to write is
+retried in smaller blocks, then written off and listed in the certificate.
+A failing drive is therefore an *incompletely erased* drive: if the data
+must not leave your control, destroy it.
+
+<figure>
+  <img src="images/14-erase-done.png" alt="Erase completed with the verdict and the certificate path" width="960">
+  <figcaption>Done: the verdict, the passes and bytes written, and the certificate path.</figcaption>
+</figure>
+
+Erasing individual files and the free space of a volume, and the firmware
+sanitize commands for SSDs, are the next parts of the plan
+([M12](../erase/plan.md)). Until then, remember what the author's
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
+(pcoronaf, 2020) explains: overwriting a file by name does not reach the
+copies the system keeps, and the honest way to erase a file is to erase
+the free space of its volume afterwards.
+
 ## Sessions
 
 Every scan is saved as a session (`.phx`) in the application data

@@ -190,6 +190,39 @@ cada archivo con su salud en el momento de la recuperación, su ruta de
 salida y su SHA-256. Véase
 [informes](../../images/containers.md#case-metadata-and-reports) (en inglés).
 
+## Borrado seguro
+
+`phoinix erase` es el único comando que escribe en una fuente. Sobrescribe
+un dispositivo completo, una partición o un archivo normal (una imagen de
+disco antes de desecharla), verifica el resultado y emite un certificado de
+sanitización. Las reglas y los avisos son los de la guía de escritorio: se
+rechazan el disco del sistema, el del ejecutable y el de las sesiones, un
+volumen montado debe desmontarse antes en Linux y el comando lo desmonta en
+Windows, todo método de más de una pasada muestra el aviso que enlaza
+[El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html),
+y un objetivo de estado sólido muestra el aviso sobre memoria flash.
+
+```bash
+phoinix erase list                                   # discos, números de serie, volúmenes montados, qué se rechaza y por qué
+phoinix erase describe /dev/sdb                      # particiones, volúmenes, texto de confirmación; no escribe nada
+phoinix erase device /dev/sdb                        # una pasada de ceros, muestra de relectura, pide el número de serie
+phoinix erase device \\.\PhysicalDrive2 --method nist --certificate C:\certs\drive2.html --operator "P. Corona" --asset 1234
+phoinix erase partition /dev/sdb --partition 1 --method random --verify full
+phoinix erase file imagen-vieja.E01 --method zero    # un archivo como rango en bruto
+phoinix erase device /dev/sdb --resume               # continúa un borrado cancelado desde su punto de reanudación
+```
+
+Opciones: `--method` (`zero`, `random`, `nist`, `dod-3`, `dod-7`,
+`schneier`, `vsitr`, `gutmann`, o `custom` con `--passes N` y opcionalmente
+`--pattern HEX`), `--verify none|sample|full`, `--certificate`,
+`--operator`, `--organisation`, `--asset`, `--notes`, `--resume`,
+`--no-countdown`, `--json` (un evento por línea). En un terminal el comando
+muestra el objetivo y pide teclear el número de serie (o sus seis últimos
+caracteres; el nombre del archivo si es un archivo); sin terminal, pase
+`--i-understand-this-destroys-data <serie>`. El código de salida es 1
+cuando el borrado se canceló, falló, dejó regiones que el dispositivo se
+negó a escribir o no se verificó; el certificado lleva el detalle.
+
 ## Comandos NTFS para desarrolladores
 
 ```bash

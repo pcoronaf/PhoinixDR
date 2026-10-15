@@ -375,3 +375,143 @@ export interface AppInfo {
   /** "windows", "linux" or "macos". */
   platform?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Secure erase (M12)
+
+export type EraseTarget =
+  | { kind: "whole_device"; path: string }
+  | { kind: "partition"; path: string; index: number }
+  | { kind: "range"; path: string; offset: number; length: number }
+  | { kind: "file"; path: string };
+
+export type Refusal =
+  | { kind: "system_disk" }
+  | { kind: "executable_disk" }
+  | { kind: "sessions_disk" }
+  | { kind: "open_source" }
+  | { kind: "mounted"; mount: string }
+  | { kind: "not_confirmed"; expected: string }
+  | { kind: "no_such_partition"; index: number }
+  | { kind: "out_of_bounds" }
+  | { kind: "unsupported"; reason: string };
+
+export interface MountedVolume {
+  node: string;
+  mount: string;
+  can_dismount: boolean;
+}
+
+export interface PartitionDescription {
+  index: number;
+  offset: number;
+  length: number;
+  type_name: string;
+}
+
+export interface TargetDescription {
+  target: EraseTarget;
+  path: string;
+  disk: string | null;
+  device: DeviceInfo | null;
+  offset: number;
+  length: number;
+  sector_size: number;
+  partition: PartitionDescription | null;
+  partitions: PartitionDescription[];
+  volumes: MountedVolume[];
+  solid_state: boolean | null;
+  refusals: Refusal[];
+  confirmation: string;
+  confirmation_short: string | null;
+}
+
+export interface EraseTargetInfo {
+  device: DeviceInfo;
+  description: TargetDescription | null;
+  refusals: Refusal[];
+  error: string | null;
+}
+
+export interface EraseMethodInfo {
+  id: string;
+  label: string;
+  note: string;
+  passes: number;
+  multi_pass: boolean;
+}
+
+export interface EraseCatalogue {
+  methods: EraseMethodInfo[];
+  warning: string;
+  multi_pass_warning: string;
+  flash_warning: string;
+  article_gutmann: string;
+  article_files: string;
+}
+
+export type VerifyMode = "none" | "sample" | "full";
+
+export interface Operator {
+  name: string | null;
+  organisation: string | null;
+  asset: string | null;
+  notes: string | null;
+}
+
+/** The method as the engine expects it (`{ id }`, or custom passes). */
+export type EraseMethodSpec = { id: string } | { id: "custom"; passes: { pattern: { kind: "fixed"; byte: number } | { kind: "random" } }[] };
+
+export interface EraseRequest {
+  target: EraseTarget;
+  method: EraseMethodSpec;
+  verify: VerifyMode;
+  operator: Operator;
+  certificate: string | null;
+  confirmation: string;
+  resume: boolean;
+  state_dir: string | null;
+  allow_executable_disk: boolean;
+  allow_sessions_disk: boolean;
+}
+
+export interface VerificationRecord {
+  mode: VerifyMode;
+  blocks_checked: number;
+  blocks_mismatched: number;
+  bytes_checked: number;
+  skipped_unwritable_bytes: number;
+  first_mismatch: number | null;
+  cancelled: boolean;
+  passed: boolean;
+}
+
+export interface EraseSummary {
+  passes_completed: number;
+  passes: number;
+  bytes_written: number;
+  unwritable_bytes: number;
+  unwritable_ranges: number;
+  seconds: number;
+  verification: VerificationRecord | null;
+  certificate: string | null;
+  verdict: string;
+}
+
+export interface ResumePoint {
+  key: string;
+  method: string;
+  pass: number;
+  offset: number;
+  seed: string;
+  bytes_written: number;
+}
+
+export type EraseEvent =
+  | { kind: "started"; description: TargetDescription; method: string; passes: number; resumed_from: ResumePoint | null }
+  | { kind: "pass"; pass: number; passes: number; pattern: string }
+  | { kind: "progress"; pass: number; passes: number; done: number; total: number; bytes_per_sec: number; unwritable: number }
+  | { kind: "verifying"; done: number; total: number }
+  | { kind: "finished"; summary: EraseSummary }
+  | { kind: "cancelled"; resume: ResumePoint; summary: EraseSummary }
+  | { kind: "failed"; message: string; summary: EraseSummary };

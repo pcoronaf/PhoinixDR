@@ -238,6 +238,97 @@ recuperación.
   <figcaption>Resultados en modo avanzado: la columna Ref, el bloque de diagnóstico y las líneas de comandos del archivo seleccionado.</figcaption>
 </figure>
 
+## Borrado seguro
+
+PhoinixDR también puede hacer lo contrario de recuperar: sobrescribir un
+disco completo o una partición para que no pueda recuperarse nada,
+verificar el resultado y emitir un certificado de sanitización. Es un modo
+aparte, accesible solo desde la página de inicio, con su propio color, y es
+la única parte de PhoinixDR que escribe en un dispositivo (véase
+[ADR-0014](../../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md),
+en inglés). Todo lo que escribe se pierde para siempre; lea los avisos de
+cada página.
+
+<figure>
+  <img src="../../user-guide/images/11-erase-targets.png" alt="Borrar un disco: la lista de discos con los que no pueden borrarse atenuados" width="960">
+  <figcaption>Erase a disk (borrar un disco): cada disco con su modelo, número de serie y tamaño; los que no pueden borrarse indican por qué.</figcaption>
+</figure>
+
+1. **Elija el disco.** Se rechazan el disco del sistema, el disco desde el
+   que se ejecuta el programa, el que guarda el directorio de sesiones y
+   cualquier fuente abierta para recuperación. Los discos con volúmenes
+   montados se listan con sus letras de unidad; en Windows los volúmenes se
+   bloquean y desmontan antes de la primera escritura, en Linux debe
+   desmontarlos usted antes.
+2. **Elija qué borrar:** el disco completo, tabla de particiones incluida,
+   o una partición (su entrada en la tabla se conserva).
+3. **Elija el método.** El predeterminado, una pasada de ceros, es el
+   *Clear* de NIST SP 800-88 y basta en cualquier disco fabricado en este
+   siglo. Los demás métodos se listan con lo que valen: *random*, *NIST*
+   (aleatorio más la verificación que pide 800-88), las secuencias DoD
+   5220.22-M (obsoletas desde 2007), Schneier, VSITR y Gutmann. Elegir un
+   método de más de una pasada muestra un aviso: las pasadas adicionales
+   añaden tiempo y desgaste, no seguridad, como dicen el epílogo del propio
+   Gutmann y NIST 800-88; lea
+   [El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html)
+   (pcoronaf, 2014). Se ofrecen porque algunas políticas todavía los exigen.
+4. **Dispositivos de estado sólido.** Una sobreescritura llega a los
+   bloques lógicos, no a las celdas físicas: el controlador reasigna las
+   escrituras y las celdas de sobreaprovisionamiento o retiradas nunca se
+   tocan. En un SSD o una memoria USB la página lo advierte; una
+   sobreescritura es un borrado a nivel de software, suficiente contra el
+   software de recuperación, y un *purge* real necesita el comando de
+   sanitización del propio dispositivo (previsto en M12.4) o la
+   destrucción física.
+5. **Verificación.** Tras la última pasada PhoinixDR relee el objetivo a
+   través de su pila de recuperación de solo lectura y lo compara con lo
+   escrito: todos los bloques en objetivos de menos de 1 GB, una muestra
+   repartida de 4096 bloques en los demás, o todo si elige *Read back
+   everything*. Las pasadas aleatorias también se verifican: la semilla de
+   la ejecución queda registrada y los datos se regeneran para comparar.
+6. **Certificado.** Opcionalmente elija un archivo (`.html`, `.md` o
+   `.json`) y rellene operador, organización, número de activo y notas. El
+   certificado es un registro conforme a NIST SP 800-88 §4.8: modelo,
+   número de serie y capacidad del dispositivo, rango borrado, método y
+   pasadas, horas, bytes escritos, resultado de la verificación y cada
+   región que el dispositivo se negó a escribir (esos bytes no están
+   borrados, y el certificado lo dice).
+7. **Confirme.** Escriba el número de serie del dispositivo (o sus seis
+   últimos caracteres) y pulse *Erase*. Sigue una cuenta atrás de cinco
+   segundos durante la cual *Cancel* es el único control.
+
+<figure>
+  <img src="../../user-guide/images/12-erase-setup.png" alt="Configuración del borrado con el método Gutmann y el aviso de multipasada" width="960">
+  <figcaption>Configuración: qué borrar, el método con su nota y el aviso de multipasada, los campos del certificado y la confirmación por número de serie.</figcaption>
+</figure>
+
+<figure>
+  <img src="../../user-guide/images/13-erase-progress.png" alt="Borrado en curso, pasada 2 de 35" width="960">
+  <figcaption>Progreso: pasada, bytes escritos, velocidad y tiempo restante. Cancel se detiene tras el bloque en curso.</figcaption>
+</figure>
+
+Cancelar deja el objetivo parcialmente borrado y ofrece reanudar desde el
+último bloque escrito, con la misma semilla, de modo que el certificado
+sigue describiendo una ejecución completa. Una región que el dispositivo se
+niega a escribir se reintenta en bloques más pequeños, se da por perdida y
+se lista en el certificado. Un disco que falla es, por tanto, un disco
+*incompletamente borrado*: si los datos no deben salir de su control,
+destrúyalo.
+
+<figure>
+  <img src="../../user-guide/images/14-erase-done.png" alt="Borrado completado con el veredicto y la ruta del certificado" width="960">
+  <figcaption>Fin: el veredicto, las pasadas y los bytes escritos, y la ruta del certificado.</figcaption>
+</figure>
+
+Borrar archivos sueltos y el espacio libre de un volumen, y los comandos de
+sanitización del firmware para SSD, son las siguientes partes del plan
+([M12](../../erase/plan.md), en inglés). Mientras tanto, recuerde lo que
+explica
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
+(pcoronaf, 2020): sobrescribir un archivo por su nombre no alcanza las
+copias que guarda el sistema, y la forma honesta de borrar un archivo es
+borrar después el espacio libre de su volumen.
+
 ## Sesiones
 
 Cada escaneo se guarda como sesión (`.phx`) en el directorio de datos de

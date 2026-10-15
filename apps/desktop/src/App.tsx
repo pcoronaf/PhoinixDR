@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi, type Api } from "./api";
-import type { AppInfo, CandidateSummary, DeviceInfo, EngineLogLine, ScanCompletion, ScanEvent, ScanRequest, SessionSummary, SourceInfo } from "./types";
+import type { AppInfo, CandidateSummary, DeviceInfo, EngineLogLine, EraseCatalogue, EraseEvent, EraseRequest, EraseTargetInfo, ScanCompletion, ScanEvent, ScanRequest, SessionSummary, SourceInfo, TargetDescription } from "./types";
 import { Home } from "./components/Home";
 import { SourcePicker } from "./components/SourcePicker";
 import { ScanSetup } from "./components/ScanSetup";
 import { ScanProgress, type ProgressState } from "./components/ScanProgress";
 import { scanCommand } from "./lib/cli";
+import { EraseTargets } from "./components/EraseTargets";
+import { EraseSetup } from "./components/EraseSetup";
+import { EMPTY_ERASE, EraseProgress, type EraseState } from "./components/EraseProgress";
 import { Results } from "./components/Results";
 import { RecoverDialog } from "./components/RecoverDialog";
 import logoMark from "./assets/logo-mark.png";
@@ -15,7 +18,10 @@ type View =
   | { name: "devices"; removable: boolean }
   | { name: "setup"; source: SourceInfo }
   | { name: "scanning" }
-  | { name: "results"; session: SessionSummary };
+  | { name: "results"; session: SessionSummary }
+  | { name: "erase-targets" }
+  | { name: "erase-setup"; description: TargetDescription }
+  | { name: "erasing" };
 
 const EMPTY_PROGRESS: ProgressState = { phase: null, done: 0, total: null, candidates: 0, bytesRead: null, unreadable: null, message: null };
 
@@ -34,6 +40,14 @@ export default function App() {
   const [recovering, setRecovering] = useState<string[] | null>(null);
   const [lastSource, setLastSource] = useState<SourceInfo | null>(null);
   const [lastDevice, setLastDevice] = useState<DeviceInfo | null>(null);
+  // Secure erase (M12).
+  const [eraseCatalogue, setEraseCatalogue] = useState<EraseCatalogue | null>(null);
+  const [eraseTargets, setEraseTargets] = useState<EraseTargetInfo[]>([]);
+  const [eraseLoading, setEraseLoading] = useState(false);
+  const [eraseError, setEraseError] = useState<string | null>(null);
+  const [erase, setErase] = useState<EraseState>(EMPTY_ERASE);
+  const [eraseCancelling, setEraseCancelling] = useState(false);
+  const [lastErase, setLastErase] = useState<EraseRequest | null>(null);
   const [lastRequest, setLastRequest] = useState<ScanRequest | null>(null);
   const [engineLog, setEngineLog] = useState<EngineLogLine[]>([]);
   const logRef = useRef<EngineLogLine[]>([]);
@@ -67,6 +81,74 @@ export default function App() {
     return () => {
       if (unlisten) unlisten();
     };
+  }, [api]);
+
+  // Erase events.
+  useEffect(() => {
+    if (!api) return;
+    let unlisten: (() => void) | null = null;
+    api.onEraseEvent((e: EraseEvent) => {
+      switch (e.kind) {
+        case "started":
+          setErase((s) => ({ ...s, description: e.description, method: e.method, passes: e.passes, ended: null, summary: null, resume: null, message: null }));
+          break;
+        case "pass":
+          setErase((s) => ({ ...s, pass: e.pass, passes: e.passes, pattern: e.pattern, done: 0 }));
+          break;
+        case "progress":
+          setErase((s) => ({ ...s, pass: e.pass, passes: e.passes, done: e.done, total: e.total, bytesPerSec: e.bytes_per_sec, unwritable: e.unwritable }));
+          break;
+        case "verifying":
+          setErase((s) => ({ ...s, verifying: { done: e.done, total: e.total } }));
+          break;
+        case "finished":
+          setEraseCancelling(false);
+          setErase((s) => ({ ...s, verifying: null, summary: e.summary, ended: "finished" }));
+          break;
+        case "cancelled":
+          setEraseCancelling(false);
+          setErase((s) => ({ ...s, verifying: null, summary: e.summary, resume: e.resume, ended: "cancelled" }));
+          break;
+        case "failed":
+          setEraseCancelling(false);
+          setErase((s) => ({ ...s, verifying: null, summary: e.summary.passes > 0 ? e.summary : s.summary, message: e.message, ended: "failed" }));
+          break;
+        default:
+          break;
+      }
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [api]);
+
+  const loadEraseTargets = useCallback(async () => {
+    if (!api) return;
+    setView({ name: "erase-targets" });
+    setEraseLoading(true);
+    setEraseError(null);
+    try {
+      if (!eraseCatalogue) setEraseCatalogue(await api.eraseCatalogue());
+      setEraseTargets(await api.eraseTargets());
+    } catch (e) {
+      setEraseError(String(e));
+    }
+    setEraseLoading(false);
+  }, [api, eraseCatalogue]);
+
+  const startErase = useCallback(async (request: EraseRequest) => {
+    if (!api) return;
+    setLastErase(request);
+    setEraseCancelling(false);
+    setErase(EMPTY_ERASE);
+    setView({ name: "erasing" });
+    try {
+      await api.startErase(request);
+    } catch (e) {
+      setErase((s) => ({ ...s, message: String(e), ended: "failed" }));
+    }
   }, [api]);
 
   // Scan events.
@@ -179,8 +261,8 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <button className="brand" onClick={() => setView({ name: "home" })} disabled={view.name === "scanning"}><img src={logoMark} alt="" width="22" height="22" /> PhoinixDR</button>
-        <span className="crumb">{view.name === "home" ? "" : view.name === "devices" ? "Choose a source" : view.name === "setup" ? "Scan" : view.name === "scanning" ? "Scanning" : "Results"}</span>
+        <button className="brand" onClick={() => setView({ name: "home" })} disabled={view.name === "scanning" || view.name === "erasing"}><img src={logoMark} alt="" width="22" height="22" /> PhoinixDR</button>
+        <span className="crumb">{view.name === "home" ? "" : view.name === "devices" ? "Choose a source" : view.name === "setup" ? "Scan" : view.name === "scanning" ? "Scanning" : view.name === "results" ? "Results" : view.name === "erasing" ? "Erasing" : "Erase"}</span>
         <span className="spacer" />
         {api.isDemo && <span className="tag">browser demo</span>}
         <span className="byline muted">{info ? `v${info.version} · by ${info.author ?? "@pcoronaf"}` : "by @pcoronaf"}</span>
@@ -202,11 +284,42 @@ export default function App() {
                 inspect(p);
               }
             }}
+            onErase={loadEraseTargets}
             onOpenSession={openSession}
             onBrowseSession={async () => {
               const p = await api.pickSessionFile();
               if (p) openSession({ ...sessions[0]!, file: p } as SessionSummary);
             }}
+          />
+        )}
+        {view.name === "erase-targets" && eraseCatalogue !== null && (
+          <EraseTargets
+            catalogue={eraseCatalogue}
+            targets={eraseTargets}
+            loading={eraseLoading}
+            error={eraseError}
+            onChoose={(t) => {
+              if (t.description) setView({ name: "erase-setup", description: t.description });
+            }}
+            onBack={() => setView({ name: "home" })}
+            onRefresh={loadEraseTargets}
+          />
+        )}
+        {view.name === "erase-setup" && eraseCatalogue !== null && (
+          <EraseSetup api={api} catalogue={eraseCatalogue} initial={view.description} onStart={startErase} onBack={loadEraseTargets} />
+        )}
+        {view.name === "erasing" && (
+          <EraseProgress
+            state={erase}
+            cancelling={eraseCancelling}
+            onCancel={async () => {
+              setEraseCancelling(true);
+              await api.cancelErase();
+            }}
+            onResume={() => {
+              if (lastErase) startErase({ ...lastErase, resume: true });
+            }}
+            onDone={() => setView({ name: "home" })}
           />
         )}
         {view.name === "devices" && (

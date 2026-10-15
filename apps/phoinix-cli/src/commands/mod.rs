@@ -1,6 +1,7 @@
 //! CLI subcommands.
 
 pub mod devices;
+pub mod erase;
 pub mod explain;
 pub mod inspect;
 pub mod ntfs;

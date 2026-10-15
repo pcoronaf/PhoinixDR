@@ -169,3 +169,17 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .cli .lvl-info .lvl { color: var(--accent); }
 .cli .lvl-warn .lvl { color: var(--warn, #b26a00); font-weight: 600; }
 .cli .lvl-error .lvl { color: var(--bad); font-weight: 600; }
+
+/* secure erase: visibly apart from recovery */
+.erase-section { margin-top: 20px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.erase-choice { border-color: var(--bad); }
+.erase-choice strong { color: var(--bad); }
+.erase h2 { color: var(--bad); }
+.erase .card.erase-ok { border-color: var(--bad); }
+.erase fieldset { margin-top: 12px; }
+.erase select { max-width: 100%; }
+.erase .confirm { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 15px; margin-top: 6px; }
+.erase .actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+button.erase-button { background: var(--bad); border-color: var(--bad); }
+.erase .warn.ok { background: var(--focus); }
+.danger p { margin: 4px 0; }

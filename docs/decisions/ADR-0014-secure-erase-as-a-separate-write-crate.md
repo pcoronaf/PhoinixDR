@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (M12).
+Accepted (M12.1).
 
 ## Context
 
@@ -45,6 +45,12 @@ code path as recovery would also blur the two in the interface.
    chooses a multi-pass method.
 
 ## Consequences
+
+- `phoinix-session`, the service layer, composes `phoinix-erase` for the
+  front-ends (target listing with the guards applied, the background
+  job, the guards themselves); `phoinix-erase` does not depend on the
+  session layer, so the verification scans of M12.2 are run by the
+  session layer after the erase.
 
 - The "nothing is written to the source" claim stays true for every
   recovery operation and is restated as "the recovery engine never

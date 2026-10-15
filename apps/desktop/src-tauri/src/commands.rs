@@ -18,7 +18,7 @@ use phoinix_session::dto::{
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::state::{ActiveScan, AppState};
+use crate::state::{ActiveErase, ActiveScan, AppState};
 
 /// What `scan-complete` carries.
 #[derive(Debug, Clone, Serialize)]
@@ -338,4 +338,162 @@ pub async fn find_partitions(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// Secure erase (M12). Events arrive as `erase-event` (`EraseEvent`).
+
+/// One erase method for the method picker.
+#[derive(Debug, Clone, Serialize)]
+pub struct EraseMethodInfo {
+    /// Identifier.
+    pub id: String,
+    /// Name.
+    pub label: String,
+    /// Guidance.
+    pub note: String,
+    /// Number of passes.
+    pub passes: usize,
+    /// Whether the multi-pass warning applies.
+    pub multi_pass: bool,
+}
+
+/// Everything the erase pages need to show before a target is chosen.
+#[derive(Debug, Clone, Serialize)]
+pub struct EraseCatalogue {
+    /// Methods in display order.
+    pub methods: Vec<EraseMethodInfo>,
+    /// The irreversibility warning.
+    pub warning: String,
+    /// The multi-pass warning.
+    pub multi_pass_warning: String,
+    /// The solid-state warning.
+    pub flash_warning: String,
+    /// Article on the Gutmann myth.
+    pub article_gutmann: String,
+    /// Article on secure deletion of files.
+    pub article_files: String,
+}
+
+/// The method catalogue and warning texts.
+#[tauri::command]
+pub fn erase_catalogue() -> EraseCatalogue {
+    EraseCatalogue {
+        methods: phoinix_erase::EraseMethod::builtin()
+            .iter()
+            .map(|m| EraseMethodInfo {
+                id: m.id(),
+                label: m.label(),
+                note: m.note().to_owned(),
+                passes: m.pass_count(),
+                multi_pass: m.multi_pass(),
+            })
+            .collect(),
+        warning: phoinix_erase::ERASE_WARNING.to_owned(),
+        multi_pass_warning: phoinix_erase::MULTI_PASS_WARNING.to_owned(),
+        flash_warning: phoinix_erase::FLASH_WARNING.to_owned(),
+        article_gutmann: phoinix_erase::ARTICLE_GUTMANN_MYTH.to_owned(),
+        article_files: phoinix_erase::ARTICLE_SECURE_DELETION.to_owned(),
+    }
+}
+
+/// Disks as erase targets, with the refusal rules applied.
+#[tauri::command]
+pub fn erase_targets(
+    state: State<'_, AppState>,
+) -> Result<Vec<phoinix_session::EraseTargetInfo>, String> {
+    state.workspace.erase_targets().map_err(String::from)
+}
+
+/// Describes one target (device, partition or file) with the guards applied.
+#[tauri::command]
+pub fn describe_erase_target(
+    state: State<'_, AppState>,
+    target: phoinix_erase::EraseTarget,
+) -> Result<phoinix_erase::TargetDescription, String> {
+    state
+        .workspace
+        .describe_erase_target(&target)
+        .map_err(String::from)
+}
+
+/// Starts an erase; events arrive as `erase-event`.
+#[tauri::command]
+pub fn start_erase(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request: phoinix_erase::EraseRequest,
+) -> Result<(), String> {
+    let mut slot = state.erase();
+    if slot.is_some() {
+        return Err("an erase is already running".into());
+    }
+    if state.scan_running() {
+        return Err("a scan is running; wait for it to finish".into());
+    }
+    let mut request = request;
+    if request.state_dir.is_none() {
+        request.state_dir = Some(state.workspace.sessions_dir().to_path_buf());
+    }
+    let handle = state.workspace.start_erase(request);
+    let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    *slot = Some(ActiveErase {
+        cancel: cancel.clone(),
+    });
+    drop(slot);
+    let forwarder = app.clone();
+    std::thread::Builder::new()
+        .name("phoinix-erase-events".into())
+        .spawn(move || {
+            let mut cancelled_by_user = false;
+            loop {
+                if cancel.load(Ordering::Relaxed) && !cancelled_by_user {
+                    handle.cancel();
+                    cancelled_by_user = true;
+                }
+                match handle
+                    .events
+                    .recv_timeout(std::time::Duration::from_millis(200))
+                {
+                    Ok(event) => {
+                        let _ = forwarder.emit("erase-event", &event);
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+            }
+            if let Err(e) = handle.wait() {
+                // Refusals and open failures happen before any event.
+                let _ = forwarder.emit(
+                    "erase-event",
+                    &phoinix_erase::EraseEvent::Failed {
+                        message: e.to_string(),
+                        summary: phoinix_erase::EraseSummary::default(),
+                    },
+                );
+            }
+            if let Some(state) = forwarder.try_state::<AppState>() {
+                *state.erase() = None;
+            }
+        })
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Requests cancellation of the running erase.
+#[tauri::command]
+pub fn cancel_erase(state: State<'_, AppState>) -> bool {
+    match state.erase().as_ref() {
+        Some(active) => {
+            active.cancel.store(true, Ordering::Relaxed);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Whether an erase is running.
+#[tauri::command]
+pub fn erase_running(state: State<'_, AppState>) -> bool {
+    state.erase().is_some()
 }

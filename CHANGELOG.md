@@ -6,8 +6,21 @@ GitHub Releases.
 
 ## Unreleased
 
-- Documentation: plan for M12 (secure erase) and ADR-0014, which keeps the
-  recovery stack read-only and puts all writing in a separate crate.
+- M12.1 Secure erase: a new crate, `phoinix-erase`, the only one that
+  writes to a medium (ADR-0014). Erases a whole device, one partition or a
+  regular file with zeros, random data, NIST 800-88 Clear, DoD 5220.22-M
+  (3 and 7), Schneier, VSITR, Gutmann or a custom sequence; verifies by
+  reading the target back through the read-only stack (random passes
+  regenerated from the run's seed); writes a NIST 800-88 §4.8 sanitization
+  certificate in HTML, Markdown or JSON; tolerates unwritable regions and
+  lists them as not erased; can be cancelled and resumed. Refuses the
+  system disk, the executable's disk, the sessions disk and sources open
+  for recovery; Windows volumes are locked and dismounted, Linux volumes
+  must be unmounted. Every multi-pass method shows a warning linking the
+  author's article on the Gutmann myth; solid-state targets show the flash
+  warning. Desktop: an Erase section on the home page with its own pages;
+  command line: `phoinix erase list|describe|device|partition|file`.
+- Documentation: the M12 plan, ADR-0014, guides, FAQ, in English and Spanish.
 
 ## 0.1.4
 
