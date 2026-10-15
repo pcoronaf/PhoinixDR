@@ -72,6 +72,10 @@ export interface Api {
   cancelErase(): Promise<boolean>;
   onEraseEvent(cb: (e: EraseEvent) => void): Promise<Unlisten>;
   pickCertificateFile(): Promise<string | null>;
+  /** Files to erase (several). */
+  pickEraseFiles(): Promise<string[]>;
+  /** A folder to erase. */
+  pickEraseFolder(): Promise<string | null>;
 }
 
 function inTauri(): boolean {
@@ -147,6 +151,14 @@ async function tauriApi(): Promise<Api> {
     startErase: (request) => invoke<void>("start_erase", { request }),
     cancelErase: () => invoke<boolean>("cancel_erase"),
     onEraseEvent: on<EraseEvent>("erase-event"),
+    pickEraseFiles: async () => {
+      const r = await dialog.open({ multiple: true, directory: false, title: "Choose the files to erase" });
+      return Array.isArray(r) ? r : typeof r === "string" ? [r] : [];
+    },
+    pickEraseFolder: async () => {
+      const r = await dialog.open({ multiple: false, directory: true, title: "Choose the folder to erase" });
+      return typeof r === "string" ? r : null;
+    },
     pickCertificateFile: async () => {
       const r = await dialog.save({
         title: "Save the sanitization certificate",
@@ -286,6 +298,11 @@ function demoApi(): Api {
       return () => eraseListeners.delete(cb);
     },
     pickCertificateFile: async () => window.prompt("Certificate file", "D:\\certificates\\stick.html"),
+    pickEraseFiles: async () => {
+      const p = window.prompt("Files to erase (separate with ;)", "D:\\cases\\2024-031\\draft.docx;D:\\cases\\2024-031\\scan.pdf");
+      return p ? p.split(";").map((x) => x.trim()).filter((x) => x.length > 0) : [];
+    },
+    pickEraseFolder: async () => window.prompt("Folder to erase", "D:\\cases\\2024-031"),
   };
 }
 

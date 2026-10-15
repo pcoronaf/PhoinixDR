@@ -144,6 +144,16 @@ export default function App() {
     setEraseLoading(false);
   }, [api, eraseCatalogue]);
 
+  const chooseEraseFiles = useCallback(async (paths: string[]) => {
+    if (!api) return;
+    try {
+      const description = await api.describeEraseTarget({ kind: "files", paths });
+      setView({ name: "erase-setup", description });
+    } catch (e) {
+      setEraseError(String(e));
+    }
+  }, [api]);
+
   const chooseEraseVolume = useCallback(async (v: MountedVolumeInfo) => {
     if (!api) return;
     try {
@@ -321,6 +331,7 @@ export default function App() {
               if (t.description) setView({ name: "erase-setup", description: t.description });
             }}
             onChooseVolume={chooseEraseVolume}
+            onChooseFiles={chooseEraseFiles}
             onBack={() => setView({ name: "home" })}
             onRefresh={loadEraseTargets}
           />

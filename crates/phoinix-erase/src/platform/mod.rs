@@ -77,6 +77,19 @@ pub fn free_space(path: &Path) -> std::io::Result<(u64, u64)> {
     imp::free_space(path)
 }
 
+/// Named (alternate) data streams of a file, where the filesystem has
+/// them (NTFS on Windows); empty elsewhere.
+#[must_use]
+pub fn file_streams(path: &Path) -> Vec<crate::files::StreamEntry> {
+    imp::file_streams(path)
+}
+
+/// Allocation unit (cluster or block size) of the volume holding `path`.
+#[must_use]
+pub fn allocation_unit(path: &Path) -> Option<u64> {
+    imp::allocation_unit(path)
+}
+
 /// The whole-disk device path that `path` (a file or directory) lives on.
 #[must_use]
 pub fn disk_of_path(path: &Path) -> Option<String> {

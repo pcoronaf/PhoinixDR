@@ -172,6 +172,21 @@ registros MFT de NTFS, copias en el diario, instantáneas, celdas
 reasignadas de la memoria flash) se indica en la página y en el
 certificado.
 
+### ¿Puede PhoinixDR borrar archivos sueltos?
+
+Sí, desde M12.3, y le dice lo que eso vale. Los archivos que elija (o
+todos los de una carpeta) se sobrescriben a través del sistema de archivos
+con el método que escoja, flujos con nombre y slack incluidos, se releen,
+se truncan, se renombran y se eliminan. Pero sobrescribir un archivo por
+su nombre, como explica
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html),
+no alcanza las copias que guarda el sistema: versiones del diario,
+instantáneas, archivos temporales, el archivo de paginación, copias de
+seguridad, los bytes residentes antiguos de un registro NTFS, celdas
+reasignadas de la memoria flash. La página y el certificado lo dicen, y la
+secuencia honesta es borrar los archivos y después el espacio libre de su
+volumen.
+
 ### ¿Puede PhoinixDR borrar de forma segura un SSD?
 
 Solo a nivel de software. Una sobreescritura llega a los bloques lógicos

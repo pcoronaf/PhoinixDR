@@ -385,7 +385,36 @@ export type EraseTarget =
   | { kind: "range"; path: string; offset: number; length: number }
   | { kind: "file"; path: string }
   | { kind: "free_space"; path: string; partition: number | null; slack: boolean }
-  | { kind: "mounted_free_space"; mount: string; reserve: number };
+  | { kind: "mounted_free_space"; mount: string; reserve: number }
+  | { kind: "files"; paths: string[] };
+
+export interface StreamEntry {
+  name: string;
+  size: number;
+}
+
+export interface FileEntry {
+  path: string;
+  size: number;
+  streams: StreamEntry[];
+  read_only: boolean;
+}
+
+export interface FileFailure {
+  path: string;
+  error: string;
+}
+
+/** The files and folders of a files target. */
+export interface FilesDescription {
+  entries: FileEntry[];
+  directories: string[];
+  total_bytes: number;
+  stream_count: number;
+  allocation_unit: number;
+  skipped: string[];
+  renamed: string[];
+}
 
 export interface ByteRange {
   offset: number;
@@ -465,6 +494,7 @@ export interface TargetDescription {
   ranges: ByteRange[];
   space: SpaceDescription | null;
   warnings: string[];
+  files: FilesDescription | null;
 }
 
 export interface EraseTargetInfo {
@@ -491,6 +521,7 @@ export interface EraseCatalogue {
   article_files: string;
   free_space_note: string;
   mounted_note: string;
+  files_note: string;
 }
 
 export type VerifyMode = "none" | "sample" | "full";
@@ -556,6 +587,8 @@ export interface EraseSummary {
   seconds: number;
   verification: VerificationRecord | null;
   scan: ScanRecord | null;
+  files_erased: number;
+  files_failed: FileFailure[];
   certificate: string | null;
   verdict: string;
 }

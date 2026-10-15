@@ -1,6 +1,6 @@
 # M12: Secure erase
 
-Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 delivered (free space of NTFS/FAT/exFAT/ext volumes from the engines' allocation maps, file slack, the filesystem-level wipe of a mounted volume, post-erase quick and deep scans in the certificate). M12.3 and M12.4 planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
+Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 delivered (free space of NTFS/FAT/exFAT/ext volumes from the engines' allocation maps, file slack, the filesystem-level wipe of a mounted volume, post-erase quick and deep scans in the certificate). M12.3 delivered (files and folders through the filesystem: named streams, slack padding, read-back, truncate, rename, delete; the post-erase scan counts the erased names). M12.4 planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
 
 PhoinixDR gains an erase mode: overwrite a whole device, a partition, the
 free space of a volume, or individual files and folders, with a chosen
@@ -164,10 +164,15 @@ IOCTLs go through the `windows-sys` crate like the readers do.
    hook and summarised in the certificate. Raw targets are written as
    lists of ranges with read-modify-write of partial sectors, so slack
    can be erased on devices that need aligned writes.
-3. **M12.3 Files and folders.** File overwrite with the stated limits and
-   the "follow with a free-space wipe" recommendation; NTFS alternate
-   streams; resident-data handling (the record itself is rewritten only
-   through the filesystem API, never by raw MFT writes).
+3. **M12.3 Files and folders** (delivered). File overwrite through the
+   filesystem with the stated limits and the "follow with a free-space
+   wipe" recommendation; NTFS alternate streams (enumerated with the
+   stream API and overwritten by name); slack through padding to the
+   allocation unit; resident data rewritten in place through the
+   filesystem API (the record itself is never written raw), then
+   truncate, random rename and delete; folders removed deepest first;
+   read-back before deletion; symbolic links skipped and the running
+   executable refused.
 4. **M12.4 Firmware sanitize.** ATA/NVMe commands on both platforms,
    frozen-state detection with the usual workaround advice, and the
    solid-state default switched to this method.

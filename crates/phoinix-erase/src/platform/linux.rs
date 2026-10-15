@@ -161,6 +161,23 @@ fn label_of(node: &str) -> Option<String> {
     None
 }
 
+pub fn file_streams(_path: &Path) -> Vec<crate::files::StreamEntry> {
+    Vec::new()
+}
+
+pub fn allocation_unit(path: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: as in `free_space`: a valid NUL-terminated path and a live
+    // `statvfs` the kernel fills in.
+    let rc = unsafe { libc::statvfs(c.as_ptr(), &raw mut st) };
+    if rc != 0 {
+        return None;
+    }
+    Some(st.f_bsize.max(st.f_frsize).max(1))
+}
+
 pub fn mounted_volumes() -> Vec<MountedVolumeInfo> {
     let system = system_disk();
     let mut out = Vec::new();

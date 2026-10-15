@@ -176,6 +176,12 @@ pub struct EraseSummary {
     /// The post-erase scan, if run.
     #[serde(default)]
     pub scan: Option<ScanRecord>,
+    /// Files overwritten and deleted (files targets).
+    #[serde(default)]
+    pub files_erased: u64,
+    /// Files that could not be erased, with the error (files targets).
+    #[serde(default)]
+    pub files_failed: Vec<crate::files::FileFailure>,
     /// Certificate written, if requested.
     pub certificate: Option<PathBuf>,
     /// Verdict text.
@@ -376,11 +382,31 @@ pub fn run_erase_with(
         seconds: started.elapsed().as_secs(),
         verification,
         scan,
+        files_erased: certificate.files_erased.len() as u64,
+        files_failed: certificate.files_failed.clone(),
         certificate: request.certificate.clone(),
         verdict: certificate.verdict(),
     };
 
-    if let Some(reserve) = mounted_reserve {
+    // The description the post-erase scan sees (files targets add the
+    // random names the files were given).
+    let mut scan_desc = desc.clone();
+    if let (EraseTarget::Files { .. }, Some(files)) = (&desc.target, desc.files.as_ref()) {
+        // Files: overwrite through the filesystem, no resume, own read-back.
+        let done = crate::files::run(&desc, files, &passes, &seed, request.verify, sink, cancel);
+        bytes_written = done.bytes_written;
+        passes_completed = done.passes_completed;
+        verification = done.verification;
+        outcome = done.result;
+        certificate.files_erased = done.erased;
+        certificate.files_failed = done.failed;
+        if let Some(f) = scan_desc.files.as_mut() {
+            f.renamed = done.renamed.clone();
+        }
+        if let Some(f) = certificate.target.files.as_mut() {
+            f.renamed = done.renamed;
+        }
+    } else if let Some(reserve) = mounted_reserve {
         // Filesystem-level fill: its own loop, no resume, own read-back.
         let fill =
             crate::mounted::run(&desc, &passes, &seed, reserve, request.verify, sink, cancel);
@@ -501,7 +527,7 @@ pub fn run_erase_with(
     certificate.bytes_written = bytes_written;
     certificate.unwritable = unwritable.clone();
 
-    if outcome.is_ok() && mounted_reserve.is_none() {
+    if outcome.is_ok() && !desc.target.is_mounted() {
         let mode = if request.method.implies_verification() && request.verify == VerifyMode::None {
             VerifyMode::Sample
         } else {
@@ -546,7 +572,7 @@ pub fn run_erase_with(
                         candidates: p.candidates,
                     });
                 };
-                s.scan(&desc, request.post_scan, &mut progress, cancel)
+                s.scan(&scan_desc, request.post_scan, &mut progress, cancel)
             }
             None => ScanRecord::not_run(
                 request.post_scan,

@@ -23,6 +23,7 @@
 pub mod certificate;
 pub mod engine;
 mod error;
+pub mod files;
 pub mod method;
 pub mod mounted;
 pub mod pattern;
@@ -39,6 +40,7 @@ pub use engine::{
     run_erase_with_guards,
 };
 pub use error::{EraseError, Refusal};
+pub use files::{FileEntry, FileFailure, FilesDescription, StreamEntry};
 pub use method::{EraseMethod, Pass, PassPattern, VerifyMode};
 pub use platform::MountedVolumeInfo;
 pub use scan::{PostScan, PostScanner, ScanProgress, ScanRecord};
@@ -71,6 +73,10 @@ pub const FREE_SPACE_NOTE: &str = "A free-space wipe overwrites every cluster th
 
 /// Statement shown with a mounted (filesystem-level) free-space target.
 pub const MOUNTED_NOTE: &str = "Writing through the filesystem fills the space the volume reports as free; the filesystem keeps some clusters back, and small deleted files kept inside NTFS MFT records or ext inodes, journal copies, shadow copies, previous versions and remapped flash cells are not reached. The volume stays in use while it fills; it is full for a moment, then the fill files are removed.";
+
+/// Statement shown with a files target: what overwriting a file by name
+/// reaches and what it cannot.
+pub const FILES_NOTE: &str = "Erasing files overwrites their current content through the filesystem (every named stream on NTFS, and the slack up to the end of the last cluster), then truncates, renames and deletes them. It cannot reach the copies the system keeps elsewhere: earlier versions in the journal, volume shadow copies and previous versions, temporary files, the swap or page file, backups and cloud copies, the old resident bytes an NTFS record may keep until it is reused, nor the physical cells a solid-state drive has remapped. The deleted name may survive in directory metadata. Follow with a free-space wipe of the volume to cover what the filesystem left behind.";
 
 /// Statement shown when the target is solid-state.
 pub const FLASH_WARNING: &str = "This is a solid-state device. Overwriting reaches the logical blocks, not the physical cells: the controller remaps writes, and over-provisioned or retired cells are never touched. An overwrite is a software-level clear (NIST 800-88 Clear); a purge needs the device's own sanitize command (ATA Secure Erase, NVMe Sanitize) or physical destruction.";

@@ -3,7 +3,7 @@
 //! then deleted. Needs no raw device access and leaves the volume in use.
 
 use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -15,7 +15,7 @@ use crate::method::{Pass, VerifyMode};
 use crate::pattern::{CHUNK_BYTES, Seed, fill_chunk};
 use crate::platform;
 use crate::target::TargetDescription;
-use crate::verify::{FULL_UP_TO, SAMPLE_BLOCK, SAMPLE_BLOCKS};
+use crate::verify::{ReadBackPaths, read_back_paths};
 
 /// Largest fill file (keeps every filesystem's file-size limit at bay).
 pub const FILE_BYTES: u64 = 1024 * 1024 * 1024;
@@ -253,13 +253,19 @@ pub fn run(
         && let Some(last) = passes.last()
     {
         let mut progress = |done, total| sink(EraseEvent::Verifying { done, total });
-        out.verification = Some(read_back_files(
-            &dir,
-            &sizes,
-            &last.pattern,
-            seed,
-            passes.len() - 1,
-            verify,
+        let items: Vec<(PathBuf, u64)> = sizes
+            .iter()
+            .enumerate()
+            .map(|(i, size)| (dir.join(format!("wipe-{i:04}.bin")), *size))
+            .collect();
+        out.verification = Some(read_back_paths(
+            &ReadBackPaths {
+                items: &items,
+                last: &last.pattern,
+                seed,
+                pass_index: passes.len() - 1,
+                mode: verify,
+            },
             &mut progress,
             cancel,
         ));
@@ -291,95 +297,4 @@ fn write_all_counting(file: &mut File, piece: &[u8]) -> io::Result<u64> {
         }
     }
     Ok(done as u64)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn read_back_files(
-    dir: &Path,
-    sizes: &[u64],
-    last: &crate::method::PassPattern,
-    seed: &Seed,
-    pass_index: usize,
-    mode: VerifyMode,
-    progress: &mut dyn FnMut(u64, u64),
-    cancel: &AtomicBool,
-) -> VerificationRecord {
-    let mut record = VerificationRecord {
-        mode,
-        ..Default::default()
-    };
-    let total: u64 = sizes.iter().sum();
-    if mode == VerifyMode::None || total == 0 {
-        return record;
-    }
-    let full = mode == VerifyMode::Full || total <= FULL_UP_TO;
-    let block = SAMPLE_BLOCK as u64;
-    let blocks_total = total.div_ceil(block);
-    let samples = if full {
-        blocks_total
-    } else {
-        blocks_total.min(SAMPLE_BLOCKS)
-    };
-    let mut expected = vec![0u8; CHUNK_BYTES];
-    let mut expected_chunk: Option<u64> = None;
-    let mut buf = vec![0u8; SAMPLE_BLOCK];
-    let mut open: Option<(usize, File)> = None;
-    for i in 0..samples {
-        if cancel.load(Ordering::Relaxed) {
-            record.cancelled = true;
-            break;
-        }
-        let index = if samples == blocks_total {
-            i
-        } else {
-            i * blocks_total / samples
-        };
-        let rel = index * block;
-        let want = usize::try_from((total - rel).min(block)).unwrap_or(SAMPLE_BLOCK);
-        // Locate the file holding `rel`.
-        let mut start = 0u64;
-        let mut which = 0usize;
-        for (fi, size) in sizes.iter().enumerate() {
-            if rel < start + size {
-                which = fi;
-                break;
-            }
-            start += size;
-        }
-        let in_file = rel - start;
-        let want = want
-            .min(usize::try_from(sizes.get(which).copied().unwrap_or(0) - in_file).unwrap_or(0));
-        if want == 0 {
-            continue;
-        }
-        if open.as_ref().is_none_or(|(fi, _)| *fi != which) {
-            let path = dir.join(format!("wipe-{which:04}.bin"));
-            open = File::open(&path).ok().map(|f| (which, f));
-        }
-        let chunk = rel / CHUNK_BYTES as u64;
-        if expected_chunk != Some(chunk) {
-            fill_chunk(last, seed, pass_index, chunk, &mut expected);
-            expected_chunk = Some(chunk);
-        }
-        let within = usize::try_from(rel % CHUNK_BYTES as u64).unwrap_or(0);
-        let slot = buf.get_mut(..want).unwrap_or(&mut []);
-        let ok = open.as_mut().is_some_and(|(_, f)| {
-            f.seek(SeekFrom::Start(in_file)).is_ok() && f.read_exact(slot).is_ok()
-        });
-        record.blocks_checked += 1;
-        record.bytes_checked += want as u64;
-        let matches = ok && expected.get(within..within + want) == Some(&*slot);
-        if !matches {
-            record.blocks_mismatched += 1;
-            if record.first_mismatch.is_none() {
-                record.first_mismatch = Some(rel);
-            }
-        }
-        if i % 64 == 0 {
-            progress(i, samples);
-        }
-    }
-    progress(samples, samples);
-    record.passed = !record.cancelled && record.blocks_mismatched == 0 && record.blocks_checked > 0;
-    record
 }

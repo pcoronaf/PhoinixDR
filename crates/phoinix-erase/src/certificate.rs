@@ -125,6 +125,12 @@ pub struct Certificate {
     /// The post-erase scan, once done.
     #[serde(default)]
     pub scan: Option<ScanRecord>,
+    /// Files overwritten and deleted (files targets).
+    #[serde(default)]
+    pub files_erased: Vec<String>,
+    /// Files that could not be erased (files targets).
+    #[serde(default)]
+    pub files_failed: Vec<crate::files::FileFailure>,
     /// The disclaimer.
     pub disclaimer: String,
     /// The erase warning.
@@ -166,6 +172,8 @@ impl Certificate {
             operator,
             verification: None,
             scan: None,
+            files_erased: Vec::new(),
+            files_failed: Vec::new(),
             disclaimer: phoinix_core::DISCLAIMER.to_owned(),
             warning: crate::ERASE_WARNING.to_owned(),
         }
@@ -218,6 +226,15 @@ impl Certificate {
                 if let Some(s) = &self.scan {
                     v.push_str("; ");
                     v.push_str(&s.summary());
+                }
+                if self.target.files.is_some() {
+                    v.push_str(&format!("; {} file(s) erased", self.files_erased.len()));
+                    if !self.files_failed.is_empty() {
+                        v.push_str(&format!(
+                            "; {} item(s) could NOT be erased",
+                            self.files_failed.len()
+                        ));
+                    }
                 }
                 v
             }
@@ -282,6 +299,19 @@ impl Certificate {
                 },
             ));
         }
+        if let Some(f) = &t.files {
+            rows.push((
+                "Files",
+                format!(
+                    "{} file(s), {} named stream(s), {} of content; {} folder(s); allocation unit {}",
+                    f.entries.len(),
+                    f.stream_count,
+                    bytes_si(f.total_bytes),
+                    f.directories.len(),
+                    bytes_si(f.allocation_unit)
+                ),
+            ));
+        }
         if let Some(sp) = &t.space {
             if let Some(m) = &sp.mount {
                 rows.push(("Mounted at", m.clone()));
@@ -297,7 +327,9 @@ impl Certificate {
                         .unwrap_or_default()
                 ),
             ));
-            if sp.mount.is_some() {
+            if t.files.is_some() {
+                // The volume row above is enough for a files target.
+            } else if sp.mount.is_some() {
                 rows.push((
                     "Free space",
                     format!(
@@ -402,6 +434,18 @@ impl Certificate {
                 out.push_str(&format!("- offset {} · {}\n", r.offset, bytes_si(r.length)));
             }
         }
+        if !self.files_erased.is_empty() {
+            out.push_str("\n## Files erased\n\n");
+            for p in &self.files_erased {
+                out.push_str(&format!("- {p}\n"));
+            }
+        }
+        if !self.files_failed.is_empty() {
+            out.push_str("\n## Items NOT erased\n\n");
+            for f in &self.files_failed {
+                out.push_str(&format!("- {}: {}\n", f.path, f.error));
+            }
+        }
         for w in &self.target.warnings {
             out.push_str(&format!("\n*{w}*\n"));
         }
@@ -424,6 +468,7 @@ impl Certificate {
                         .as_ref()
                         .is_none_or(|r| r.passed || r.mode == VerifyMode::None)
                     && self.scan.as_ref().is_none_or(|s| !s.ran || s.passed)
+                    && self.files_failed.is_empty()
                 {
                     " class=\"good\""
                 } else {
@@ -445,6 +490,20 @@ impl Certificate {
                     r.offset,
                     esc(&bytes_si(r.length))
                 ));
+            }
+            out.push_str("</ul>\n");
+        }
+        if !self.files_erased.is_empty() {
+            out.push_str("<h2>Files erased</h2>\n<ul>\n");
+            for p in &self.files_erased {
+                out.push_str(&format!("<li>{}</li>\n", esc(p)));
+            }
+            out.push_str("</ul>\n");
+        }
+        if !self.files_failed.is_empty() {
+            out.push_str("<h2 class=\"bad\">Items NOT erased</h2>\n<ul>\n");
+            for f in &self.files_failed {
+                out.push_str(&format!("<li>{}: {}</li>\n", esc(&f.path), esc(&f.error)));
             }
             out.push_str("</ul>\n");
         }

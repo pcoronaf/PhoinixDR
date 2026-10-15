@@ -17,9 +17,10 @@ use std::ptr;
 use phoinix_core::bytes::ByteView;
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::Storage::FileSystem::{
-    FILE_SHARE_READ, FILE_SHARE_WRITE, FindFirstVolumeW, FindNextVolumeW, FindVolumeClose,
-    GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
-    GetVolumePathNameW, GetVolumePathNamesForVolumeNameW, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+    FILE_SHARE_READ, FILE_SHARE_WRITE, FindClose, FindFirstStreamW, FindFirstVolumeW,
+    FindNextStreamW, FindNextVolumeW, FindStreamInfoStandard, FindVolumeClose, GetDiskFreeSpaceExW,
+    GetDiskFreeSpaceW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, GetVolumePathNameW,
+    GetVolumePathNamesForVolumeNameW, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, WIN32_FIND_STREAM_DATA,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Ioctl::{
@@ -305,6 +306,68 @@ pub fn mounted_volumes() -> Vec<MountedVolumeInfo> {
         });
     }
     out
+}
+
+/// Named streams of a file (`:name:$DATA`), the unnamed one left out.
+pub fn file_streams(path: &Path) -> Vec<crate::files::StreamEntry> {
+    let name = wide(&path.to_string_lossy());
+    let mut data = WIN32_FIND_STREAM_DATA::default();
+    // SAFETY: `name` is NUL-terminated and `data` is a live, correctly
+    // typed buffer for the standard info level; the handle is closed below.
+    let handle = unsafe {
+        FindFirstStreamW(
+            name.as_ptr(),
+            FindStreamInfoStandard,
+            (&raw mut data).cast(),
+            0,
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    loop {
+        let stream = from_wide(&data.cStreamName);
+        // `::$DATA` is the unnamed stream; `:name:$DATA` a named one.
+        if let Some(rest) = stream.strip_prefix(':')
+            && let Some((n, kind)) = rest.rsplit_once(':')
+            && !n.is_empty()
+            && kind.eq_ignore_ascii_case("$DATA")
+        {
+            out.push(crate::files::StreamEntry {
+                name: n.to_owned(),
+                size: u64::try_from(data.StreamSize).unwrap_or(0),
+            });
+        }
+        // SAFETY: `handle` came from `FindFirstStreamW`; `data` is live.
+        let ok = unsafe { FindNextStreamW(handle, (&raw mut data).cast()) };
+        if ok == 0 {
+            break;
+        }
+    }
+    // SAFETY: closing the search handle obtained above exactly once.
+    unsafe { FindClose(handle) };
+    out
+}
+
+pub fn allocation_unit(path: &Path) -> Option<u64> {
+    let name = wide(&path.to_string_lossy());
+    let mut root = vec![0u16; 260];
+    // SAFETY: `name` is NUL-terminated; `root` is live and its length is passed.
+    let ok = unsafe { GetVolumePathNameW(name.as_ptr(), root.as_mut_ptr(), root.len() as u32) };
+    if ok == 0 {
+        return None;
+    }
+    let mut spc: u32 = 0;
+    let mut bps: u32 = 0;
+    let mut free: u32 = 0;
+    let mut total: u32 = 0;
+    // SAFETY: `root` is NUL-terminated and the out-pointers are live `u32`s.
+    let ok = unsafe { GetDiskFreeSpaceW(root.as_ptr(), &mut spc, &mut bps, &mut free, &mut total) };
+    if ok == 0 {
+        return None;
+    }
+    Some(u64::from(spc).saturating_mul(u64::from(bps)).max(1))
 }
 
 pub fn same_disk(a: &str, b: &str) -> bool {

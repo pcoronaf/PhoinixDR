@@ -217,6 +217,7 @@ phoinix erase free-space /dev/sdb --partition 1 --slack --scan deep --certificat
 phoinix erase free-space memoria.img --scan quick    # el único volumen de una imagen, con los motores de sistema de archivos
 phoinix erase mounted E:\ --reserve 2G              # llena un volumen en uso a través del sistema de archivos; sin derechos de administrador
 phoinix erase mounted /media/usuario/memoria --method random
+phoinix erase files ~/casos/2024-031 borrador.docx --method random --certificate archivos.html   # archivos y carpetas por nombre
 ```
 
 `free-space` lee el volumen con el motor NTFS, FAT, exFAT o ext, toma los
@@ -227,7 +228,14 @@ con `--slack`) y los escribe en bruto; el volumen no debe estar montado
 volumen, escribe ahí archivos de relleno hasta llenar el volumen (o hasta
 que queden `--reserve` bytes), los reescribe en cada pasada adicional, los
 relee y los elimina; funciona sin derechos de administrador y el volumen
-sigue en uso. `--scan quick|deep` ejecuta después los motores de
+sigue en uso. `files` sobrescribe los archivos indicados y los archivos
+bajo las carpetas indicadas a través del sistema de archivos (flujos con
+nombre de NTFS incluidos, rellenados hasta el final del último clúster),
+los relee, los trunca, los renombra y los elimina, y elimina las carpetas;
+los enlaces simbólicos se omiten y el ejecutable en ejecución se rechaza.
+Es la operación sobre la que advierte
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html):
+sígala con `mounted` o `free-space` en el mismo volumen. `--scan quick|deep` ejecuta después los motores de
 recuperación sobre el objetivo y anota el resultado en el certificado (el
 escaneo profundo talla y tarda tanto como un escaneo de recuperación; en
 un volumen montado el escaneo lee el volumen en bruto y por tanto necesita
@@ -241,7 +249,8 @@ Opciones: `--method` (`zero`, `random`, `nist`, `dod-3`, `dod-7`,
 `--pattern HEX`), `--verify none|sample|full`, `--scan none|quick|deep`,
 `--certificate`, `--operator`, `--organisation`, `--asset`, `--notes`,
 `--resume` (solo objetivos en bruto; un borrado montado cancelado elimina
-sus archivos), `--no-countdown`, `--json` (un evento por línea). En un terminal el comando
+sus archivos de relleno, un borrado de archivos cancelado deja los
+archivos en su sitio parcialmente sobrescritos), `--no-countdown`, `--json` (un evento por línea). En un terminal el comando
 muestra el objetivo y pide teclear el número de serie (o sus seis últimos
 caracteres; el nombre del archivo si es un archivo); sin terminal, pase
 `--i-understand-this-destroys-data <serie>`. El código de salida es 1

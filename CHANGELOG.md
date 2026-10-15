@@ -4,6 +4,23 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- M12.3 Files and folders. `phoinix erase files` and the *Erase files and
+  folders* list on the desktop erase page overwrite the chosen files (and
+  every file under a folder) through the filesystem with the chosen
+  method, NTFS named streams included and padded to the end of the last
+  cluster so the slack goes too, read them back, truncate, rename to a
+  random name and delete them, and remove the folders. Symbolic links are
+  skipped, the running executable is refused, read-only attributes are
+  cleared, and the certificate lists every file erased and every item that
+  could not be. The page states what erasing by name cannot reach and
+  recommends a free-space wipe of the volume afterwards; the post-erase
+  scan counts only the erased names (FAT short names with their lost
+  first character included).
+- Documentation: the guides and the FAQ in English and Spanish, the M12
+  plan status.
+
 ## 0.1.6
 
 - M12.2 Free space and verification scans. Secure erase gains two

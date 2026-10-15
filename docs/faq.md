@@ -156,6 +156,20 @@ found. What is not reached (small files kept inside NTFS MFT records,
 journal copies, shadow copies, remapped flash cells) is stated on the
 page and in the certificate.
 
+### Can PhoinixDR erase individual files?
+
+Yes, since M12.3, and it tells you what that is worth. The files you
+choose (or every file under a folder) are overwritten through the
+filesystem with the method you pick, named streams and slack included,
+read back, truncated, renamed and deleted. But overwriting a file by
+name, as the author's
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
+explains, does not reach the copies the system keeps: journal versions,
+shadow copies, temporary files, the page file, backups, the old resident
+bytes of an NTFS record, remapped flash cells. The page and the
+certificate say so, and the honest sequence is to erase the files and
+then wipe the free space of their volume.
+
 ### Can PhoinixDR securely erase an SSD?
 
 Only at the software level. An overwrite reaches an SSD's logical blocks,

@@ -182,4 +182,6 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .erase .actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 button.erase-button { background: var(--bad); border-color: var(--bad); }
 .erase .warn.ok { background: var(--focus); }
+.erase .file-list { margin: 6px 0; padding-left: 18px; max-height: 240px; overflow: auto; font-size: 13px; }
+.erase .file-list li { margin: 2px 0; }
 .danger p { margin: 4px 0; }

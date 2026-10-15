@@ -10,6 +10,7 @@ use phoinix_volume::read_partition_table;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{EraseError, Refusal};
+use crate::files::FilesDescription;
 use crate::platform;
 use crate::space::SpaceDescription;
 
@@ -71,6 +72,15 @@ pub enum EraseTarget {
         #[serde(default)]
         reserve: u64,
     },
+    /// Files and folders: their content is overwritten through the
+    /// filesystem (named streams included), the files are truncated,
+    /// renamed and deleted, the folders removed. What this cannot reach is
+    /// stated in [`crate::FILES_NOTE`].
+    Files {
+        /// Files and folders; folders are walked, symbolic links are not
+        /// followed.
+        paths: Vec<PathBuf>,
+    },
 }
 
 impl EraseTarget {
@@ -84,14 +94,15 @@ impl EraseTarget {
             | Self::File { path }
             | Self::FreeSpace { path, .. } => path,
             Self::MountedFreeSpace { mount, .. } => mount,
+            Self::Files { paths } => paths.first().map_or(Path::new(""), PathBuf::as_path),
         }
     }
 
-    /// Whether the target is a mounted volume written through the
-    /// filesystem rather than a raw range.
+    /// Whether the target is written through the filesystem (a mounted
+    /// volume's free space, or files) rather than as a raw range.
     #[must_use]
     pub const fn is_mounted(&self) -> bool {
-        matches!(self, Self::MountedFreeSpace { .. })
+        matches!(self, Self::MountedFreeSpace { .. } | Self::Files { .. })
     }
 
     /// Short kind name.
@@ -104,6 +115,7 @@ impl EraseTarget {
             Self::File { .. } => "file",
             Self::FreeSpace { .. } => "free-space",
             Self::MountedFreeSpace { .. } => "mounted",
+            Self::Files { .. } => "files",
         }
     }
 }
@@ -176,6 +188,9 @@ pub struct TargetDescription {
     /// Things the user should know that are not refusals.
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// The files and folders of a files target.
+    #[serde(default)]
+    pub files: Option<FilesDescription>,
 }
 
 impl TargetDescription {
@@ -292,6 +307,9 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
     if let EraseTarget::MountedFreeSpace { mount, reserve } = target {
         return describe_mounted(target, mount, *reserve, guards, refusals);
     }
+    if let EraseTarget::Files { paths } = target {
+        return describe_files(target, paths, guards);
+    }
     let is_file = matches!(target, EraseTarget::File { .. })
         || (matches!(target, EraseTarget::FreeSpace { .. })
             && std::fs::metadata(&path).is_ok_and(|m| m.is_file()));
@@ -322,6 +340,7 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
             ranges: Vec::new(),
             space: None,
             warnings: Vec::new(),
+            files: None,
         };
         if let EraseTarget::FreeSpace {
             partition, slack, ..
@@ -409,7 +428,9 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
         EraseTarget::FreeSpace { .. } => (0, device_len, None),
         // Files and mounted volumes are described above; keep the match
         // exhaustive.
-        EraseTarget::File { .. } | EraseTarget::MountedFreeSpace { .. } => (0, 0, None),
+        EraseTarget::File { .. }
+        | EraseTarget::MountedFreeSpace { .. }
+        | EraseTarget::Files { .. } => (0, 0, None),
     };
     if (offset.saturating_add(length) > device_len || length == 0 && partition.is_none())
         && !refusals
@@ -485,6 +506,7 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
         ranges: Vec::new(),
         space: None,
         warnings: Vec::new(),
+        files: None,
     };
     if let EraseTarget::FreeSpace {
         partition, slack, ..
@@ -556,6 +578,125 @@ fn describe_free_space(
     }
     desc.space = Some(space);
     Ok(())
+}
+
+/// Describes files and folders: walks them, finds their volume, and
+/// refuses the running executable and read-only volumes.
+fn describe_files(
+    target: &EraseTarget,
+    paths: &[PathBuf],
+    guards: &Guards,
+) -> Result<TargetDescription, EraseError> {
+    if paths.is_empty() {
+        return Err(EraseError::Invalid("no files given".into()));
+    }
+    let files = crate::files::collect(paths)?;
+    let mut refusals = Vec::new();
+    let mut warnings = vec![crate::FILES_NOTE.to_owned()];
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|e| std::fs::canonicalize(e).ok());
+    if let Some(exe) = &exe
+        && files
+            .entries
+            .iter()
+            .any(|e| std::fs::canonicalize(&e.path).ok().as_ref() == Some(exe))
+    {
+        refusals.push(Refusal::Unsupported {
+            reason: "the running PhoinixDR executable is among the files".into(),
+        });
+    }
+    for s in &files.skipped {
+        warnings.push(format!("Skipped: {s}"));
+    }
+    // The volume holding the first path (every path should be on the same
+    // volume; the certificate names the first).
+    let first = paths.first().map_or(Path::new(""), PathBuf::as_path);
+    let canonical = std::fs::canonicalize(first).unwrap_or_else(|_| first.to_path_buf());
+    let volume = platform::mounted_volumes()
+        .into_iter()
+        .filter(|v| {
+            let root = std::fs::canonicalize(&v.mount).unwrap_or_else(|_| PathBuf::from(&v.mount));
+            canonical.starts_with(&root)
+        })
+        .max_by_key(|v| v.mount.len());
+    if let Some(v) = &volume
+        && v.read_only
+    {
+        refusals.push(Refusal::Unsupported {
+            reason: format!("{} is mounted read-only", v.mount),
+        });
+    }
+    let disk = volume
+        .as_ref()
+        .and_then(|v| v.disk.clone())
+        .or_else(|| platform::disk_of_path(first));
+    if let Some(d) = &disk
+        && guards
+            .open_sources
+            .iter()
+            .any(|s| platform::disk_of_path(s).is_some_and(|sd| platform::same_disk(&sd, d)))
+    {
+        refusals.push(Refusal::OpenSource);
+    }
+    let device = disk.as_deref().and_then(|d| {
+        platform_enumerator()
+            .enumerate()
+            .ok()?
+            .into_iter()
+            .find(|x| platform::same_disk(x.path.as_str(), d))
+    });
+    if files.entries.is_empty() {
+        warnings.push(
+            "No regular files found under the given paths; only the folders would be removed."
+                .into(),
+        );
+    }
+    let confirmation = if paths.len() == 1 {
+        first
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .filter(|n| !n.trim().is_empty())
+            .unwrap_or_else(|| "root".into())
+    } else {
+        format!("{} items", paths.len())
+    };
+    let length = crate::files::bytes_per_pass(&files);
+    Ok(TargetDescription {
+        target: target.clone(),
+        path: canonical.display().to_string(),
+        disk,
+        solid_state: device.as_ref().and_then(|d| d.rotational.map(|r| !r)),
+        device,
+        offset: 0,
+        length,
+        sector_size: 1,
+        partition: None,
+        partitions: Vec::new(),
+        volumes: Vec::new(),
+        refusals,
+        confirmation,
+        confirmation_short: None,
+        ranges: Vec::new(),
+        space: volume.map(|v| SpaceDescription {
+            filesystem: v.filesystem.clone(),
+            volume_offset: 0,
+            volume_length: v.total,
+            cluster_size: files.allocation_unit,
+            map_available: true,
+            free_bytes: v.free,
+            free_ranges: 0,
+            slack: true,
+            slack_bytes: 0,
+            slack_ranges: 0,
+            mount: Some(v.mount.clone()),
+            node: Some(v.node.clone()),
+            label: v.label.clone(),
+            total_bytes: Some(v.total),
+        }),
+        warnings,
+        files: Some(files),
+    })
 }
 
 /// Describes a mounted volume for the filesystem-level free-space wipe.
@@ -663,6 +804,7 @@ fn describe_mounted(
             total_bytes: Some(v.total),
         }),
         warnings,
+        files: None,
     })
 }
 

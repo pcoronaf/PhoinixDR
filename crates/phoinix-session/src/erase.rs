@@ -217,7 +217,7 @@ impl SessionScanner {
                 None,
                 false,
             ),
-            EraseTarget::MountedFreeSpace { .. } => {
+            EraseTarget::MountedFreeSpace { .. } | EraseTarget::Files { .. } => {
                 let node = target
                     .space
                     .as_ref()
@@ -324,11 +324,32 @@ impl PostScanner for SessionScanner {
                 }
             }
         }
+        // For a files target only the erased names count: the rest of the
+        // volume's deleted files are not this erase's business.
+        let names: Vec<String> = target.files.as_ref().map_or_else(Vec::new, |f| {
+            f.entries
+                .iter()
+                .filter_map(|e| {
+                    Path::new(&e.path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_lowercase())
+                })
+                .chain(f.renamed.iter().map(|n| n.to_lowercase()))
+                .collect()
+        });
         if let Some(session) = &outcome.session {
             let mut resident_with_content = 0u64;
             for c in &session.candidates {
                 if c.evidence.source == CandidateSource::FileCarving {
                     record.carved += 1;
+                    continue;
+                }
+                if !names.is_empty()
+                    && !c
+                        .original_name
+                        .as_deref()
+                        .is_some_and(|n| name_matches(n, &names))
+                {
                     continue;
                 }
                 record.candidates += 1;
@@ -343,6 +364,12 @@ impl PostScanner for SessionScanner {
             if let Some(report) = &session.carving {
                 record.bytes_scanned = report.bytes_scanned;
             }
+            if !names.is_empty() {
+                record.note = Some(format!(
+                    "counted only the {} erased name(s); carved files are counted over the whole volume",
+                    names.len()
+                ));
+            }
             if resident_with_content > 0 {
                 record.note = Some(format!(
                     "{resident_with_content} deleted record(s) keep their content inside the filesystem metadata (resident data), which a free-space wipe cannot reach"
@@ -354,6 +381,24 @@ impl PostScanner for SessionScanner {
         }
         record
     }
+}
+
+/// Whether a deleted record's name is one of the erased names. FAT loses
+/// the first character of a short name on deletion (`?HOTO.JPG`), so a
+/// leading `?` matches any character.
+fn name_matches(found: &str, names: &[String]) -> bool {
+    let f = found.to_lowercase();
+    names.iter().any(|n| {
+        if n == &f {
+            return true;
+        }
+        match f.strip_prefix('?') {
+            Some(rest) => {
+                n.chars().count() == rest.chars().count() + 1 && n.to_lowercase().ends_with(rest)
+            }
+            None => false,
+        }
+    })
 }
 
 const fn phase_name(phase: ScanPhase) -> &'static str {

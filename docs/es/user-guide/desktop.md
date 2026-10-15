@@ -402,9 +402,42 @@ para que el certificado sea honesto con ellos. Lea
 copias que guarda el sistema, y la forma honesta de borrar un archivo es
 borrar después el espacio libre de su volumen.
 
-Borrar archivos y carpetas sueltos, y los comandos de sanitización del
-firmware para SSD, son las siguientes partes del plan
-([M12](../../erase/plan.md), en inglés).
+### Archivos y carpetas
+
+La tercera lista de la página de borrado borra archivos y carpetas por su
+nombre: *Choose files…* o *Choose a folder…*. Cada archivo se sobrescribe
+a través del sistema de archivos con el método elegido, flujos con nombre
+incluidos en NTFS (el *Zone.Identifier* que lleva una descarga, por
+ejemplo), y se rellena hasta el final de su último clúster para que el
+slack se vaya con él; después se relee, se trunca a longitud cero, se
+renombra con un nombre aleatorio de la misma longitud y se elimina, y las
+carpetas se eliminan cuando quedan vacías. La página lista los archivos
+con sus tamaños, flujos y atributos de solo lectura (que se quitan antes
+de escribir), indica cuántos bytes escribe cada pasada, y el certificado
+lista cada archivo borrado y cada elemento que no pudo borrarse. Los
+enlaces simbólicos se omiten, nunca se siguen, y el ejecutable de
+PhoinixDR en ejecución se rechaza.
+
+<figure>
+  <img src="../../user-guide/images/19-erase-files.png" alt="Configuración del borrado de una carpeta: los archivos con sus tamaños y flujos, el método y la nota sobre lo que no se alcanza" width="960">
+  <figcaption>Archivos y carpetas: la lista, lo que escribe cada pasada y lo que borrar por nombre no alcanza.</figcaption>
+</figure>
+
+Esta es la operación sobre la que advierte
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
+(pcoronaf, 2020), y la página dice lo que no alcanza: versiones
+anteriores en el diario, instantáneas de volumen y versiones anteriores,
+archivos temporales, el archivo de intercambio o de paginación, copias de
+seguridad y copias en la nube, los bytes residentes antiguos que un
+registro NTFS puede conservar hasta reutilizarse, y las celdas
+reasignadas de un disco de estado sólido; el nombre borrado puede
+sobrevivir en los metadatos del directorio. La secuencia honesta es, por
+tanto: borrar los archivos y después borrar el espacio libre de su
+volumen. El escaneo posterior opcional cuenta solo los nombres borrados
+(necesita derechos de administrador para leer el volumen).
+
+Los comandos de sanitización del firmware para SSD son la última parte
+del plan ([M12](../../erase/plan.md), en inglés).
 
 ## Sesiones
 

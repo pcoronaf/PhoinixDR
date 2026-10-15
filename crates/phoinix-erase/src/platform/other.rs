@@ -27,6 +27,14 @@ pub fn mounted_volumes() -> Vec<MountedVolumeInfo> {
     Vec::new()
 }
 
+pub fn file_streams(_path: &Path) -> Vec<crate::files::StreamEntry> {
+    Vec::new()
+}
+
+pub fn allocation_unit(_path: &Path) -> Option<u64> {
+    None
+}
+
 pub fn free_space(_path: &Path) -> std::io::Result<(u64, u64)> {
     Err(std::io::Error::other(
         "free space queries are not supported on this platform",

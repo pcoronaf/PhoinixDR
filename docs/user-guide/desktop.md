@@ -370,8 +370,40 @@ author's
 system keeps, and the honest way to erase a file is to wipe the free space
 of its volume afterwards.
 
-Erasing individual files and folders, and the firmware sanitize commands
-for SSDs, are the next parts of the plan ([M12](../erase/plan.md)).
+### Files and folders
+
+The third list on the erase page erases files and folders by name:
+*Choose files…* or *Choose a folder…*. Every file is overwritten through
+the filesystem with the chosen method, named streams included on NTFS
+(the *Zone.Identifier* a download carries, for instance), and padded to
+the end of its last cluster so that its slack goes too; then it is read
+back, truncated to zero length, renamed to a random name of the same
+length and deleted, and the folders are removed once empty. The page
+lists the files with their sizes, streams and read-only attributes
+(cleared before writing), says how many bytes each pass writes, and the
+certificate lists every file erased and every item that could not be.
+Symbolic links are skipped, never followed, and the running PhoinixDR
+executable is refused.
+
+<figure>
+  <img src="images/19-erase-files.png" alt="Erase setup for a folder: the files with their sizes and streams, the method and the note on what is not reached" width="960">
+  <figcaption>Files and folders: the list, what each pass writes, and what erasing by name cannot reach.</figcaption>
+</figure>
+
+This is the operation the author's
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
+(pcoronaf, 2020) warns about, and the page says what it cannot reach:
+earlier versions in the journal, volume shadow copies and previous
+versions, temporary files, the swap or page file, backups and cloud
+copies, the old resident bytes an NTFS record may keep until it is
+reused, and the remapped cells of a solid-state drive; the deleted name
+may survive in directory metadata. The honest sequence is therefore:
+erase the files, then wipe the free space of their volume. The optional
+post-erase scan counts only the erased names (it needs administrator
+rights to read the volume).
+
+The firmware sanitize commands for SSDs are the last part of the plan
+([M12](../erase/plan.md)).
 
 ## Sessions
 

@@ -56,7 +56,9 @@ export function EraseProgress({
 }: Props) {
   const d = state.description;
   const title = d
-    ? `${d.space?.mount ? `${d.space.mount} ` : ""}${d.device?.display_name ?? d.path}${d.partition ? ` · partition ${d.partition.index}` : ""}${d.space ? ` · ${d.space.filesystem} free space${d.space.slack ? " + slack" : ""}` : ""}`
+    ? d.files
+      ? `${d.files.entries.length} file(s) under ${d.path}`
+      : `${d.space?.mount ? `${d.space.mount} ` : ""}${d.device?.display_name ?? d.path}${d.partition ? ` · partition ${d.partition.index}` : ""}${d.space ? ` · ${d.space.filesystem} free space${d.space.slack ? " + slack" : ""}` : ""}`
     : "";
   const fraction = state.scanning
     ? state.scanning.total
@@ -149,6 +151,15 @@ export function EraseProgress({
               {state.summary.scan.carved} carved file(s)
               {state.summary.scan.note ? ` · ${state.summary.scan.note}` : ""}
             </p>
+          )}
+          {state.summary.files_failed.length > 0 && (
+            <ul className="file-list">
+              {state.summary.files_failed.map((f) => (
+                <li key={f.path}>
+                  NOT erased: <span className="mono">{f.path}</span> · {f.error}
+                </li>
+              ))}
+            </ul>
           )}
           {state.summary.scan && !state.summary.scan.ran && (
             <p className="muted">Post-erase scan not run{state.summary.scan.note ? `: ${state.summary.scan.note}` : ""}.</p>

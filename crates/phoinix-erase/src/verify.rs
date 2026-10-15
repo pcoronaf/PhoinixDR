@@ -226,6 +226,145 @@ pub fn read_back(
     Ok(record)
 }
 
+/// What to read back through the filesystem: files (or named streams)
+/// and their lengths, in the order they were written.
+#[derive(Debug, Clone, Copy)]
+pub struct ReadBackPaths<'a> {
+    /// Paths and the number of bytes written to each.
+    pub items: &'a [(std::path::PathBuf, u64)],
+    /// The last pass's pattern.
+    pub last: &'a PassPattern,
+    /// The run's seed.
+    pub seed: &'a Seed,
+    /// Index of the last pass.
+    pub pass_index: usize,
+    /// How much to check.
+    pub mode: VerifyMode,
+}
+
+/// Reads files written through the filesystem back and compares them with
+/// the last pass; the relative position runs across every item in order,
+/// exactly as the writer counted it.
+pub fn read_back_paths(
+    plan: &ReadBackPaths<'_>,
+    progress: &mut dyn FnMut(u64, u64),
+    cancel: &AtomicBool,
+) -> VerificationRecord {
+    use std::io::{Read, Seek, SeekFrom};
+    let ReadBackPaths {
+        items,
+        last,
+        seed,
+        pass_index,
+        mode,
+    } = *plan;
+    let mut record = VerificationRecord {
+        mode,
+        ..Default::default()
+    };
+    let total: u64 = items.iter().map(|(_, n)| *n).sum();
+    if mode == VerifyMode::None || total == 0 {
+        return record;
+    }
+    // Every item is cut into pieces of at most one sample block, so that a
+    // full verification reads every byte of every item.
+    let spans: Vec<ByteRange> = {
+        let mut rel = 0u64;
+        items
+            .iter()
+            .map(|(_, n)| {
+                let r = ByteRange {
+                    offset: rel,
+                    length: *n,
+                };
+                rel += *n;
+                r
+            })
+            .collect()
+    };
+    let map = SpanMap::new(&spans);
+    let full = mode == VerifyMode::Full || total <= FULL_UP_TO;
+    let block = SAMPLE_BLOCK as u64;
+    let blocks_total = map.pieces(block);
+    let samples = if full {
+        blocks_total
+    } else {
+        blocks_total.min(SAMPLE_BLOCKS)
+    };
+    let mut expected = vec![0u8; CHUNK_BYTES];
+    let mut expected_chunk: Option<u64> = None;
+    let mut buf = vec![0u8; SAMPLE_BLOCK];
+    let mut open: Option<(usize, std::fs::File)> = None;
+    for i in 0..samples {
+        if cancel.load(Ordering::Relaxed) {
+            record.cancelled = true;
+            break;
+        }
+        let index = if samples == blocks_total {
+            i
+        } else {
+            i * blocks_total / samples
+        };
+        let Some((rel, _, len)) = map.piece(block, index) else {
+            break;
+        };
+        let want = usize::try_from(len).unwrap_or(SAMPLE_BLOCK);
+        if want == 0 {
+            continue;
+        }
+        // Locate the item holding `rel`.
+        let mut start = 0u64;
+        let mut which = 0usize;
+        for (fi, (_, size)) in items.iter().enumerate() {
+            if rel < start + size {
+                which = fi;
+                break;
+            }
+            start += size;
+        }
+        let in_file = rel - start;
+        if open.as_ref().is_none_or(|(fi, _)| *fi != which) {
+            open = items
+                .get(which)
+                .and_then(|(path, _)| std::fs::File::open(path).ok())
+                .map(|f| (which, f));
+        }
+        let slot = buf.get_mut(..want).unwrap_or(&mut []);
+        let ok = open.as_mut().is_some_and(|(_, f)| {
+            f.seek(SeekFrom::Start(in_file)).is_ok() && f.read_exact(slot).is_ok()
+        });
+        record.blocks_checked += 1;
+        record.bytes_checked += want as u64;
+        // A piece may straddle a chunk boundary: compare it in parts.
+        let mut matches = ok;
+        let mut done = 0usize;
+        while matches && done < want {
+            let pos = rel + done as u64;
+            let chunk = pos / CHUNK_BYTES as u64;
+            if expected_chunk != Some(chunk) {
+                fill_chunk(last, seed, pass_index, chunk, &mut expected);
+                expected_chunk = Some(chunk);
+            }
+            let within = usize::try_from(pos % CHUNK_BYTES as u64).unwrap_or(0);
+            let n = (CHUNK_BYTES - within).min(want - done);
+            matches = expected.get(within..within + n) == slot.get(done..done + n);
+            done += n;
+        }
+        if !matches {
+            record.blocks_mismatched += 1;
+            if record.first_mismatch.is_none() {
+                record.first_mismatch = Some(rel);
+            }
+        }
+        if i % 64 == 0 {
+            progress(i, samples);
+        }
+    }
+    progress(samples, samples);
+    record.passed = !record.cancelled && record.blocks_mismatched == 0 && record.blocks_checked > 0;
+    record
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

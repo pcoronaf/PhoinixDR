@@ -35,6 +35,20 @@ pub enum Command {
     /// Fill the free space of a mounted volume through the filesystem (no
     /// administrator rights needed; the volume stays in use).
     Mounted(MountedArgs),
+    /// Overwrite the content of files and folders through the filesystem,
+    /// then truncate, rename and delete them. Follow with `mounted` or
+    /// `free-space` to cover what the filesystem keeps elsewhere.
+    Files(FilesArgs),
+}
+
+/// Files erase options.
+#[derive(Debug, clap::Args)]
+pub struct FilesArgs {
+    /// Files and folders (folders are walked; symbolic links are not followed).
+    #[arg(required = true)]
+    pub paths: Vec<PathBuf>,
+    #[command(flatten)]
+    pub options: Options,
 }
 
 /// A target path.
@@ -288,6 +302,11 @@ pub fn run(command: Command) -> anyhow::Result<()> {
             },
             args.options,
         ),
+        Command::Files(args) => erase(
+            &workspace,
+            EraseTarget::Files { paths: args.paths },
+            args.options,
+        ),
         Command::Mounted(args) => {
             let reserve = parse_bytes(&args.reserve)?;
             erase(
@@ -435,6 +454,31 @@ fn print_description(desc: &phoinix_erase::TargetDescription) {
                 None => "medium unknown",
             }
         );
+    }
+    if let Some(f) = &desc.files {
+        outln!(
+            "Files: {} file(s), {} named stream(s), {} of content, {} folder(s); allocation unit {}",
+            f.entries.len(),
+            f.stream_count,
+            bytes_si(f.total_bytes),
+            f.directories.len(),
+            bytes_si(f.allocation_unit)
+        );
+        for e in f.entries.iter().take(20) {
+            outln!(
+                "  {} · {}{}",
+                e.path,
+                bytes_si(e.size),
+                if e.streams.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · {} named stream(s)", e.streams.len())
+                }
+            );
+        }
+        if f.entries.len() > 20 {
+            outln!("  … and {} more", f.entries.len() - 20);
+        }
     }
     if let Some(sp) = &desc.space {
         if let Some(m) = &sp.mount {
@@ -647,6 +691,9 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
                     eprintln!();
                 }
                 outln!("Done: {}", summary.verdict);
+                for f in &summary.files_failed {
+                    outln!("NOT erased: {}: {}", f.path, f.error);
+                }
                 if let Some(c) = &summary.certificate {
                     outln!("Certificate: {}", c.display());
                 }
@@ -696,9 +743,13 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
                 .scan
                 .as_ref()
                 .is_none_or(|s| !s.ran || s.passed);
-            if outcome.summary.unwritable_bytes > 0 || !verified || !scan_clean {
+            if outcome.summary.unwritable_bytes > 0
+                || !verified
+                || !scan_clean
+                || !outcome.summary.files_failed.is_empty()
+            {
                 anyhow::bail!(
-                    "the erase completed with regions not erased, not verified, or with recoverable data found by the post-erase scan; see the certificate"
+                    "the erase completed with items not erased, not verified, or with recoverable data found by the post-erase scan; see the certificate"
                 )
             }
             Ok(())

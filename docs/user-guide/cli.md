@@ -203,6 +203,7 @@ phoinix erase free-space /dev/sdb --partition 1 --slack --scan deep --certificat
 phoinix erase free-space stick.img --scan quick      # an image's only volume, through the filesystem engines
 phoinix erase mounted E:\ --reserve 2G              # fill a volume in use through the filesystem; no administrator rights
 phoinix erase mounted /media/user/stick --method random
+phoinix erase files ~/cases/2024-031 draft.docx --method random --certificate files.html   # files and folders by name
 ```
 
 `free-space` reads the volume with the NTFS, FAT, exFAT or ext engine,
@@ -213,6 +214,13 @@ takes a drive, a mount point or any folder on the volume, writes fill
 files there until the volume is full (or until `--reserve` bytes are
 left), rewrites them for every further pass, reads them back and removes
 them; it works without administrator rights and the volume stays in use.
+`files` overwrites the named files and the files under the named folders
+through the filesystem (NTFS named streams included, padded to the end of
+the last cluster), reads them back, truncates, renames and deletes them,
+and removes the folders; symbolic links are skipped and the running
+executable is refused. It is the operation
+[Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
+warns about: follow it with `mounted` or `free-space` on the same volume.
 `--scan quick|deep` runs the recovery engines on the target afterwards and
 records the finding in the certificate (the deep scan carves and takes as
 long as a recovery scan; on a mounted volume the scan reads the volume
@@ -226,7 +234,8 @@ Options: `--method` (`zero`, `random`, `nist`, `dod-3`, `dod-7`,
 optionally `--pattern HEX`), `--verify none|sample|full`,
 `--scan none|quick|deep`, `--certificate`, `--operator`,
 `--organisation`, `--asset`, `--notes`, `--resume` (raw targets only; a
-cancelled mounted wipe removes its files instead), `--no-countdown`,
+cancelled mounted wipe removes its fill files, a cancelled files erase
+leaves the files in place partially overwritten), `--no-countdown`,
 `--json` (one event per line). On a terminal the command
 prints the target and asks you to type the serial number (or its last six
 characters; the file name for a file); without a terminal pass

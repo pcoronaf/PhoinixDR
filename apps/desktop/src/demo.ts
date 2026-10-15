@@ -11,6 +11,7 @@ import type {
   EraseSummary,
   EraseTarget,
   EraseTargetInfo,
+  FileEntry,
   MountedVolumeInfo,
   PartitionCandidate,
   Preview,
@@ -322,6 +323,7 @@ export const demoEraseCatalogue: EraseCatalogue = {
   article_gutmann: "https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html",
   article_files: "https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html",
   free_space_note: "A free-space wipe overwrites every cluster the filesystem marks as free, and the slack at the end of each file when asked. It does not reach the content of small deleted files kept inside NTFS MFT records or ext inodes, copies in the journal, volume shadow copies or previous versions, nor the physical cells a solid-state drive has remapped. Deleted names, sizes and dates remain visible in the metadata.",
+  files_note: "Erasing files overwrites their current content through the filesystem (every named stream on NTFS, and the slack up to the end of the last cluster), then truncates, renames and deletes them. It cannot reach the copies the system keeps elsewhere: earlier versions in the journal, volume shadow copies and previous versions, temporary files, the swap or page file, backups and cloud copies, the old resident bytes an NTFS record may keep until it is reused, nor the physical cells a solid-state drive has remapped. The deleted name may survive in directory metadata. Follow with a free-space wipe of the volume to cover what the filesystem left behind.",
   mounted_note: "Writing through the filesystem fills the space the volume reports as free; the filesystem keeps some clusters back, and small deleted files kept inside NTFS MFT records or ext inodes, journal copies, shadow copies, previous versions and remapped flash cells are not reached. The volume stays in use while it fills; it is full for a moment, then the fill files are removed.",
 };
 
@@ -362,6 +364,52 @@ function demoDescription(device: DeviceInfo, target: EraseTarget): TargetDescrip
     ranges: [],
     space,
     warnings: space ? [demoEraseCatalogue.free_space_note] : [],
+    files: null,
+  };
+}
+
+function demoFilesDescription(target: Extract<EraseTarget, { kind: "files" }>): TargetDescription {
+  const v = demoEraseVolumes()[1]!;
+  const device = demoDevices.find((d) => d.path === v.disk) ?? null;
+  const folder = target.paths.length === 1 && !/\.[a-z0-9]{2,4}$/i.test(target.paths[0]!);
+  const entries: FileEntry[] = folder
+    ? [
+        { path: `${target.paths[0]}\\draft.docx`, size: 48_213, streams: [{ name: "Zone.Identifier", size: 26 }], read_only: false },
+        { path: `${target.paths[0]}\\scan.pdf`, size: 2_310_442, streams: [], read_only: true },
+        { path: `${target.paths[0]}\\notes\\interview.txt`, size: 1_902, streams: [], read_only: false },
+        { path: `${target.paths[0]}\\notes\\photos\\IMG_0412.jpg`, size: 3_188_730, streams: [], read_only: false },
+      ]
+    : target.paths.map((p, i) => ({ path: p, size: [48_213, 2_310_442, 1_902][i % 3]!, streams: i === 0 ? [{ name: "Zone.Identifier", size: 26 }] : [], read_only: false }));
+  const unit = 4096;
+  const padded = (n: number) => (n === 0 ? 0 : Math.ceil(n / unit) * unit);
+  const perPass = entries.reduce((a, e) => a + padded(e.size) + e.streams.reduce((b, s) => b + padded(s.size), 0), 0);
+  return {
+    target,
+    path: target.paths[0]!,
+    disk: v.disk,
+    device,
+    offset: 0,
+    length: perPass,
+    sector_size: 1,
+    partition: null,
+    partitions: [],
+    volumes: [],
+    solid_state: device ? device.rotational === false : null,
+    refusals: [],
+    confirmation: target.paths.length === 1 ? target.paths[0]!.split(/[\\/]/).filter((x) => x.length > 0).pop() ?? "root" : `${target.paths.length} items`,
+    confirmation_short: null,
+    ranges: [],
+    space: { filesystem: v.filesystem, volume_offset: 0, volume_length: v.total, cluster_size: unit, map_available: true, free_bytes: v.free, free_ranges: 0, slack: true, slack_bytes: 0, slack_ranges: 0, mount: v.mount, node: v.node, label: v.label, total_bytes: v.total },
+    warnings: [demoEraseCatalogue.files_note],
+    files: {
+      entries,
+      directories: folder ? [`${target.paths[0]}\\notes\\photos`, `${target.paths[0]}\\notes`, target.paths[0]!] : [],
+      total_bytes: entries.reduce((a, e) => a + e.size + e.streams.reduce((b, s) => b + s.size, 0), 0),
+      stream_count: entries.reduce((a, e) => a + e.streams.length, 0),
+      allocation_unit: unit,
+      skipped: [],
+      renamed: [],
+    },
   };
 }
 
@@ -389,6 +437,7 @@ function demoMountedDescription(target: Extract<EraseTarget, { kind: "mounted_fr
     ranges: [],
     space: { filesystem: v.filesystem, volume_offset: 0, volume_length: v.total, cluster_size: 0, map_available: true, free_bytes: free, free_ranges: 0, slack: false, slack_bytes: 0, slack_ranges: 0, mount: v.mount, node: v.node, label: v.label, total_bytes: v.total },
     warnings,
+    files: null,
   };
 }
 
@@ -402,6 +451,7 @@ export function demoEraseTargets(): EraseTargetInfo[] {
 
 export function demoDescribe(target: EraseTarget): TargetDescription {
   if (target.kind === "mounted_free_space") return demoMountedDescription(target);
+  if (target.kind === "files") return demoFilesDescription(target);
   const device = demoEraseTargets().find((t) => t.device.path === target.path)?.device ?? demoEraseTargets()[1]!.device;
   return demoDescription(device, target);
 }
@@ -422,16 +472,18 @@ export function demoErase(request: EraseRequest, emit: (e: EraseEvent) => void, 
     unwritable_ranges: 0,
     seconds: done * 3,
     verification: verified ? { mode: request.verify, blocks_checked: 4096, blocks_mismatched: 0, bytes_checked: 4096 * 65536, skipped_unwritable_bytes: 0, first_mismatch: null, cancelled: false, passed: true } : null,
+    files_erased: verified && description.files ? description.files.entries.length : 0,
+    files_failed: [],
     scan: verified && scanned ? { mode: request.post_scan, ran: true, note: null, filesystem: description.space?.filesystem ?? null, partition_table: "MBR", candidates: 1_312, with_content: 0, carved: 0, bytes_scanned: request.post_scan === "deep" ? total : 0, seconds: 41, cancelled: false, passed: true } : null,
     certificate: request.certificate,
-    verdict: verified ? `${passes} pass(es) completed; verified: 4096 blocks read back, all match${scanned ? `; ${scanText}` : ""}` : `cancelled after ${done} of ${passes} pass(es): the target is PARTIALLY erased`,
+    verdict: verified ? `${passes} pass(es) completed; verified: 4096 blocks read back, all match${scanned ? `; ${scanText}` : ""}${description.files ? `; ${description.files.entries.length} file(s) erased` : ""}` : `cancelled after ${done} of ${passes} pass(es): the target is PARTIALLY erased`,
   });
   emit({ kind: "started", description, method: method.label, passes, resumed_from: null });
   let pass = 1;
   let done = 0;
   const step = (): void => {
     if (cancelled()) {
-      emit({ kind: "cancelled", resume: request.target.kind === "mounted_free_space" ? null : { key: "demo", method: method.id, pass: pass - 1, offset: done, seed: "demo", bytes_written: (pass - 1) * total + done }, summary: summary(pass - 1, false) });
+      emit({ kind: "cancelled", resume: request.target.kind === "mounted_free_space" || request.target.kind === "files" ? null : { key: "demo", method: method.id, pass: pass - 1, offset: done, seed: "demo", bytes_written: (pass - 1) * total + done }, summary: summary(pass - 1, false) });
       return;
     }
     if (done === 0) emit({ kind: "pass", pass, passes, pattern: labels[(pass - 1) % labels.length]! });

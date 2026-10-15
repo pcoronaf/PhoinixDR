@@ -14,6 +14,7 @@ interface Props {
   error: string | null;
   onChoose: (t: EraseTargetInfo) => void;
   onChooseVolume: (v: MountedVolumeInfo) => void;
+  onChooseFiles: (paths: string[]) => void;
   onBack: () => void;
   onRefresh: () => void;
 }
@@ -36,10 +37,19 @@ export function EraseTargets({
   error,
   onChoose,
   onChooseVolume,
+  onChooseFiles,
   onBack,
   onRefresh,
 }: Props) {
   const blocked = targets.some(needsElevation);
+  const pickFiles = async (): Promise<void> => {
+    const paths = await api.pickEraseFiles();
+    if (paths.length > 0) onChooseFiles(paths);
+  };
+  const pickFolder = async (): Promise<void> => {
+    const p = await api.pickEraseFolder();
+    if (p) onChooseFiles([p]);
+  };
   return (
     <div className="panel erase">
       <div className="row-between">
@@ -143,6 +153,24 @@ export function EraseTargets({
             </span>
           </button>
         ))}
+      </div>
+
+      <h2>Erase files and folders</h2>
+      <p className="muted">
+        Overwrites the content of the files you choose through the
+        filesystem (named streams and slack included), then truncates,
+        renames and deletes them. What this cannot reach is stated on the
+        next page; follow with a free-space wipe of the volume.
+      </p>
+      <div className="cards">
+        <button className="card erase-ok" onClick={pickFiles}>
+          <strong>Choose files…</strong>
+          <span>One or more files</span>
+        </button>
+        <button className="card erase-ok" onClick={pickFolder}>
+          <strong>Choose a folder…</strong>
+          <span>Every file under it, then the folder itself</span>
+        </button>
       </div>
     </div>
   );

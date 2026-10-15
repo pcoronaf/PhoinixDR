@@ -377,6 +377,8 @@ pub struct EraseCatalogue {
     pub free_space_note: String,
     /// What a mounted (filesystem-level) wipe cannot reach.
     pub mounted_note: String,
+    /// What erasing files by name cannot reach.
+    pub files_note: String,
 }
 
 /// The method catalogue and warning texts.
@@ -400,6 +402,7 @@ pub fn erase_catalogue() -> EraseCatalogue {
         article_files: phoinix_erase::ARTICLE_SECURE_DELETION.to_owned(),
         free_space_note: phoinix_erase::FREE_SPACE_NOTE.to_owned(),
         mounted_note: phoinix_erase::MOUNTED_NOTE.to_owned(),
+        files_note: phoinix_erase::FILES_NOTE.to_owned(),
     }
 }
 

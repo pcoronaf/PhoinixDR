@@ -54,6 +54,7 @@ export function EraseSetup({
   onBack,
 }: Props) {
   const mounted = initial.target.kind === "mounted_free_space";
+  const filesTarget = initial.target.kind === "files";
   const [desc, setDesc] = useState<TargetDescription>(initial);
   const [scope, setScope] = useState<Scope>(scopeOf(initial));
   const [slack, setSlack] = useState(false);
@@ -82,7 +83,9 @@ export function EraseSetup({
   // Re-describe when the scope, the slack option or the reserve changes.
   useEffect(() => {
     let target: EraseTarget;
-    if (mounted && initial.target.kind === "mounted_free_space") {
+    if (filesTarget) {
+      target = initial.target;
+    } else if (mounted && initial.target.kind === "mounted_free_space") {
       target = { kind: "mounted_free_space", mount: initial.target.mount, reserve: reserveBytes };
     } else if (scope.kind === "whole_device") {
       target = { kind: "whole_device", path: initial.path };
@@ -108,7 +111,7 @@ export function EraseSetup({
     return () => {
       alive = false;
     };
-  }, [api, initial.path, initial.target, mounted, scope, slack, reserveBytes]);
+  }, [api, initial.path, initial.target, mounted, filesTarget, scope, slack, reserveBytes]);
 
   // Countdown.
   useEffect(() => {
@@ -159,7 +162,10 @@ export function EraseSetup({
   const d = desc.device;
   const space = desc.space;
   const freeSpace = scope.kind === "free_space" || mounted;
-  const what = mounted
+  const files = desc.files;
+  const what = filesTarget
+    ? `${files?.entries.length ?? 0} file(s)`
+    : mounted
     ? `the free space of ${desc.path}`
     : scope.kind === "whole_device"
       ? "the whole disk"
@@ -170,15 +176,24 @@ export function EraseSetup({
   return (
     <div className="panel erase">
       <div className="row-between">
-        <h2>Erase {mounted ? `free space of ${desc.path}` : d ? d.display_name : desc.path}</h2>
+        <h2>
+          Erase{" "}
+          {filesTarget
+            ? `${files?.entries.length ?? 0} file(s)${(files?.directories.length ?? 0) > 0 ? ` and ${files?.directories.length} folder(s)` : ""}`
+            : mounted
+              ? `free space of ${desc.path}`
+              : d
+                ? d.display_name
+                : desc.path}
+        </h2>
         <button className="link" onClick={onBack} disabled={countdown !== null}>
           Back
         </button>
       </div>
       <p className="mono muted">
-        {mounted && space ? `${space.filesystem}${space.label ? ` "${space.label}"` : ""} · ${space.node ?? ""} · ${formatBytesSi(space.free_bytes)} free of ${formatBytesSi(space.total_bytes ?? space.volume_length)}` : desc.path}
-        {!mounted && d?.serial ? ` · S/N ${d.serial}` : ""}
-        {!mounted ? ` · ${formatBytesSi(desc.length)}` : ""}
+        {filesTarget && space ? `${desc.path} · ${space.filesystem} on ${space.mount ?? ""} · ${formatBytesSi(files?.total_bytes ?? 0)} of content in ${files?.entries.length ?? 0} file(s), ${files?.stream_count ?? 0} named stream(s)` : mounted && space ? `${space.filesystem}${space.label ? ` "${space.label}"` : ""} · ${space.node ?? ""} · ${formatBytesSi(space.free_bytes)} free of ${formatBytesSi(space.total_bytes ?? space.volume_length)}` : desc.path}
+        {!mounted && !filesTarget && d?.serial ? ` · S/N ${d.serial}` : ""}
+        {!mounted && !filesTarget ? ` · ${formatBytesSi(desc.length)}` : ""}
         {d
           ? d.rotational === false
             ? " · solid state"
@@ -199,7 +214,24 @@ export function EraseSetup({
 
       <fieldset>
         <legend>What to erase</legend>
-        {mounted ? (
+        {filesTarget && files ? (
+          <>
+            <ul className="file-list">
+              {files.entries.slice(0, 40).map((e) => (
+                <li key={e.path}>
+                  <span className="mono">{e.path}</span> · {formatBytesSi(e.size)}
+                  {e.streams.length > 0 ? ` · ${e.streams.length} named stream(s)` : ""}
+                  {e.read_only ? " · read-only" : ""}
+                </li>
+              ))}
+              {files.entries.length > 40 && <li className="muted">… and {files.entries.length - 40} more</li>}
+            </ul>
+            <p className="muted">
+              {formatBytesSi(desc.length)} will be written per pass (every stream padded to the allocation unit of {formatBytesSi(files.allocation_unit)});
+              {files.directories.length > 0 ? ` ${files.directories.length} folder(s) are removed at the end.` : " the folders stay."}
+            </p>
+          </>
+        ) : mounted ? (
           <>
             <p>
               Files are written into <span className="mono">{desc.path}</span> until the volume is full
@@ -287,7 +319,7 @@ export function EraseSetup({
             {w}
           </p>
         ))}
-        {freeSpace && (
+        {(freeSpace || filesTarget) && (
           <p className="muted">
             Read{" "}
             <a href={catalogue.article_files} target="_blank" rel="noreferrer">
@@ -345,7 +377,7 @@ export function EraseSetup({
             <option value="deep">Deep scan (metadata and carving; takes as long as a recovery scan)</option>
           </select>
         </label>
-        {mounted && postScan !== "none" && (
+        {(mounted || filesTarget) && postScan !== "none" && (
           <p className="muted">
             The scan reads the volume directly and needs administrator rights; without them the certificate says the scan did not run.
           </p>
