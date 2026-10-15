@@ -220,26 +220,31 @@ the interface. It changes nothing about the scan or the recovery.
 
 ## Secure erase
 
-PhoinixDR can also do the opposite of recovery: overwrite a whole disk or
-one partition so that nothing on it can be recovered, verify the result
-and write a sanitization certificate. It is a separate mode, reachable
+PhoinixDR can also do the opposite of recovery: overwrite a whole disk,
+one partition or the free space of a volume so that nothing deleted can
+be recovered, verify the result, look at the result with its own recovery
+engines, and write a sanitization certificate. It is a separate mode, reachable
 only from the home page, in a separate colour, and it is the only part of
 PhoinixDR that writes to a device (see
 [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md)).
 Everything it writes is lost for good; read the warnings on each page.
 
 <figure>
-  <img src="images/11-erase-targets.png" alt="Erase a disk: the list of disks with the ones that cannot be erased greyed out" width="960">
-  <figcaption>Erase a disk: every disk with its model, serial number and size; the ones that cannot be erased say why.</figcaption>
+  <img src="images/11-erase-targets.png" alt="Erase a disk: the list of disks with the ones that cannot be erased greyed out, and the mounted volumes whose free space can be wiped" width="960">
+  <figcaption>Erase a disk: every disk with its model, serial number and size, the ones that cannot be erased saying why; below, the volumes in use whose free space can be wiped through the filesystem.</figcaption>
 </figure>
 
 1. **Choose the disk.** The system disk, the disk the executable runs
    from, the disk that holds the sessions directory and a source open for
    recovery are refused. Disks with mounted volumes are listed with their
    drive letters; on Windows the volumes are locked and dismounted before
-   the first write, on Linux you unmount them first.
-2. **Choose what to erase:** the whole disk, partition table included, or
-   one partition (its table entry stays).
+   the first write, on Linux you unmount them first. When a disk says it
+   is not accessible from this process, the page offers the same *Restart
+   as administrator* button as the recovery pages.
+2. **Choose what to erase:** the whole disk, partition table included;
+   one partition (its table entry stays); or *only the free space* of a
+   partition, which overwrites every cluster the filesystem marks as free
+   and leaves the files in place (see [Free space](#free-space) below).
 3. **Choose the method.** The default, one pass of zeros, is NIST SP 800-88
    *Clear* and is enough on any drive made this century. The other methods
    are listed with what they are worth: *random*, *NIST* (random plus the
@@ -262,13 +267,22 @@ Everything it writes is lost for good; read the warnings on each page.
    blocks otherwise, or everything if you choose *Read back everything*.
    Random passes are verifiable too: the run's seed is recorded and the
    data is regenerated for the comparison.
-6. **Certificate.** Optionally choose a file (`.html`, `.md` or `.json`)
+6. **Post-erase scan.** Optionally, after the verification, PhoinixDR
+   looks at the target with its own recovery engines: a *quick scan* walks
+   the filesystem metadata and counts the deleted records whose content is
+   still something other than zeros; a *deep scan* also carves the erased
+   space by signature, which takes as long as a recovery scan. The
+   certificate records what the scan found. After a whole-disk or
+   whole-partition overwrite the expected finding is "no filesystem"; after
+   a free-space wipe it is "no record with content and nothing carved".
+7. **Certificate.** Optionally choose a file (`.html`, `.md` or `.json`)
    and fill in operator, organisation, asset number and notes. The
    certificate is a NIST SP 800-88 §4.8 record: device model, serial number
-   and capacity, target range, method and passes, times, bytes written,
-   the verification result, and every region the device refused to write
-   (those bytes are not erased, and the certificate says so).
-7. **Confirm.** Type the device's serial number (or its last six
+   and capacity, target range (or the volume, its free space and slack),
+   method and passes, times, bytes written, the verification result, the
+   post-erase scan, and every region the device refused to write (those
+   bytes are not erased, and the certificate says so).
+8. **Confirm.** Type the device's serial number (or its last six
    characters) and press *Erase*. A five-second countdown follows during
    which *Cancel* is the only control.
 
@@ -294,13 +308,70 @@ must not leave your control, destroy it.
   <figcaption>Done: the verdict, the passes and bytes written, and the certificate path.</figcaption>
 </figure>
 
-Erasing individual files and the free space of a volume, and the firmware
-sanitize commands for SSDs, are the next parts of the plan
-([M12](../erase/plan.md)). Until then, remember what the author's
+### Free space
+
+Deleting a file frees its clusters; the data stays there until something
+overwrites it, which is exactly what recovery relies on. A free-space wipe
+overwrites those clusters and nothing else, so the volume keeps working
+and its files stay. PhoinixDR offers it in two ways.
+
+**From the disk's page** (raw): choose *Only the free space of partition
+N*. The volume is read with the same NTFS, FAT, exFAT or ext engine a
+recovery uses, its allocation map gives the free ranges, and the page
+shows how many bytes in how many ranges will be written. Tick *Also
+overwrite the slack at the end of every file* to include the bytes between
+the end of each file's content and the end of its last cluster, where
+fragments of older files survive; slack is taken only from live files
+whose layout is plain and complete (no compressed, sparse, encrypted or
+resident streams). The volume must not be in use: on Windows it is
+dismounted for the duration, on Linux you unmount it first. This mode needs
+administrator rights like every raw target.
+
+<figure>
+  <img src="images/15-erase-free-space.png" alt="Erase setup with the free space of partition 1 selected, the slack option ticked and a deep post-erase scan" width="960">
+  <figcaption>Free space of a partition, with the slack of its files and a deep post-erase scan.</figcaption>
+</figure>
+
+**From a volume in use** (through the filesystem): the second list on the
+erase page shows the mounted volumes. Choosing one fills its free space
+with files written through the filesystem until the volume is full,
+rewrites them for every further pass, reads them back and removes them.
+This needs no administrator rights and the volume stays usable, but it is
+full for a moment, so close other programs first; *Leave free* keeps some
+space back. It reaches what the filesystem reports as free, which is a
+little less than the raw mode: the filesystem keeps some clusters for
+itself.
+
+<figure>
+  <img src="images/18-erase-mounted.png" alt="Erase setup for the free space of a mounted volume D:" width="960">
+  <figcaption>The free space of a volume in use: files are written until the volume is full, then removed.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/16-erase-scanning.png" alt="Post-erase scan in progress" width="960">
+  <figcaption>After the passes and the read-back, the post-erase scan looks for recoverable files with the recovery engines.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/17-erase-free-space-done.png" alt="Free-space wipe completed: verified, and the deep scan found nothing recoverable" width="960">
+  <figcaption>Done: the verification and the post-erase scan, with the filesystem, the deleted records found, how many still had content, and the carved files.</figcaption>
+</figure>
+
+Neither mode reaches everything, and the page says so: the content of
+small deleted files that NTFS keeps inside their MFT records (and ext
+inside inodes), copies in the journal, volume shadow copies and previous
+versions, and the physical cells a solid-state drive has remapped are
+left as they are, and the deleted names, sizes and dates stay visible in
+the metadata. The post-erase quick scan reports the resident records it
+finds with content so the certificate is honest about them. Read the
+author's
 [Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
-(pcoronaf, 2020) explains: overwriting a file by name does not reach the
-copies the system keeps, and the honest way to erase a file is to erase
-the free space of its volume afterwards.
+(pcoronaf, 2020): overwriting a file by name does not reach the copies the
+system keeps, and the honest way to erase a file is to wipe the free space
+of its volume afterwards.
+
+Erasing individual files and folders, and the firmware sanitize commands
+for SSDs, are the next parts of the plan ([M12](../erase/plan.md)).
 
 ## Sessions
 

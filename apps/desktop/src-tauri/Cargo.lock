@@ -2235,9 +2235,16 @@ name = "phoinix-erase"
 version = "0.1.5"
 dependencies = [
  "hex",
+ "libc",
  "phoinix-block",
  "phoinix-core",
  "phoinix-device",
+ "phoinix-fs",
+ "phoinix-fs-exfat",
+ "phoinix-fs-ext",
+ "phoinix-fs-fat",
+ "phoinix-fs-ntfs",
+ "phoinix-health",
  "phoinix-volume",
  "rand",
  "serde",

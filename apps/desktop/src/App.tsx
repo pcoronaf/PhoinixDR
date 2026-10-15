@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi, type Api } from "./api";
-import type { AppInfo, CandidateSummary, DeviceInfo, EngineLogLine, EraseCatalogue, EraseEvent, EraseRequest, EraseTargetInfo, ScanCompletion, ScanEvent, ScanRequest, SessionSummary, SourceInfo, TargetDescription } from "./types";
+import type { AppInfo, CandidateSummary, DeviceInfo, EngineLogLine, EraseCatalogue, EraseEvent, EraseRequest, EraseTargetInfo, MountedVolumeInfo, ScanCompletion, ScanEvent, ScanRequest, SessionSummary, SourceInfo, TargetDescription } from "./types";
 import { Home } from "./components/Home";
 import { SourcePicker } from "./components/SourcePicker";
 import { ScanSetup } from "./components/ScanSetup";
@@ -43,6 +43,7 @@ export default function App() {
   // Secure erase (M12).
   const [eraseCatalogue, setEraseCatalogue] = useState<EraseCatalogue | null>(null);
   const [eraseTargets, setEraseTargets] = useState<EraseTargetInfo[]>([]);
+  const [eraseVolumes, setEraseVolumes] = useState<MountedVolumeInfo[]>([]);
   const [eraseLoading, setEraseLoading] = useState(false);
   const [eraseError, setEraseError] = useState<string | null>(null);
   const [erase, setErase] = useState<EraseState>(EMPTY_ERASE);
@@ -101,17 +102,20 @@ export default function App() {
         case "verifying":
           setErase((s) => ({ ...s, verifying: { done: e.done, total: e.total } }));
           break;
+        case "scanning":
+          setErase((s) => ({ ...s, verifying: null, scanning: { phase: e.phase, done: e.done, total: e.total, candidates: e.candidates } }));
+          break;
         case "finished":
           setEraseCancelling(false);
-          setErase((s) => ({ ...s, verifying: null, summary: e.summary, ended: "finished" }));
+          setErase((s) => ({ ...s, verifying: null, scanning: null, summary: e.summary, ended: "finished" }));
           break;
         case "cancelled":
           setEraseCancelling(false);
-          setErase((s) => ({ ...s, verifying: null, summary: e.summary, resume: e.resume, ended: "cancelled" }));
+          setErase((s) => ({ ...s, verifying: null, scanning: null, summary: e.summary, resume: e.resume, ended: "cancelled" }));
           break;
         case "failed":
           setEraseCancelling(false);
-          setErase((s) => ({ ...s, verifying: null, summary: e.summary.passes > 0 ? e.summary : s.summary, message: e.message, ended: "failed" }));
+          setErase((s) => ({ ...s, verifying: null, scanning: null, summary: e.summary.passes > 0 ? e.summary : s.summary, message: e.message, ended: "failed" }));
           break;
         default:
           break;
@@ -131,12 +135,24 @@ export default function App() {
     setEraseError(null);
     try {
       if (!eraseCatalogue) setEraseCatalogue(await api.eraseCatalogue());
-      setEraseTargets(await api.eraseTargets());
+      const [targets, volumes] = await Promise.all([api.eraseTargets(), api.eraseVolumes().catch(() => [] as MountedVolumeInfo[])]);
+      setEraseTargets(targets);
+      setEraseVolumes(volumes);
     } catch (e) {
       setEraseError(String(e));
     }
     setEraseLoading(false);
   }, [api, eraseCatalogue]);
+
+  const chooseEraseVolume = useCallback(async (v: MountedVolumeInfo) => {
+    if (!api) return;
+    try {
+      const description = await api.describeEraseTarget({ kind: "mounted_free_space", mount: v.mount, reserve: 0 });
+      setView({ name: "erase-setup", description });
+    } catch (e) {
+      setEraseError(String(e));
+    }
+  }, [api]);
 
   const startErase = useCallback(async (request: EraseRequest) => {
     if (!api) return;
@@ -294,13 +310,17 @@ export default function App() {
         )}
         {view.name === "erase-targets" && eraseCatalogue !== null && (
           <EraseTargets
+            api={api}
+            info={info}
             catalogue={eraseCatalogue}
             targets={eraseTargets}
+            volumes={eraseVolumes}
             loading={eraseLoading}
             error={eraseError}
             onChoose={(t) => {
               if (t.description) setView({ name: "erase-setup", description: t.description });
             }}
+            onChooseVolume={chooseEraseVolume}
             onBack={() => setView({ name: "home" })}
             onRefresh={loadEraseTargets}
           />

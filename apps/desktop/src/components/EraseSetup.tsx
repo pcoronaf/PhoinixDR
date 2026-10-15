@@ -4,6 +4,7 @@ import type {
   EraseCatalogue,
   EraseRequest,
   EraseTarget,
+  PostScan,
   TargetDescription,
   VerifyMode,
 } from "../types";
@@ -18,9 +19,30 @@ interface Props {
   onBack: () => void;
 }
 
+/** What the page lets the user pick on a disk. */
+type Scope =
+  | { kind: "whole_device" }
+  | { kind: "partition"; index: number }
+  | { kind: "free_space"; index: number };
+
 function text(s: string): string | null {
   const t = s.trim();
   return t.length > 0 ? t : null;
+}
+
+function scopeOf(d: TargetDescription): Scope {
+  switch (d.target.kind) {
+    case "partition":
+      return { kind: "partition", index: d.target.index };
+    case "free_space":
+      return { kind: "free_space", index: d.target.partition ?? d.partition?.index ?? 1 };
+    default:
+      return { kind: "whole_device" };
+  }
+}
+
+function sameScope(a: Scope, b: Scope): boolean {
+  return a.kind === b.kind && (a.kind === "whole_device" || ("index" in a && "index" in b && a.index === b.index));
 }
 
 /** Target, method, operator, confirmation and the countdown. */
@@ -31,12 +53,14 @@ export function EraseSetup({
   onStart,
   onBack,
 }: Props) {
+  const mounted = initial.target.kind === "mounted_free_space";
   const [desc, setDesc] = useState<TargetDescription>(initial);
-  const [scope, setScope] = useState<"whole_device" | number>(
-    initial.target.kind === "partition" ? initial.target.index : "whole_device",
-  );
+  const [scope, setScope] = useState<Scope>(scopeOf(initial));
+  const [slack, setSlack] = useState(false);
+  const [reserveGb, setReserveGb] = useState("0");
   const [method, setMethod] = useState("zero");
   const [verify, setVerify] = useState<VerifyMode>("sample");
+  const [postScan, setPostScan] = useState<PostScan>("none");
   const [certificate, setCertificate] = useState("");
   const [name, setName] = useState("");
   const [organisation, setOrganisation] = useState("");
@@ -45,6 +69,7 @@ export function EraseSetup({
   const [typed, setTyped] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [describing, setDescribing] = useState(false);
   const chosen =
     catalogue.methods.find((m) => m.id === method) ?? catalogue.methods[0]!;
   const confirmed =
@@ -52,22 +77,38 @@ export function EraseSetup({
     (typed.trim().toLowerCase() === desc.confirmation.toLowerCase() ||
       (desc.confirmation_short !== null &&
         typed.trim().toLowerCase() === desc.confirmation_short.toLowerCase()));
+  const reserveBytes = Math.max(0, Math.round((parseFloat(reserveGb) || 0) * 1_000_000_000));
 
-  // Re-describe when the scope changes (whole device or one partition).
+  // Re-describe when the scope, the slack option or the reserve changes.
   useEffect(() => {
-    const target: EraseTarget =
-      scope === "whole_device"
-        ? { kind: "whole_device", path: initial.path }
-        : { kind: "partition", path: initial.path, index: scope };
+    let target: EraseTarget;
+    if (mounted && initial.target.kind === "mounted_free_space") {
+      target = { kind: "mounted_free_space", mount: initial.target.mount, reserve: reserveBytes };
+    } else if (scope.kind === "whole_device") {
+      target = { kind: "whole_device", path: initial.path };
+    } else if (scope.kind === "partition") {
+      target = { kind: "partition", path: initial.path, index: scope.index };
+    } else {
+      target = { kind: "free_space", path: initial.path, partition: scope.index, slack };
+    }
     let alive = true;
+    setDescribing(true);
+    setError(null);
     api
       .describeEraseTarget(target)
-      .then((d) => alive && setDesc(d))
-      .catch((e: unknown) => alive && setError(String(e)));
+      .then((d) => {
+        if (alive) setDesc(d);
+      })
+      .catch((e: unknown) => {
+        if (alive) setError(String(e));
+      })
+      .finally(() => {
+        if (alive) setDescribing(false);
+      });
     return () => {
       alive = false;
     };
-  }, [api, initial.path, scope]);
+  }, [api, initial.path, initial.target, mounted, scope, slack, reserveBytes]);
 
   // Countdown.
   useEffect(() => {
@@ -89,6 +130,7 @@ export function EraseSetup({
         state_dir: null,
         allow_executable_disk: false,
         allow_sessions_disk: false,
+        post_scan: postScan,
       };
       onStart(request);
       return;
@@ -100,6 +142,7 @@ export function EraseSetup({
     desc.target,
     method,
     verify,
+    postScan,
     name,
     organisation,
     asset,
@@ -114,18 +157,28 @@ export function EraseSetup({
     if (p) setCertificate(p);
   };
   const d = desc.device;
+  const space = desc.space;
+  const freeSpace = scope.kind === "free_space" || mounted;
+  const what = mounted
+    ? `the free space of ${desc.path}`
+    : scope.kind === "whole_device"
+      ? "the whole disk"
+      : scope.kind === "partition"
+        ? `partition ${scope.index}`
+        : `the free space of partition ${scope.index}${slack ? " and the file slack" : ""}`;
 
   return (
     <div className="panel erase">
       <div className="row-between">
-        <h2>Erase {d ? d.display_name : desc.path}</h2>
+        <h2>Erase {mounted ? `free space of ${desc.path}` : d ? d.display_name : desc.path}</h2>
         <button className="link" onClick={onBack} disabled={countdown !== null}>
           Back
         </button>
       </div>
       <p className="mono muted">
-        {desc.path}
-        {d?.serial ? ` · S/N ${d.serial}` : ""} · {formatBytesSi(desc.length)}
+        {mounted && space ? `${space.filesystem}${space.label ? ` "${space.label}"` : ""} · ${space.node ?? ""} · ${formatBytesSi(space.free_bytes)} free of ${formatBytesSi(space.total_bytes ?? space.volume_length)}` : desc.path}
+        {!mounted && d?.serial ? ` · S/N ${d.serial}` : ""}
+        {!mounted ? ` · ${formatBytesSi(desc.length)}` : ""}
         {d
           ? d.rotational === false
             ? " · solid state"
@@ -146,38 +199,101 @@ export function EraseSetup({
 
       <fieldset>
         <legend>What to erase</legend>
-        <label className="option">
-          <input
-            type="radio"
-            name="scope"
-            checked={scope === "whole_device"}
-            onChange={() => setScope("whole_device")}
-          />
-          <span>
-            <strong>The whole disk</strong>, partition table included ·{" "}
-            {d ? formatBytesSi(d.size) : ""}
-          </span>
-        </label>
-        {desc.partitions.map((p) => (
-          <label key={p.index} className="option">
-            <input
-              type="radio"
-              name="scope"
-              checked={scope === p.index}
-              onChange={() => setScope(p.index)}
-            />
-            <span>
-              Partition {p.index}: {p.type_name} · {formatBytesSi(p.length)}
-            </span>
-          </label>
+        {mounted ? (
+          <>
+            <p>
+              Files are written into <span className="mono">{desc.path}</span> until the volume is full
+              ({formatBytesSi(desc.length)} to write), rewritten for every further pass, read back and removed.
+              Live files are never touched.
+            </p>
+            <label className="option">
+              <span>Leave free (GB)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={reserveGb}
+                onChange={(e) => setReserveGb(e.target.value)}
+                disabled={countdown !== null}
+              />
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="option">
+              <input
+                type="radio"
+                name="scope"
+                checked={scope.kind === "whole_device"}
+                onChange={() => setScope({ kind: "whole_device" })}
+              />
+              <span>
+                <strong>The whole disk</strong>, partition table included ·{" "}
+                {d ? formatBytesSi(d.size) : ""}
+              </span>
+            </label>
+            {desc.partitions.map((p) => (
+              <div key={p.index}>
+                <label className="option">
+                  <input
+                    type="radio"
+                    name="scope"
+                    checked={sameScope(scope, { kind: "partition", index: p.index })}
+                    onChange={() => setScope({ kind: "partition", index: p.index })}
+                  />
+                  <span>
+                    Partition {p.index}: {p.type_name} · {formatBytesSi(p.length)}
+                  </span>
+                </label>
+                <label className="option">
+                  <input
+                    type="radio"
+                    name="scope"
+                    checked={sameScope(scope, { kind: "free_space", index: p.index })}
+                    onChange={() => setScope({ kind: "free_space", index: p.index })}
+                  />
+                  <span>
+                    Only the free space of partition {p.index}
+                    {sameScope(scope, { kind: "free_space", index: p.index }) && space
+                      ? ` · ${space.filesystem} · ${formatBytesSi(space.free_bytes)} free in ${space.free_ranges} range(s)`
+                      : ""}
+                  </span>
+                </label>
+              </div>
+            ))}
+            {scope.kind === "free_space" && (
+              <label className="option">
+                <input type="checkbox" checked={slack} onChange={(e) => setSlack(e.target.checked)} />
+                <span>
+                  Also overwrite the slack at the end of every file
+                  {slack && space ? ` · ${formatBytesSi(space.slack_bytes)} in ${space.slack_ranges} range(s)` : ""}
+                </span>
+              </label>
+            )}
+            {desc.volumes.length > 0 && (
+              <p className="muted">
+                Mounted on the target: {desc.volumes.map((v) => v.mount).join(", ")}
+                .{" "}
+                {desc.volumes.every((v) => v.can_dismount)
+                  ? "They will be dismounted before the first write."
+                  : "Unmount them first."}
+              </p>
+            )}
+          </>
+        )}
+        {describing && <p className="muted">Reading the volume…</p>}
+        {desc.warnings.map((w, i) => (
+          <p key={i} className="warn">
+            {w}
+          </p>
         ))}
-        {desc.volumes.length > 0 && (
+        {freeSpace && (
           <p className="muted">
-            Mounted on the target: {desc.volumes.map((v) => v.mount).join(", ")}
-            .{" "}
-            {desc.volumes.every((v) => v.can_dismount)
-              ? "They will be dismounted before the first write."
-              : "Unmount them first."}
+            Read{" "}
+            <a href={catalogue.article_files} target="_blank" rel="noreferrer">
+              Borrado seguro de archivos
+            </a>{" "}
+            (pcoronaf, 2020) on what a free-space wipe reaches and what it cannot.
           </p>
         )}
       </fieldset>
@@ -218,6 +334,22 @@ export function EraseSetup({
             <option value="none">None</option>
           </select>
         </label>
+        <label className="option">
+          <span>Then look for recoverable files with the recovery engines</span>
+          <select
+            value={postScan}
+            onChange={(e) => setPostScan(e.target.value as PostScan)}
+          >
+            <option value="none">No scan</option>
+            <option value="quick">Quick scan (filesystem metadata)</option>
+            <option value="deep">Deep scan (metadata and carving; takes as long as a recovery scan)</option>
+          </select>
+        </label>
+        {mounted && postScan !== "none" && (
+          <p className="muted">
+            The scan reads the volume directly and needs administrator rights; without them the certificate says the scan did not run.
+          </p>
+        )}
       </fieldset>
 
       <fieldset>
@@ -288,12 +420,11 @@ export function EraseSetup({
           <button
             className="primary erase-button"
             disabled={
-              !confirmed || desc.refusals.length > 0 || desc.length === 0
+              !confirmed || describing || desc.refusals.length > 0 || desc.length === 0
             }
             onClick={() => setCountdown(5)}
           >
-            Erase{" "}
-            {scope === "whole_device" ? "the whole disk" : `partition ${scope}`}
+            Erase {what}
           </button>
         ) : (
           <>

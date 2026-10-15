@@ -1,6 +1,6 @@
 # M12: Secure erase
 
-Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 to M12.4 planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
+Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 delivered (free space of NTFS/FAT/exFAT/ext volumes from the engines' allocation maps, file slack, the filesystem-level wipe of a mounted volume, post-erase quick and deep scans in the certificate). M12.3 and M12.4 planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
 
 PhoinixDR gains an erase mode: overwrite a whole device, a partition, the
 free space of a volume, or individual files and folders, with a chosen
@@ -57,7 +57,7 @@ documentation alone:
 |---|---|---|
 | whole device | overwrite every sector, partition table included; or firmware sanitize on SSD/NVMe | read-back sample of written blocks; `phoinix inspect` shows no partition table; deep scan finds no hits |
 | partition | overwrite the partition's byte range; table entry left in place | read-back sample; quick scan finds no filesystem or no records; deep scan finds no hits |
-| free space of a volume | overwrite every unallocated cluster of a mounted or unmounted NTFS/FAT/exFAT/ext volume, plus the slack of allocated files optionally | deep scan of the volume finds no carved candidates; quick scan finds no deleted records with content |
+| free space of a volume | overwrite every unallocated cluster of an unmounted NTFS/FAT/exFAT/ext volume (raw, from the engine's allocation map), plus the slack of allocated files optionally; or fill a mounted volume through the filesystem until it is full, then remove the fill files | deep scan of the volume finds no carved candidates; quick scan finds no deleted records with content (resident records are reported apart, since no free-space wipe reaches them) |
 | files and folders | overwrite the content of the named files (every stream on NTFS), rename to a random name, truncate, delete | the deleted record, if still visible, has zero-filled content; a diagnostic lists what this operation cannot reach |
 
 Out of scope for M12: erasing the system disk from inside the running
@@ -154,10 +154,16 @@ IOCTLs go through the `windows-sys` crate like the readers do.
    the guarantee statements and the article links. Tests on loop
    devices (Linux CI) and image files; a Windows test writes to a VHD
    attached in the runner.
-2. **M12.2 Free space and verification scans.** Free-space wipe for
-   NTFS/FAT/exFAT/ext from the engines' allocation views, slack
-   overwrite as an option, post-erase quick and deep scans summarised in
-   the certificate.
+2. **M12.2 Free space and verification scans** (delivered). Free-space
+   wipe for NTFS/FAT/exFAT/ext from the engines' allocation views
+   (`AllocationView::free_ranges`), slack overwrite as an option
+   (`AllocationView::slack_ranges`, implemented by every engine for live
+   files with plain, complete layouts), the filesystem-level fill of a
+   mounted volume (no raw access, no administrator rights), and post-erase
+   quick and deep scans run by the session layer through a `PostScanner`
+   hook and summarised in the certificate. Raw targets are written as
+   lists of ranges with read-modify-write of partial sectors, so slack
+   can be erased on devices that need aligned writes.
 3. **M12.3 Files and folders.** File overwrite with the stated limits and
    the "follow with a free-space wipe" recommendation; NTFS alternate
    streams; resident-data handling (the record itself is rewritten only

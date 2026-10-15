@@ -376,4 +376,49 @@ impl AllocationView for FatUndelete {
             },
         )
     }
+
+    /// The slack of every allocated file whose FAT chain is intact and
+    /// covers its declared size.
+    fn slack_ranges(&self) -> Result<Option<Vec<ByteRange>>, FsError> {
+        use phoinix_fs::space::{merge_ranges, runs_of_clusters, tail_of_runs};
+        let cs = AllocationView::cluster_size(self);
+        let boot = self.volume.boot();
+        let mut out = Vec::new();
+        for walked in self.volume.walk()? {
+            let entry = &walked.entry;
+            if entry.deleted
+                || walked.via_deleted_directory
+                || entry.attributes.is_directory()
+                || entry.attributes.is_volume_label()
+                || entry.size == 0
+            {
+                continue;
+            }
+            let Ok(r) = self.volume.reconstruct(entry) else {
+                continue;
+            };
+            if !r.chain_known || !r.complete || r.clusters.is_empty() {
+                continue;
+            }
+            let mut offsets = Vec::with_capacity(r.clusters.len());
+            let mut sound = true;
+            for c in &r.clusters {
+                match boot.cluster_offset(*c) {
+                    Ok(o) => offsets.push(o),
+                    Err(_) => {
+                        sound = false;
+                        break;
+                    }
+                }
+            }
+            if !sound {
+                continue;
+            }
+            out.extend(tail_of_runs(
+                &runs_of_clusters(&offsets, cs),
+                u64::from(entry.size),
+            ));
+        }
+        Ok(Some(merge_ranges(out)))
+    }
 }

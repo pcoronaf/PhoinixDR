@@ -61,6 +61,7 @@ pub fn run() {
             commands::set_engine_log,
             commands::erase_catalogue,
             commands::erase_targets,
+            commands::erase_volumes,
             commands::describe_erase_target,
             commands::start_erase,
             commands::cancel_erase,

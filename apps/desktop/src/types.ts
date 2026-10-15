@@ -383,7 +383,45 @@ export type EraseTarget =
   | { kind: "whole_device"; path: string }
   | { kind: "partition"; path: string; index: number }
   | { kind: "range"; path: string; offset: number; length: number }
-  | { kind: "file"; path: string };
+  | { kind: "file"; path: string }
+  | { kind: "free_space"; path: string; partition: number | null; slack: boolean }
+  | { kind: "mounted_free_space"; mount: string; reserve: number };
+
+export interface ByteRange {
+  offset: number;
+  length: number;
+}
+
+/** The volume behind a free-space target. */
+export interface SpaceDescription {
+  filesystem: string;
+  volume_offset: number;
+  volume_length: number;
+  cluster_size: number;
+  map_available: boolean;
+  free_bytes: number;
+  free_ranges: number;
+  slack: boolean;
+  slack_bytes: number;
+  slack_ranges: number;
+  mount: string | null;
+  node: string | null;
+  label: string | null;
+  total_bytes: number | null;
+}
+
+/** A mounted volume, target of the filesystem-level free-space wipe. */
+export interface MountedVolumeInfo {
+  mount: string;
+  node: string;
+  filesystem: string;
+  label: string | null;
+  total: number;
+  free: number;
+  disk: string | null;
+  read_only: boolean;
+  system: boolean;
+}
 
 export type Refusal =
   | { kind: "system_disk" }
@@ -424,6 +462,9 @@ export interface TargetDescription {
   refusals: Refusal[];
   confirmation: string;
   confirmation_short: string | null;
+  ranges: ByteRange[];
+  space: SpaceDescription | null;
+  warnings: string[];
 }
 
 export interface EraseTargetInfo {
@@ -448,9 +489,28 @@ export interface EraseCatalogue {
   flash_warning: string;
   article_gutmann: string;
   article_files: string;
+  free_space_note: string;
+  mounted_note: string;
 }
 
 export type VerifyMode = "none" | "sample" | "full";
+export type PostScan = "none" | "quick" | "deep";
+
+/** What the post-erase scan found. */
+export interface ScanRecord {
+  mode: PostScan;
+  ran: boolean;
+  note: string | null;
+  filesystem: string | null;
+  partition_table: string | null;
+  candidates: number;
+  with_content: number;
+  carved: number;
+  bytes_scanned: number;
+  seconds: number;
+  cancelled: boolean;
+  passed: boolean;
+}
 
 export interface Operator {
   name: string | null;
@@ -473,6 +533,7 @@ export interface EraseRequest {
   state_dir: string | null;
   allow_executable_disk: boolean;
   allow_sessions_disk: boolean;
+  post_scan: PostScan;
 }
 
 export interface VerificationRecord {
@@ -494,6 +555,7 @@ export interface EraseSummary {
   unwritable_ranges: number;
   seconds: number;
   verification: VerificationRecord | null;
+  scan: ScanRecord | null;
   certificate: string | null;
   verdict: string;
 }
@@ -512,6 +574,7 @@ export type EraseEvent =
   | { kind: "pass"; pass: number; passes: number; pattern: string }
   | { kind: "progress"; pass: number; passes: number; done: number; total: number; bytes_per_sec: number; unwritable: number }
   | { kind: "verifying"; done: number; total: number }
+  | { kind: "scanning"; mode: PostScan; phase: string; done: number; total: number | null; candidates: number }
   | { kind: "finished"; summary: EraseSummary }
-  | { kind: "cancelled"; resume: ResumePoint; summary: EraseSummary }
+  | { kind: "cancelled"; resume: ResumePoint | null; summary: EraseSummary }
   | { kind: "failed"; message: string; summary: EraseSummary };

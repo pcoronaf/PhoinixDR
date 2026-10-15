@@ -43,6 +43,7 @@ fn request(path: &std::path::Path, method: EraseMethod) -> EraseRequest {
         state_dir: None,
         allow_executable_disk: false,
         allow_sessions_disk: false,
+        post_scan: phoinix_erase::PostScan::None,
     }
 }
 
@@ -133,7 +134,7 @@ fn cancellation_leaves_a_resume_point_and_resume_finishes_the_job() {
             EraseEvent::Progress { pass, done, .. } if pass == 2 && done >= 8 * 1024 * 1024 => {
                 cancel.store(true, Ordering::Relaxed);
             }
-            EraseEvent::Cancelled { resume: r, .. } => resume = Some(r),
+            EraseEvent::Cancelled { resume: r, .. } => resume = r,
             _ => {}
         },
         &cancel,

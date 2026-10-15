@@ -48,7 +48,7 @@ el sitio muestra la versión en inglés.
 
 ## Borrado seguro
 
-- [Plan y estado de M12](../erase/plan.md) (en inglés): el crate con capacidad de escritura, los métodos y lo que garantizan, reglas de seguridad, verificación, certificado; M12.1 (dispositivos y particiones) entregado
+- [Plan y estado de M12](../erase/plan.md) (en inglés): el crate con capacidad de escritura, los métodos y lo que garantizan, reglas de seguridad, verificación, certificado; M12.1 (dispositivos y particiones) y M12.2 (espacio libre, slack, escaneos posteriores) entregados
 - Guías: [escritorio](user-guide/desktop.md#borrado-seguro), [línea de comandos](user-guide/cli.md#borrado-seguro)
 
 ## Decisiones (en inglés)

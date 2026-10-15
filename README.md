@@ -31,8 +31,9 @@ Select source → Scan → Find lost data → Assess recoverability → Preview 
 > scan (signature carving of unallocated space), lost-partition recovery
 > (virtual mounts, no table writes), forensic and virtual-disk image
 > containers (E01, split E01, split RAW, VHD, VHDX, VMDK) with hash
-> verification and exportable recovery reports, secure erase of disks and
-> partitions with verification and a sanitization certificate (M12.1), evidence-based recovery
+> verification and exportable recovery reports, secure erase of disks,
+> partitions and the free space of volumes with verification, a post-erase
+> recovery scan and a sanitization certificate (M12.1, M12.2), evidence-based recovery
 > health, a verified recovery writer, the `phoinix` CLI and a desktop
 > application (Tauri 2 + React) with sessions, previews and recovery.
 

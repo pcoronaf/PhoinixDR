@@ -373,6 +373,10 @@ pub struct EraseCatalogue {
     pub article_gutmann: String,
     /// Article on secure deletion of files.
     pub article_files: String,
+    /// What a raw free-space wipe cannot reach.
+    pub free_space_note: String,
+    /// What a mounted (filesystem-level) wipe cannot reach.
+    pub mounted_note: String,
 }
 
 /// The method catalogue and warning texts.
@@ -394,6 +398,8 @@ pub fn erase_catalogue() -> EraseCatalogue {
         flash_warning: phoinix_erase::FLASH_WARNING.to_owned(),
         article_gutmann: phoinix_erase::ARTICLE_GUTMANN_MYTH.to_owned(),
         article_files: phoinix_erase::ARTICLE_SECURE_DELETION.to_owned(),
+        free_space_note: phoinix_erase::FREE_SPACE_NOTE.to_owned(),
+        mounted_note: phoinix_erase::MOUNTED_NOTE.to_owned(),
     }
 }
 
@@ -405,7 +411,14 @@ pub fn erase_targets(
     state.workspace.erase_targets().map_err(String::from)
 }
 
-/// Describes one target (device, partition or file) with the guards applied.
+/// Mounted volumes as targets of the filesystem-level free-space wipe.
+#[tauri::command]
+pub fn erase_volumes(state: State<'_, AppState>) -> Vec<phoinix_erase::MountedVolumeInfo> {
+    state.workspace.erase_volumes()
+}
+
+/// Describes one target (device, partition, file, free space or mounted
+/// volume) with the guards applied.
 #[tauri::command]
 pub fn describe_erase_target(
     state: State<'_, AppState>,

@@ -44,9 +44,9 @@ export function Home({ api, info, sessions, onPhysical, onRemovable, onImage, on
       <div className="erase-section">
         <h2>Erase a disk</h2>
         <div className="choices">
-          <button className="choice erase-choice" onClick={onErase} disabled={info ? !info.device_access : false}>
+          <button className="choice erase-choice" onClick={onErase}>
             <strong>Secure erase</strong>
-            <span>Overwrite a whole disk or a partition so that nothing on it can be recovered, with a verification and a sanitization certificate. Irreversible.</span>
+            <span>Overwrite a whole disk, a partition, or the free space of a volume so that nothing deleted can be recovered, with a verification, an optional recovery scan and a sanitization certificate. Irreversible.</span>
           </button>
         </div>
       </div>

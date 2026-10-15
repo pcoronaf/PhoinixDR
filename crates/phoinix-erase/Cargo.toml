@@ -13,6 +13,12 @@ phoinix-core = { workspace = true }
 phoinix-block = { workspace = true }
 phoinix-device = { workspace = true }
 phoinix-volume = { workspace = true }
+phoinix-fs = { workspace = true }
+phoinix-fs-ntfs = { workspace = true }
+phoinix-fs-fat = { workspace = true }
+phoinix-fs-exfat = { workspace = true }
+phoinix-fs-ext = { workspace = true }
+phoinix-health = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -20,6 +26,9 @@ tracing = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
@@ -31,6 +40,7 @@ windows-sys = { version = "0.61", features = [
 
 [dev-dependencies]
 tempfile = { workspace = true }
+phoinix-integration-tests = { path = "../../tests/integration" }
 
 [lints]
 workspace = true

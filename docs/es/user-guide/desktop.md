@@ -241,8 +241,10 @@ recuperación.
 ## Borrado seguro
 
 PhoinixDR también puede hacer lo contrario de recuperar: sobrescribir un
-disco completo o una partición para que no pueda recuperarse nada,
-verificar el resultado y emitir un certificado de sanitización. Es un modo
+disco completo, una partición o el espacio libre de un volumen para que no
+pueda recuperarse nada de lo borrado, verificar el resultado, examinarlo
+con sus propios motores de recuperación y emitir un certificado de
+sanitización. Es un modo
 aparte, accesible solo desde la página de inicio, con su propio color, y es
 la única parte de PhoinixDR que escribe en un dispositivo (véase
 [ADR-0014](../../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md),
@@ -250,8 +252,8 @@ en inglés). Todo lo que escribe se pierde para siempre; lea los avisos de
 cada página.
 
 <figure>
-  <img src="../../user-guide/images/11-erase-targets.png" alt="Borrar un disco: la lista de discos con los que no pueden borrarse atenuados" width="960">
-  <figcaption>Erase a disk (borrar un disco): cada disco con su modelo, número de serie y tamaño; los que no pueden borrarse indican por qué.</figcaption>
+  <img src="../../user-guide/images/11-erase-targets.png" alt="Borrar un disco: la lista de discos con los que no pueden borrarse atenuados, y los volúmenes montados cuyo espacio libre puede borrarse" width="960">
+  <figcaption>Erase a disk (borrar un disco): cada disco con su modelo, número de serie y tamaño, y los que no pueden borrarse indican por qué; debajo, los volúmenes en uso cuyo espacio libre puede borrarse a través del sistema de archivos.</figcaption>
 </figure>
 
 1. **Elija el disco.** Se rechazan el disco del sistema, el disco desde el
@@ -259,9 +261,14 @@ cada página.
    cualquier fuente abierta para recuperación. Los discos con volúmenes
    montados se listan con sus letras de unidad; en Windows los volúmenes se
    bloquean y desmontan antes de la primera escritura, en Linux debe
-   desmontarlos usted antes.
-2. **Elija qué borrar:** el disco completo, tabla de particiones incluida,
-   o una partición (su entrada en la tabla se conserva).
+   desmontarlos usted antes. Cuando un disco indica que no es accesible
+   desde este proceso, la página ofrece el mismo botón *Restart as
+   administrator* que las páginas de recuperación.
+2. **Elija qué borrar:** el disco completo, tabla de particiones incluida;
+   una partición (su entrada en la tabla se conserva); o *solo el espacio
+   libre* de una partición, que sobrescribe cada clúster que el sistema de
+   archivos marca como libre y deja los archivos en su sitio (véase
+   [Espacio libre](#espacio-libre) más abajo).
 3. **Elija el método.** El predeterminado, una pasada de ceros, es el
    *Clear* de NIST SP 800-88 y basta en cualquier disco fabricado en este
    siglo. Los demás métodos se listan con lo que valen: *random*, *NIST*
@@ -286,14 +293,25 @@ cada página.
    repartida de 4096 bloques en los demás, o todo si elige *Read back
    everything*. Las pasadas aleatorias también se verifican: la semilla de
    la ejecución queda registrada y los datos se regeneran para comparar.
-6. **Certificado.** Opcionalmente elija un archivo (`.html`, `.md` o
+6. **Escaneo posterior.** Opcionalmente, tras la verificación, PhoinixDR
+   examina el objetivo con sus propios motores de recuperación: un
+   *escaneo rápido* recorre los metadatos del sistema de archivos y cuenta
+   los registros borrados cuyo contenido sigue siendo distinto de ceros;
+   un *escaneo profundo* además talla por firmas el espacio borrado, lo
+   que tarda tanto como un escaneo de recuperación. El certificado anota
+   lo que encontró el escaneo. Tras sobrescribir un disco o una partición
+   completa el resultado esperado es «ningún sistema de archivos»; tras un
+   borrado de espacio libre, «ningún registro con contenido y nada
+   tallado».
+7. **Certificado.** Opcionalmente elija un archivo (`.html`, `.md` o
    `.json`) y rellene operador, organización, número de activo y notas. El
    certificado es un registro conforme a NIST SP 800-88 §4.8: modelo,
-   número de serie y capacidad del dispositivo, rango borrado, método y
-   pasadas, horas, bytes escritos, resultado de la verificación y cada
-   región que el dispositivo se negó a escribir (esos bytes no están
-   borrados, y el certificado lo dice).
-7. **Confirme.** Escriba el número de serie del dispositivo (o sus seis
+   número de serie y capacidad del dispositivo, rango borrado (o el
+   volumen, su espacio libre y su slack), método y pasadas, horas, bytes
+   escritos, resultado de la verificación, escaneo posterior y cada región
+   que el dispositivo se negó a escribir (esos bytes no están borrados, y
+   el certificado lo dice).
+8. **Confirme.** Escriba el número de serie del dispositivo (o sus seis
    últimos caracteres) y pulse *Erase*. Sigue una cuenta atrás de cinco
    segundos durante la cual *Cancel* es el único control.
 
@@ -320,14 +338,73 @@ destrúyalo.
   <figcaption>Fin: el veredicto, las pasadas y los bytes escritos, y la ruta del certificado.</figcaption>
 </figure>
 
-Borrar archivos sueltos y el espacio libre de un volumen, y los comandos de
-sanitización del firmware para SSD, son las siguientes partes del plan
-([M12](../../erase/plan.md), en inglés). Mientras tanto, recuerde lo que
-explica
+### Espacio libre
+
+Eliminar un archivo libera sus clústeres; los datos siguen ahí hasta que
+algo los sobrescribe, que es exactamente lo que aprovecha la recuperación.
+Un borrado de espacio libre sobrescribe esos clústeres y nada más, de modo
+que el volumen sigue funcionando y sus archivos se conservan. PhoinixDR lo
+ofrece de dos maneras.
+
+**Desde la página del disco** (en bruto): elija *Only the free space of
+partition N*. El volumen se lee con el mismo motor NTFS, FAT, exFAT o ext
+que usa la recuperación, su mapa de asignación da los rangos libres, y la
+página muestra cuántos bytes en cuántos rangos se escribirán. Marque *Also
+overwrite the slack at the end of every file* para incluir los bytes entre
+el final del contenido de cada archivo y el final de su último clúster,
+donde sobreviven fragmentos de archivos anteriores; el slack se toma solo
+de archivos vivos con una disposición simple y completa (sin flujos
+comprimidos, dispersos, cifrados ni residentes). El volumen no debe estar
+en uso: en Windows se desmonta mientras dura la operación, en Linux debe
+desmontarlo usted antes. Este modo necesita derechos de administrador como
+todo objetivo en bruto.
+
+<figure>
+  <img src="../../user-guide/images/15-erase-free-space.png" alt="Configuración del borrado con el espacio libre de la partición 1 seleccionado, la opción de slack marcada y un escaneo profundo posterior" width="960">
+  <figcaption>Espacio libre de una partición, con el slack de sus archivos y un escaneo profundo posterior.</figcaption>
+</figure>
+
+**Desde un volumen en uso** (a través del sistema de archivos): la segunda
+lista de la página de borrado muestra los volúmenes montados. Elegir uno
+llena su espacio libre con archivos escritos a través del sistema de
+archivos hasta que el volumen se llena, los reescribe en cada pasada
+adicional, los relee y los elimina. No necesita derechos de administrador
+y el volumen sigue utilizable, pero queda lleno un momento, así que cierre
+antes los demás programas; *Leave free* reserva algo de espacio. Alcanza lo
+que el sistema de archivos declara libre, algo menos que el modo en bruto:
+el sistema de archivos se reserva algunos clústeres.
+
+<figure>
+  <img src="../../user-guide/images/18-erase-mounted.png" alt="Configuración del borrado del espacio libre de un volumen montado D:" width="960">
+  <figcaption>El espacio libre de un volumen en uso: se escriben archivos hasta llenar el volumen y después se eliminan.</figcaption>
+</figure>
+
+<figure>
+  <img src="../../user-guide/images/16-erase-scanning.png" alt="Escaneo posterior al borrado en curso" width="960">
+  <figcaption>Tras las pasadas y la relectura, el escaneo posterior busca archivos recuperables con los motores de recuperación.</figcaption>
+</figure>
+
+<figure>
+  <img src="../../user-guide/images/17-erase-free-space-done.png" alt="Borrado de espacio libre completado: verificado, y el escaneo profundo no encontró nada recuperable" width="960">
+  <figcaption>Fin: la verificación y el escaneo posterior, con el sistema de archivos, los registros borrados encontrados, cuántos conservaban contenido y los archivos tallados.</figcaption>
+</figure>
+
+Ningún modo lo alcanza todo, y la página lo dice: el contenido de los
+archivos borrados pequeños que NTFS guarda dentro de sus registros MFT (y
+ext dentro de los inodos), las copias en el diario, las instantáneas de
+volumen y versiones anteriores, y las celdas físicas que un disco de
+estado sólido ha reasignado quedan como están, y los nombres, tamaños y
+fechas borrados siguen visibles en los metadatos. El escaneo rápido
+posterior informa de los registros residentes con contenido que encuentra,
+para que el certificado sea honesto con ellos. Lea
 [Borrado seguro de archivos](https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html)
 (pcoronaf, 2020): sobrescribir un archivo por su nombre no alcanza las
 copias que guarda el sistema, y la forma honesta de borrar un archivo es
 borrar después el espacio libre de su volumen.
+
+Borrar archivos y carpetas sueltos, y los comandos de sanitización del
+firmware para SSD, son las siguientes partes del plan
+([M12](../../erase/plan.md), en inglés).
 
 ## Sesiones
 

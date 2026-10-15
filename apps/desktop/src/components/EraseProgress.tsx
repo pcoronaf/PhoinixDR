@@ -13,6 +13,7 @@ export interface EraseState {
   bytesPerSec: number;
   unwritable: number;
   verifying: { done: number; total: number } | null;
+  scanning: { phase: string; done: number; total: number | null; candidates: number } | null;
   summary: EraseSummary | null;
   resume: ResumePoint | null;
   message: string | null;
@@ -30,6 +31,7 @@ export const EMPTY_ERASE: EraseState = {
   bytesPerSec: 0,
   unwritable: 0,
   verifying: null,
+  scanning: null,
   summary: null,
   resume: null,
   message: null,
@@ -54,20 +56,31 @@ export function EraseProgress({
 }: Props) {
   const d = state.description;
   const title = d
-    ? `${d.device?.display_name ?? d.path}${d.partition ? ` · partition ${d.partition.index}` : ""}`
+    ? `${d.space?.mount ? `${d.space.mount} ` : ""}${d.device?.display_name ?? d.path}${d.partition ? ` · partition ${d.partition.index}` : ""}${d.space ? ` · ${d.space.filesystem} free space${d.space.slack ? " + slack" : ""}` : ""}`
     : "";
-  const fraction = state.verifying
-    ? state.verifying.total
-      ? state.verifying.done / state.verifying.total
+  const fraction = state.scanning
+    ? state.scanning.total
+      ? state.scanning.done / state.scanning.total
       : 0
-    : state.total
-      ? state.done / state.total
-      : 0;
+    : state.verifying
+      ? state.verifying.total
+        ? state.verifying.done / state.verifying.total
+        : 0
+      : state.total
+        ? state.done / state.total
+        : 0;
+  const scanOk =
+    state.summary?.scan === null ||
+    state.summary?.scan === undefined ||
+    !state.summary.scan.ran ||
+    state.summary.scan.passed;
   return (
     <div className="panel progress erase">
       <h2>
         {state.ended === null
-          ? state.verifying
+          ? state.scanning
+            ? `Scanning the erased space (${state.scanning.phase})…`
+            : state.verifying
             ? "Verifying…"
             : state.passes > 0
               ? `Erasing · pass ${state.pass} of ${state.passes} (${state.pattern})…`
@@ -90,7 +103,9 @@ export function EraseProgress({
       </div>
       {state.ended === null && (
         <p className="muted">
-          {state.verifying
+          {state.scanning
+            ? `${state.scanning.candidates} candidate(s) so far${state.scanning.total ? ` · ${percent(state.scanning.done, state.scanning.total)}` : ""}`
+            : state.verifying
             ? `${state.verifying.done} of ${state.verifying.total} blocks read back`
             : state.total
               ? `${formatBytes(state.done)} of ${formatBytes(state.total)} (${percent(state.done, state.total)}) at ${formatBytes(state.bytesPerSec)}/s · ${etaText(state.total - state.done + (state.passes - state.pass) * state.total, state.bytesPerSec)}`
@@ -106,6 +121,7 @@ export function EraseProgress({
           className={
             state.ended === "finished" &&
             state.summary.unwritable_bytes === 0 &&
+            scanOk &&
             (state.summary.verification === null ||
               state.summary.verification.passed ||
               state.summary.verification.mode === "none")
@@ -124,6 +140,19 @@ export function EraseProgress({
               ? ` · certificate: ${state.summary.certificate}`
               : ""}
           </p>
+          {state.summary.scan && state.summary.scan.ran && (
+            <p className="muted">
+              Post-erase {state.summary.scan.mode} scan: filesystem{" "}
+              {state.summary.scan.filesystem ?? "none"} ·{" "}
+              {state.summary.scan.candidates} deleted record(s),{" "}
+              {state.summary.scan.with_content} with content ·{" "}
+              {state.summary.scan.carved} carved file(s)
+              {state.summary.scan.note ? ` · ${state.summary.scan.note}` : ""}
+            </p>
+          )}
+          {state.summary.scan && !state.summary.scan.ran && (
+            <p className="muted">Post-erase scan not run{state.summary.scan.note ? `: ${state.summary.scan.note}` : ""}.</p>
+          )}
         </div>
       )}
       <div className="actions">

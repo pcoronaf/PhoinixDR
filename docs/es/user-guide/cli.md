@@ -193,8 +193,10 @@ salida y su SHA-256. Véase
 ## Borrado seguro
 
 `phoinix erase` es el único comando que escribe en una fuente. Sobrescribe
-un dispositivo completo, una partición o un archivo normal (una imagen de
-disco antes de desecharla), verifica el resultado y emite un certificado de
+un dispositivo completo, una partición, un archivo normal (una imagen de
+disco antes de desecharla), el espacio libre de un volumen o el espacio
+libre de un volumen montado, verifica el resultado, opcionalmente lo
+examina con los motores de recuperación y emite un certificado de
 sanitización. Las reglas y los avisos son los de la guía de escritorio: se
 rechazan el disco del sistema, el del ejecutable y el de las sesiones, un
 volumen montado debe desmontarse antes en Linux y el comando lo desmonta en
@@ -210,18 +212,42 @@ phoinix erase device \\.\PhysicalDrive2 --method nist --certificate C:\certs\dri
 phoinix erase partition /dev/sdb --partition 1 --method random --verify full
 phoinix erase file imagen-vieja.E01 --method zero    # un archivo como rango en bruto
 phoinix erase device /dev/sdb --resume               # continúa un borrado cancelado desde su punto de reanudación
+phoinix erase describe /dev/sdb -p 1 --free-space --slack      # los rangos libres y el slack que escribiría un borrado; no escribe nada
+phoinix erase free-space /dev/sdb --partition 1 --slack --scan deep --certificate sdb1.html
+phoinix erase free-space memoria.img --scan quick    # el único volumen de una imagen, con los motores de sistema de archivos
+phoinix erase mounted E:\ --reserve 2G              # llena un volumen en uso a través del sistema de archivos; sin derechos de administrador
+phoinix erase mounted /media/usuario/memoria --method random
 ```
+
+`free-space` lee el volumen con el motor NTFS, FAT, exFAT o ext, toma los
+rangos libres de su mapa de asignación (y el slack de los archivos vivos
+con `--slack`) y los escribe en bruto; el volumen no debe estar montado
+(Windows lo desmonta, Linux lo rechaza hasta que usted lo desmonte).
+`mounted` acepta una unidad, un punto de montaje o cualquier carpeta del
+volumen, escribe ahí archivos de relleno hasta llenar el volumen (o hasta
+que queden `--reserve` bytes), los reescribe en cada pasada adicional, los
+relee y los elimina; funciona sin derechos de administrador y el volumen
+sigue en uso. `--scan quick|deep` ejecuta después los motores de
+recuperación sobre el objetivo y anota el resultado en el certificado (el
+escaneo profundo talla y tarda tanto como un escaneo de recuperación; en
+un volumen montado el escaneo lee el volumen en bruto y por tanto necesita
+derechos de administrador). Lo que un borrado de espacio libre no alcanza
+(datos residentes dentro de registros MFT o inodos, copias del diario,
+instantáneas, celdas reasignadas de la memoria flash) se imprime con la
+descripción y se escribe en el certificado.
 
 Opciones: `--method` (`zero`, `random`, `nist`, `dod-3`, `dod-7`,
 `schneier`, `vsitr`, `gutmann`, o `custom` con `--passes N` y opcionalmente
-`--pattern HEX`), `--verify none|sample|full`, `--certificate`,
-`--operator`, `--organisation`, `--asset`, `--notes`, `--resume`,
-`--no-countdown`, `--json` (un evento por línea). En un terminal el comando
+`--pattern HEX`), `--verify none|sample|full`, `--scan none|quick|deep`,
+`--certificate`, `--operator`, `--organisation`, `--asset`, `--notes`,
+`--resume` (solo objetivos en bruto; un borrado montado cancelado elimina
+sus archivos), `--no-countdown`, `--json` (un evento por línea). En un terminal el comando
 muestra el objetivo y pide teclear el número de serie (o sus seis últimos
 caracteres; el nombre del archivo si es un archivo); sin terminal, pase
 `--i-understand-this-destroys-data <serie>`. El código de salida es 1
 cuando el borrado se canceló, falló, dejó regiones que el dispositivo se
-negó a escribir o no se verificó; el certificado lleva el detalle.
+negó a escribir, no se verificó, o cuando el escaneo posterior encontró
+contenido recuperable; el certificado lleva el detalle.
 
 ## Comandos NTFS para desarrolladores
 

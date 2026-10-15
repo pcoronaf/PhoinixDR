@@ -7,6 +7,7 @@ use phoinix_core::fmt::{bytes_si, iso8601_utc};
 use serde::{Deserialize, Serialize};
 
 use crate::method::{EraseMethod, VerifyMode};
+use crate::scan::ScanRecord;
 use crate::target::TargetDescription;
 
 /// Who ran the erase.
@@ -121,6 +122,9 @@ pub struct Certificate {
     pub operator: Operator,
     /// The verification, once done.
     pub verification: Option<VerificationRecord>,
+    /// The post-erase scan, once done.
+    #[serde(default)]
+    pub scan: Option<ScanRecord>,
     /// The disclaimer.
     pub disclaimer: String,
     /// The erase warning.
@@ -161,6 +165,7 @@ impl Certificate {
             unwritable: Vec::new(),
             operator,
             verification: None,
+            scan: None,
             disclaimer: phoinix_core::DISCLAIMER.to_owned(),
             warning: crate::ERASE_WARNING.to_owned(),
         }
@@ -209,6 +214,10 @@ impl Certificate {
                         r.blocks_mismatched, r.blocks_checked
                     )),
                     None => v.push_str("; not verified"),
+                }
+                if let Some(s) = &self.scan {
+                    v.push_str("; ");
+                    v.push_str(&s.summary());
                 }
                 v
             }
@@ -273,10 +282,60 @@ impl Certificate {
                 },
             ));
         }
-        rows.push((
-            "Range",
-            format!("offset {} · {}", t.offset, bytes_si(t.length)),
-        ));
+        if let Some(sp) = &t.space {
+            if let Some(m) = &sp.mount {
+                rows.push(("Mounted at", m.clone()));
+            }
+            rows.push((
+                "Filesystem",
+                format!(
+                    "{}{}",
+                    sp.filesystem,
+                    sp.label
+                        .as_deref()
+                        .map(|l| format!(" ({l})"))
+                        .unwrap_or_default()
+                ),
+            ));
+            if sp.mount.is_some() {
+                rows.push((
+                    "Free space",
+                    format!(
+                        "{} written through the filesystem in {} file(s)",
+                        bytes_si(sp.free_bytes),
+                        sp.free_ranges
+                    ),
+                ));
+            } else {
+                rows.push((
+                    "Free space",
+                    format!(
+                        "{} in {} range(s) of the volume at offset {} ({})",
+                        bytes_si(sp.free_bytes),
+                        sp.free_ranges,
+                        sp.volume_offset,
+                        bytes_si(sp.volume_length)
+                    ),
+                ));
+                rows.push((
+                    "File slack",
+                    if sp.slack {
+                        format!(
+                            "{} in {} range(s)",
+                            bytes_si(sp.slack_bytes),
+                            sp.slack_ranges
+                        )
+                    } else {
+                        "not included".into()
+                    },
+                ));
+            }
+        } else {
+            rows.push((
+                "Range",
+                format!("offset {} · {}", t.offset, bytes_si(t.length)),
+            ));
+        }
         if let Some(p) = &t.partition {
             rows.push(("Partition", format!("{} ({})", p.index, p.type_name)));
         }
@@ -298,6 +357,20 @@ impl Certificate {
                         .unwrap_or_default()
                 ),
             ));
+        }
+        if let Some(s) = &self.scan {
+            let mut text = s.summary();
+            if s.ran {
+                text.push_str(&format!(
+                    " (filesystem: {}; {} deleted record(s), {} with content; {} carved file(s) in {})",
+                    s.filesystem.as_deref().unwrap_or("none"),
+                    s.candidates,
+                    s.with_content,
+                    s.carved,
+                    bytes_si(s.bytes_scanned)
+                ));
+            }
+            rows.push(("Post-erase scan", text));
         }
         for (k, v) in [
             ("Operator", &self.operator.name),
@@ -329,6 +402,9 @@ impl Certificate {
                 out.push_str(&format!("- offset {} · {}\n", r.offset, bytes_si(r.length)));
             }
         }
+        for w in &self.target.warnings {
+            out.push_str(&format!("\n*{w}*\n"));
+        }
         out.push_str(&format!("\n*{}*\n\n*{}*\n", self.warning, self.disclaimer));
         out
     }
@@ -347,6 +423,7 @@ impl Certificate {
                         .verification
                         .as_ref()
                         .is_none_or(|r| r.passed || r.mode == VerifyMode::None)
+                    && self.scan.as_ref().is_none_or(|s| !s.ran || s.passed)
                 {
                     " class=\"good\""
                 } else {
@@ -370,6 +447,9 @@ impl Certificate {
                 ));
             }
             out.push_str("</ul>\n");
+        }
+        for w in &self.target.warnings {
+            out.push_str(&format!("<p><em>{}</em></p>\n", esc(w)));
         }
         out.push_str(&format!(
             "<p><em>{}</em></p>\n<p><em>{}</em></p>\n</body></html>\n",

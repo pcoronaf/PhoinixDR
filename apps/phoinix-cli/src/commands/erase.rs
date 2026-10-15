@@ -1,5 +1,6 @@
-//! `phoinix erase`: secure erase of a device, partition, range or file
-//! (milestone M12). The only command that writes to a source.
+//! `phoinix erase`: secure erase of a device, partition, file, the free
+//! space of a volume or a mounted volume (milestone M12). The only command
+//! that writes to a source.
 
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
@@ -8,9 +9,9 @@ use std::sync::atomic::AtomicBool;
 use phoinix_core::fmt::bytes_si;
 use phoinix_erase::{
     ARTICLE_GUTMANN_MYTH, ERASE_WARNING, EraseEvent, EraseMethod, EraseRequest, EraseTarget,
-    FLASH_WARNING, MULTI_PASS_WARNING, Operator, Pass, PassPattern, VerifyMode,
+    FLASH_WARNING, MULTI_PASS_WARNING, Operator, Pass, PassPattern, PostScan, VerifyMode,
 };
-use phoinix_session::Workspace;
+use phoinix_session::{SessionScanner, Workspace};
 
 use crate::output::{self, outln};
 
@@ -27,6 +28,13 @@ pub enum Command {
     Partition(PartitionArgs),
     /// Erase a regular file (a disk image before disposal) as a raw range.
     File(EraseArgs),
+    /// Overwrite the free space of a volume (NTFS, FAT, exFAT, ext) on a
+    /// device or image, found through the read-only engines; the volume
+    /// must not be mounted.
+    FreeSpace(FreeSpaceArgs),
+    /// Fill the free space of a mounted volume through the filesystem (no
+    /// administrator rights needed; the volume stays in use).
+    Mounted(MountedArgs),
 }
 
 /// A target path.
@@ -37,6 +45,41 @@ pub struct TargetArgs {
     /// Partition index (1-based), to describe a partition instead of the device.
     #[arg(long, short = 'p')]
     pub partition: Option<u32>,
+    /// Describe the free space of the volume (with `--partition` when the
+    /// source has several) instead of the raw range.
+    #[arg(long)]
+    pub free_space: bool,
+    /// With `--free-space`: include the slack of the allocated files.
+    #[arg(long)]
+    pub slack: bool,
+}
+
+/// Free-space erase options.
+#[derive(Debug, clap::Args)]
+pub struct FreeSpaceArgs {
+    /// Device or image path.
+    pub path: PathBuf,
+    /// Partition index (1-based); needed when the source has several.
+    #[arg(long, short = 'p')]
+    pub partition: Option<u32>,
+    /// Also overwrite the slack at the end of every allocated file.
+    #[arg(long)]
+    pub slack: bool,
+    #[command(flatten)]
+    pub options: Options,
+}
+
+/// Mounted-volume erase options.
+#[derive(Debug, clap::Args)]
+pub struct MountedArgs {
+    /// The drive (`E:\\`), the mount point, or any folder on the volume (the
+    /// fill files are created there).
+    pub path: PathBuf,
+    /// Bytes to leave free (accepts `512M`, `2G`); 0 fills the volume.
+    #[arg(long, default_value = "0")]
+    pub reserve: String,
+    #[command(flatten)]
+    pub options: Options,
 }
 
 /// Erase options.
@@ -75,6 +118,10 @@ pub struct Options {
     /// Read-back verification: none, sample, full.
     #[arg(long, default_value = "sample")]
     pub verify: String,
+    /// Scan the target with the recovery engines afterwards and record the
+    /// outcome in the certificate: none, quick, deep.
+    #[arg(long, default_value = "none")]
+    pub scan: String,
     /// Write the sanitization certificate here (`.json`, `.md`, `.html`).
     #[arg(long, value_name = "PATH")]
     pub certificate: Option<PathBuf>,
@@ -154,6 +201,29 @@ fn parse_method(options: &Options) -> anyhow::Result<EraseMethod> {
     })
 }
 
+fn parse_scan(text: &str) -> anyhow::Result<PostScan> {
+    PostScan::parse(text)
+        .ok_or_else(|| anyhow::anyhow!("unknown --scan {text:?}; one of none, quick, deep"))
+}
+
+/// Parses a byte count with an optional K/M/G/T suffix.
+fn parse_bytes(text: &str) -> anyhow::Result<u64> {
+    let t = text.trim().to_ascii_uppercase();
+    let (digits, factor) = match t.chars().last() {
+        Some('K') => (t.trim_end_matches('K'), 1u64 << 10),
+        Some('M') => (t.trim_end_matches('M'), 1u64 << 20),
+        Some('G') => (t.trim_end_matches('G'), 1u64 << 30),
+        Some('T') => (t.trim_end_matches('T'), 1u64 << 40),
+        _ => (t.as_str(), 1u64),
+    };
+    let n: u64 = digits
+        .trim()
+        .parse()
+        .map_err(|_| anyhow::anyhow!("not a byte count: {text:?}"))?;
+    n.checked_mul(factor)
+        .ok_or_else(|| anyhow::anyhow!("byte count too large: {text:?}"))
+}
+
 fn parse_verify(text: &str) -> anyhow::Result<VerifyMode> {
     match text.to_ascii_lowercase().as_str() {
         "none" => Ok(VerifyMode::None),
@@ -173,12 +243,20 @@ pub fn run(command: Command) -> anyhow::Result<()> {
     match command {
         Command::List => list(&workspace),
         Command::Describe(args) => {
-            let target = match args.partition {
-                Some(index) => EraseTarget::Partition {
+            let target = if args.free_space {
+                EraseTarget::FreeSpace {
                     path: args.path,
-                    index,
-                },
-                None => target_for(&args.path),
+                    partition: args.partition,
+                    slack: args.slack,
+                }
+            } else {
+                match args.partition {
+                    Some(index) => EraseTarget::Partition {
+                        path: args.path,
+                        index,
+                    },
+                    None => target_for(&args.path),
+                }
             };
             let desc = workspace.describe_erase_target(&target)?;
             print_description(&desc);
@@ -201,6 +279,26 @@ pub fn run(command: Command) -> anyhow::Result<()> {
             EraseTarget::File { path: args.path },
             args.options,
         ),
+        Command::FreeSpace(args) => erase(
+            &workspace,
+            EraseTarget::FreeSpace {
+                path: args.path,
+                partition: args.partition,
+                slack: args.slack,
+            },
+            args.options,
+        ),
+        Command::Mounted(args) => {
+            let reserve = parse_bytes(&args.reserve)?;
+            erase(
+                &workspace,
+                EraseTarget::MountedFreeSpace {
+                    mount: args.path,
+                    reserve,
+                },
+                args.options,
+            )
+        }
     }
 }
 
@@ -208,6 +306,11 @@ fn target_for(path: &std::path::Path) -> EraseTarget {
     if path.is_file() {
         EraseTarget::File {
             path: path.to_path_buf(),
+        }
+    } else if path.is_dir() {
+        EraseTarget::MountedFreeSpace {
+            mount: path.to_path_buf(),
+            reserve: 0,
         }
     } else {
         EraseTarget::WholeDevice {
@@ -272,6 +375,48 @@ fn list(workspace: &Workspace) -> anyhow::Result<()> {
             &rows
         )
     );
+    let volumes = workspace.erase_volumes();
+    if !volumes.is_empty() {
+        outln!();
+        outln!(
+            "Mounted volumes (free space can be filled through the filesystem with `phoinix erase mounted`):"
+        );
+        let rows: Vec<Vec<String>> = volumes
+            .iter()
+            .map(|v| {
+                vec![
+                    v.mount.clone(),
+                    v.filesystem.clone(),
+                    v.label.clone().unwrap_or_default(),
+                    bytes_si(v.total),
+                    bytes_si(v.free),
+                    v.disk.clone().unwrap_or_default(),
+                    if v.read_only {
+                        "read-only".into()
+                    } else if v.system {
+                        "system volume".into()
+                    } else {
+                        String::new()
+                    },
+                ]
+            })
+            .collect();
+        outln!(
+            "{}",
+            output::table(
+                &[
+                    "mount",
+                    "filesystem",
+                    "label",
+                    "size",
+                    "free",
+                    "disk",
+                    "note"
+                ],
+                &rows
+            )
+        );
+    }
     outln!("{ERASE_WARNING}");
     Ok(())
 }
@@ -291,7 +436,44 @@ fn print_description(desc: &phoinix_erase::TargetDescription) {
             }
         );
     }
-    outln!("Range: offset {} · {}", desc.offset, bytes_si(desc.length));
+    if let Some(sp) = &desc.space {
+        if let Some(m) = &sp.mount {
+            outln!(
+                "Volume: {} at {} ({}{}) · {} free of {}",
+                sp.filesystem,
+                m,
+                sp.node.as_deref().unwrap_or("?"),
+                sp.label
+                    .as_deref()
+                    .map(|l| format!(", label {l:?}"))
+                    .unwrap_or_default(),
+                bytes_si(sp.free_bytes),
+                bytes_si(sp.total_bytes.unwrap_or(sp.volume_length))
+            );
+        } else {
+            outln!(
+                "Volume: {} at offset {} · {} · cluster {} · free space {} in {} range(s){}",
+                sp.filesystem,
+                sp.volume_offset,
+                bytes_si(sp.volume_length),
+                bytes_si(sp.cluster_size),
+                bytes_si(sp.free_bytes),
+                sp.free_ranges,
+                if sp.slack {
+                    format!(
+                        " · slack {} in {} range(s)",
+                        bytes_si(sp.slack_bytes),
+                        sp.slack_ranges
+                    )
+                } else {
+                    String::new()
+                }
+            );
+        }
+        outln!("To write: {}", bytes_si(desc.length));
+    } else {
+        outln!("Range: offset {} · {}", desc.offset, bytes_si(desc.length));
+    }
     if let Some(p) = &desc.partition {
         outln!("Partition {}: {}", p.index, p.type_name);
     }
@@ -319,6 +501,9 @@ fn print_description(desc: &phoinix_erase::TargetDescription) {
     for r in &desc.refusals {
         outln!("REFUSED: {r}");
     }
+    for w in &desc.warnings {
+        outln!("Note: {w}");
+    }
     if desc.solid_state == Some(true) {
         outln!("{FLASH_WARNING}");
     }
@@ -327,6 +512,7 @@ fn print_description(desc: &phoinix_erase::TargetDescription) {
 fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow::Result<()> {
     let method = parse_method(&options)?;
     let verify = parse_verify(&options.verify)?;
+    let post_scan = parse_scan(&options.scan)?;
     let desc = workspace.describe_erase_target(&target)?;
     let json = options.json;
     if !json {
@@ -396,6 +582,7 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
         ),
         allow_executable_disk: options.allow_executable_disk,
         allow_sessions_disk: options.allow_sessions_disk,
+        post_scan,
     };
     let progress_tty = std::io::stderr().is_terminal() && !json;
     let mut sink = |e: EraseEvent| {
@@ -442,6 +629,19 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
                 eprint!("\r  verifying {done} of {total} blocks   ");
                 let _ = std::io::stderr().flush();
             }
+            EraseEvent::Scanning {
+                phase,
+                done,
+                total,
+                candidates,
+                ..
+            } if progress_tty => {
+                eprint!(
+                    "\r  post-erase scan: {phase} {done}{} · {candidates} candidate(s)   ",
+                    total.map(|t| format!(" of {t}")).unwrap_or_default()
+                );
+                let _ = std::io::stderr().flush();
+            }
             EraseEvent::Finished { summary } => {
                 if progress_tty {
                     eprintln!();
@@ -455,12 +655,18 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
                 if progress_tty {
                     eprintln!();
                 }
-                outln!(
-                    "Cancelled: {}. Resume with --resume (pass {}, offset {}).",
-                    summary.verdict,
-                    resume.pass + 1,
-                    resume.offset
-                );
+                match resume {
+                    Some(resume) => outln!(
+                        "Cancelled: {}. Resume with --resume (pass {}, offset {}).",
+                        summary.verdict,
+                        resume.pass + 1,
+                        resume.offset
+                    ),
+                    None => outln!(
+                        "Cancelled: {}. The fill files were removed.",
+                        summary.verdict
+                    ),
+                }
             }
             EraseEvent::Failed { message, summary } => {
                 if progress_tty {
@@ -471,9 +677,10 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
             _ => {}
         }
     };
-    let outcome = phoinix_erase::engine::run_erase_with_guards(
+    let outcome = phoinix_erase::run_erase_with(
         &request,
         &workspace.erase_guards(),
+        Some(&SessionScanner),
         &mut sink,
         &AtomicBool::new(false),
     )?;
@@ -484,9 +691,14 @@ fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow
                 .verification
                 .as_ref()
                 .is_none_or(|v| v.passed || v.mode == VerifyMode::None);
-            if outcome.summary.unwritable_bytes > 0 || !verified {
+            let scan_clean = outcome
+                .summary
+                .scan
+                .as_ref()
+                .is_none_or(|s| !s.ran || s.passed);
+            if outcome.summary.unwritable_bytes > 0 || !verified || !scan_clean {
                 anyhow::bail!(
-                    "the erase completed with regions not erased or not verified; see the certificate"
+                    "the erase completed with regions not erased, not verified, or with recoverable data found by the post-erase scan; see the certificate"
                 )
             }
             Ok(())

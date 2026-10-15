@@ -38,6 +38,45 @@ pub struct VolumeOnDisk {
     pub can_dismount: bool,
 }
 
+/// A volume the operating system has mounted, as a target of the
+/// filesystem-level free-space wipe.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MountedVolumeInfo {
+    /// Mount point or drive (`E:\\`, `/media/user/stick`).
+    pub mount: String,
+    /// Volume node (`\\.\E:`, `/dev/sdb1`).
+    pub node: String,
+    /// Filesystem name as the operating system reports it.
+    pub filesystem: String,
+    /// Volume label, if any.
+    pub label: Option<String>,
+    /// Total bytes.
+    pub total: u64,
+    /// Free bytes available to this process.
+    pub free: u64,
+    /// The whole disk the volume lies on, when known.
+    pub disk: Option<String>,
+    /// Whether the volume is mounted read-only.
+    pub read_only: bool,
+    /// Whether the volume holds the running operating system.
+    pub system: bool,
+}
+
+/// Every writable volume the operating system has mounted from a disk.
+#[must_use]
+pub fn mounted_volumes() -> Vec<MountedVolumeInfo> {
+    imp::mounted_volumes()
+}
+
+/// Total and free bytes of the volume holding `path`.
+///
+/// # Errors
+///
+/// Returns the I/O error of the platform query.
+pub fn free_space(path: &Path) -> std::io::Result<(u64, u64)> {
+    imp::free_space(path)
+}
+
 /// The whole-disk device path that `path` (a file or directory) lives on.
 #[must_use]
 pub fn disk_of_path(path: &Path) -> Option<String> {

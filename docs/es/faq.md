@@ -154,6 +154,24 @@ exigen, y muestra un aviso que enlaza
 [El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html)
 al elegir uno.
 
+### ¿Puede PhoinixDR borrar el espacio libre de un disco sin borrar el disco?
+
+Sí, desde M12.2. Al eliminar un archivo se liberan sus clústeres y los
+datos quedan ahí, que es justo lo que aprovecha la recuperación; un
+borrado de espacio libre sobrescribe esos clústeres y nada más. En la
+página de borrado de un disco elija *Only the free space of partition N*
+(el volumen se lee con el mapa de asignación del motor de recuperación,
+necesita derechos de administrador y no debe estar en uso), opcionalmente
+con el *slack* final de cada archivo; o elija un volumen en uso en la
+segunda lista de la página de borrado, y PhoinixDR lo llena a través del
+sistema de archivos sin derechos de administrador y elimina los archivos de
+relleno al final. En ambos casos un escaneo posterior opcional examina el
+resultado con los motores de recuperación y el certificado anota lo que
+encontró. Lo que no se alcanza (archivos pequeños guardados dentro de los
+registros MFT de NTFS, copias en el diario, instantáneas, celdas
+reasignadas de la memoria flash) se indica en la página y en el
+certificado.
+
 ### ¿Puede PhoinixDR borrar de forma segura un SSD?
 
 Solo a nivel de software. Una sobreescritura llega a los bloques lógicos

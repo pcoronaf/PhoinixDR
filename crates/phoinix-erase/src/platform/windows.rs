@@ -18,6 +18,7 @@ use phoinix_core::bytes::ByteView;
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::Storage::FileSystem::{
     FILE_SHARE_READ, FILE_SHARE_WRITE, FindFirstVolumeW, FindNextVolumeW, FindVolumeClose,
+    GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
     GetVolumePathNameW, GetVolumePathNamesForVolumeNameW, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
@@ -26,7 +27,7 @@ use windows_sys::Win32::System::Ioctl::{
 };
 
 use crate::error::{EraseError, Refusal};
-use crate::platform::VolumeOnDisk;
+use crate::platform::{MountedVolumeInfo, VolumeOnDisk};
 use crate::target::{EraseTarget, TargetDescription};
 use crate::writer::{FileWriter, RangeWriter};
 
@@ -218,6 +219,90 @@ pub fn volumes_on(disk: &str) -> Vec<VolumeOnDisk> {
                 can_dismount: true,
             });
         }
+    }
+    out
+}
+
+pub fn free_space(path: &Path) -> std::io::Result<(u64, u64)> {
+    let name = wide(&path.to_string_lossy());
+    let mut avail: u64 = 0;
+    let mut total: u64 = 0;
+    let mut free: u64 = 0;
+    // SAFETY: `name` is NUL-terminated and the three out-pointers are live
+    // `u64`s for the call's duration.
+    let ok = unsafe { GetDiskFreeSpaceExW(name.as_ptr(), &mut avail, &mut total, &mut free) };
+    if ok == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok((total, avail))
+}
+
+/// Drive type constants (`winbase.h`).
+const DRIVE_REMOVABLE: u32 = 2;
+const DRIVE_FIXED: u32 = 3;
+const FILE_READ_ONLY_VOLUME: u32 = 0x0008_0000;
+
+pub fn mounted_volumes() -> Vec<MountedVolumeInfo> {
+    let system = system_disk();
+    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_owned());
+    let system_letter = system_root.chars().next().map(|c| c.to_ascii_uppercase());
+    // SAFETY: no arguments; returns a bitmask.
+    let mask = unsafe { GetLogicalDrives() };
+    let mut out = Vec::new();
+    for i in 0..26u32 {
+        if mask & (1 << i) == 0 {
+            continue;
+        }
+        let letter = char::from(b'A' + u8::try_from(i).unwrap_or(0));
+        let root = format!("{letter}:\\");
+        let root_w = wide(&root);
+        // SAFETY: `root_w` is NUL-terminated.
+        let kind = unsafe { GetDriveTypeW(root_w.as_ptr()) };
+        if kind != DRIVE_FIXED && kind != DRIVE_REMOVABLE {
+            continue;
+        }
+        let mut label = vec![0u16; 261];
+        let mut fsname = vec![0u16; 261];
+        let mut serial: u32 = 0;
+        let mut max_len: u32 = 0;
+        let mut flags: u32 = 0;
+        // SAFETY: every buffer is live and its length is passed; the
+        // out-pointers are live `u32`s.
+        let ok = unsafe {
+            GetVolumeInformationW(
+                root_w.as_ptr(),
+                label.as_mut_ptr(),
+                label.len() as u32,
+                &mut serial,
+                &mut max_len,
+                &mut flags,
+                fsname.as_mut_ptr(),
+                fsname.len() as u32,
+            )
+        };
+        if ok == 0 {
+            continue;
+        }
+        let Ok((total, free)) = free_space(Path::new(&root)) else {
+            continue;
+        };
+        let disk = disk_of_path(Path::new(&root));
+        let label = from_wide(&label);
+        out.push(MountedVolumeInfo {
+            mount: root.clone(),
+            node: format!(r"\\.\{letter}:"),
+            filesystem: from_wide(&fsname),
+            label: (!label.is_empty()).then_some(label),
+            total,
+            free,
+            system: system_letter == Some(letter)
+                || system
+                    .as_deref()
+                    .zip(disk.as_deref())
+                    .is_some_and(|(s, d)| same_disk(s, d) && system_letter == Some(letter)),
+            disk,
+            read_only: flags & FILE_READ_ONLY_VOLUME != 0,
+        });
     }
     out
 }

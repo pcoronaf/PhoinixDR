@@ -20,7 +20,7 @@ pub mod volume;
 
 pub use bitmap::AllocationBitmap;
 pub use boot::ExfatBootSector;
-pub use dir::{EntrySet, ExfatAttributes, StreamFlags};
+pub use dir::{EntrySet, ExfatAttributes, StreamFlags, entry_set_checksum};
 pub use error::ExfatError;
 pub use probe::ExFatProbe;
 pub use table::ExfatTable;

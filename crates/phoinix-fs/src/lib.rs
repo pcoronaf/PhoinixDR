@@ -36,5 +36,8 @@ pub use error::FsError;
 pub use probe::{
     Detection, FileSystemProbe, POSITIVE_THRESHOLD, ProbeEvidence, ProbeRegistry, ProbeResult,
 };
-pub use space::{AllocationSummary, AllocationView, ByteRange, WholeSource};
+pub use space::{
+    AllocationSummary, AllocationView, ByteRange, ContentRun, WholeSource, merge_ranges,
+    runs_of_clusters, tail_of_runs,
+};
 pub use stream::{Extent, ExtentStream, ExtentStreamCursor};

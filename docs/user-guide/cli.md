@@ -179,8 +179,10 @@ path and SHA-256. See [reports](../images/containers.md#case-metadata-and-report
 ## Secure erase
 
 `phoinix erase` is the only command that writes to a source. It overwrites
-a whole device, one partition or a regular file (a disk image before
-disposal), verifies the result and writes a sanitization certificate. The
+a whole device, one partition, a regular file (a disk image before
+disposal), the free space of a volume or the free space of a mounted
+volume, verifies the result, optionally scans it with the recovery engines
+and writes a sanitization certificate. The
 rules and the warnings are the same as in the desktop guide: the system
 disk, the executable's disk and the sessions disk are refused, a mounted
 volume must be unmounted first on Linux and is dismounted by the command
@@ -196,18 +198,42 @@ phoinix erase device \\.\PhysicalDrive2 --method nist --certificate C:\certs\dri
 phoinix erase partition /dev/sdb --partition 1 --method random --verify full
 phoinix erase file old-image.E01 --method zero       # a file as a raw range
 phoinix erase device /dev/sdb --resume               # continue a cancelled erase from its resume point
+phoinix erase describe /dev/sdb -p 1 --free-space --slack      # the free ranges and the slack a wipe would write; writes nothing
+phoinix erase free-space /dev/sdb --partition 1 --slack --scan deep --certificate sdb1.html
+phoinix erase free-space stick.img --scan quick      # an image's only volume, through the filesystem engines
+phoinix erase mounted E:\ --reserve 2G              # fill a volume in use through the filesystem; no administrator rights
+phoinix erase mounted /media/user/stick --method random
 ```
+
+`free-space` reads the volume with the NTFS, FAT, exFAT or ext engine,
+takes the free ranges from its allocation map (and the slack of the live
+files with `--slack`), and writes them raw; the volume must not be mounted
+(Windows dismounts it, Linux refuses until you unmount it). `mounted`
+takes a drive, a mount point or any folder on the volume, writes fill
+files there until the volume is full (or until `--reserve` bytes are
+left), rewrites them for every further pass, reads them back and removes
+them; it works without administrator rights and the volume stays in use.
+`--scan quick|deep` runs the recovery engines on the target afterwards and
+records the finding in the certificate (the deep scan carves and takes as
+long as a recovery scan; on a mounted volume the scan reads the volume
+raw and therefore needs administrator rights). What a free-space wipe
+cannot reach (resident data inside MFT records or inodes, journal copies,
+shadow copies, remapped flash cells) is printed with the description and
+written into the certificate.
 
 Options: `--method` (`zero`, `random`, `nist`, `dod-3`, `dod-7`,
 `schneier`, `vsitr`, `gutmann`, or `custom` with `--passes N` and
-optionally `--pattern HEX`), `--verify none|sample|full`, `--certificate`,
-`--operator`, `--organisation`, `--asset`, `--notes`, `--resume`,
-`--no-countdown`, `--json` (one event per line). On a terminal the command
+optionally `--pattern HEX`), `--verify none|sample|full`,
+`--scan none|quick|deep`, `--certificate`, `--operator`,
+`--organisation`, `--asset`, `--notes`, `--resume` (raw targets only; a
+cancelled mounted wipe removes its files instead), `--no-countdown`,
+`--json` (one event per line). On a terminal the command
 prints the target and asks you to type the serial number (or its last six
 characters; the file name for a file); without a terminal pass
 `--i-understand-this-destroys-data <serial>`. The exit code is 1 when the
-erase was cancelled, failed, left regions the device refused to write, or
-did not verify; the certificate carries the detail.
+erase was cancelled, failed, left regions the device refused to write, did
+not verify, or when the post-erase scan found recoverable content; the
+certificate carries the detail.
 
 ## NTFS developer commands
 

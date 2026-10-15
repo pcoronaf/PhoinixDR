@@ -27,6 +27,7 @@ phoinix-carve = { workspace = true }
 phoinix-recovery = { workspace = true }
 phoinix-image = { workspace = true }
 phoinix-session = { workspace = true }
+phoinix-erase = { workspace = true }
 phoinix-device = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }

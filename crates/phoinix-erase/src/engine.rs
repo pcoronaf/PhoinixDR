@@ -13,9 +13,10 @@ use crate::certificate::{Certificate, CertificateStatus, Operator, VerificationR
 use crate::error::{EraseError, Refusal};
 use crate::method::{EraseMethod, VerifyMode};
 use crate::pattern::{CHUNK_BYTES, Seed, fill_chunk};
+use crate::scan::{PostScan, PostScanner, ScanRecord};
 use crate::target::{EraseTarget, Guards, TargetDescription, describe};
-use crate::verify::read_back;
-use crate::writer::write_tolerant;
+use crate::verify::{SpanMap, read_back};
+use crate::writer::write_aligned;
 
 /// A request to erase.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,6 +49,11 @@ pub struct EraseRequest {
     /// Allow the disk holding the sessions directory.
     #[serde(default)]
     pub allow_sessions_disk: bool,
+    /// Scan the target with the recovery engines afterwards and record the
+    /// outcome in the certificate (needs a front-end that provides the
+    /// scanner: the session layer does).
+    #[serde(default)]
+    pub post_scan: PostScan,
 }
 
 /// Where a cancelled erase can continue.
@@ -115,6 +121,19 @@ pub enum EraseEvent {
         /// Blocks to check.
         total: u64,
     },
+    /// Post-erase scan progress.
+    Scanning {
+        /// The scan.
+        mode: PostScan,
+        /// Phase name.
+        phase: String,
+        /// Units done.
+        done: u64,
+        /// Units in total, if known.
+        total: Option<u64>,
+        /// Candidates so far.
+        candidates: u64,
+    },
     /// The erase completed.
     Finished {
         /// Summary.
@@ -122,8 +141,9 @@ pub enum EraseEvent {
     },
     /// Cancelled by the user.
     Cancelled {
-        /// Where it can resume.
-        resume: ResumePoint,
+        /// Where it can resume (none for a mounted volume: its fill files
+        /// are removed on cancellation).
+        resume: Option<ResumePoint>,
         /// Summary so far.
         summary: EraseSummary,
     },
@@ -153,6 +173,9 @@ pub struct EraseSummary {
     pub seconds: u64,
     /// The verification, if run.
     pub verification: Option<VerificationRecord>,
+    /// The post-erase scan, if run.
+    #[serde(default)]
+    pub scan: Option<ScanRecord>,
     /// Certificate written, if requested.
     pub certificate: Option<PathBuf>,
     /// Verdict text.
@@ -229,7 +252,7 @@ pub fn run_erase(
         allow_executable_disk: request.allow_executable_disk,
         allow_sessions_disk: request.allow_sessions_disk,
     };
-    run_erase_with_guards(request, &guards, sink, cancel)
+    run_erase_with(request, &guards, None, sink, cancel)
 }
 
 /// [`run_erase`] with explicit guards (open sources, sessions directory).
@@ -240,6 +263,23 @@ pub fn run_erase(
 pub fn run_erase_with_guards(
     request: &EraseRequest,
     guards: &Guards,
+    sink: &mut dyn FnMut(EraseEvent),
+    cancel: &AtomicBool,
+) -> Result<EraseOutcome, EraseError> {
+    run_erase_with(request, guards, None, sink, cancel)
+}
+
+/// [`run_erase`] with explicit guards and the scanner that runs the
+/// post-erase scan the request asks for.
+///
+/// # Errors
+///
+/// See [`run_erase`].
+#[allow(clippy::too_many_lines)]
+pub fn run_erase_with(
+    request: &EraseRequest,
+    guards: &Guards,
+    scanner: Option<&dyn PostScanner>,
     sink: &mut dyn FnMut(EraseEvent),
     cancel: &AtomicBool,
 ) -> Result<EraseOutcome, EraseError> {
@@ -260,6 +300,11 @@ pub fn run_erase_with_guards(
         return Err(EraseError::Invalid("the method has no passes".into()));
     }
     let key = target_key(&desc);
+    if desc.length == 0 && !desc.target.is_mounted() {
+        return Err(EraseError::Invalid(
+            "nothing to erase: the target is empty".into(),
+        ));
+    }
     let resumed = request
         .resume
         .then(|| {
@@ -309,15 +354,19 @@ pub fn run_erase_with_guards(
     });
 
     let started = Instant::now();
-    let mut writer = crate::platform::open_writer(&desc)?;
-    let mut buf = vec![0u8; CHUNK_BYTES];
     let mut passes_completed = start_pass;
     let mut outcome: Result<(), EraseError> = Ok(());
     let mut resume_point: Option<ResumePoint> = None;
+    let mut verification: Option<VerificationRecord> = None;
+    let mounted_reserve = match &desc.target {
+        EraseTarget::MountedFreeSpace { reserve, .. } => Some(*reserve),
+        _ => None,
+    };
     let summary_of = |passes_completed: usize,
                       bytes_written: u64,
                       unwritable: &Vec<ByteRange>,
                       verification: Option<VerificationRecord>,
+                      scan: Option<ScanRecord>,
                       certificate: &Certificate| EraseSummary {
         passes_completed,
         passes: passes.len(),
@@ -326,117 +375,133 @@ pub fn run_erase_with_guards(
         unwritable_ranges: unwritable.len(),
         seconds: started.elapsed().as_secs(),
         verification,
+        scan,
         certificate: request.certificate.clone(),
         verdict: certificate.verdict(),
     };
 
-    'passes: for (pass_index, pass) in passes.iter().enumerate().skip(start_pass) {
-        let label = pass.pattern.label();
-        sink(EraseEvent::Pass {
-            pass: pass_index + 1,
-            passes: passes.len(),
-            pattern: label.clone(),
-        });
-        tracing::info!(pass = pass_index + 1, pattern = %label, "pass starting");
-        let mut rel: u64 = if pass_index == start_pass {
-            start_offset
-        } else {
-            0
-        };
-        let mut last_tick = Instant::now();
-        let mut tick_bytes: u64 = 0;
-        let mut last_save = Instant::now();
-        let mut rate: u64 = 0;
-        while rel < desc.length {
-            if cancel.load(Ordering::Relaxed) {
-                let point = ResumePoint {
-                    key: key.clone(),
-                    method: request.method.id(),
-                    pass: pass_index,
-                    offset: rel,
-                    seed: seed.to_hex(),
-                    bytes_written,
-                    unwritable: unwritable.clone(),
-                };
-                save_resume(request.state_dir.as_ref(), &point);
-                resume_point = Some(point);
-                outcome = Err(EraseError::Cancelled);
-                break 'passes;
+    if let Some(reserve) = mounted_reserve {
+        // Filesystem-level fill: its own loop, no resume, own read-back.
+        let fill =
+            crate::mounted::run(&desc, &passes, &seed, reserve, request.verify, sink, cancel);
+        bytes_written = fill.bytes_written;
+        passes_completed = fill.passes_completed;
+        verification = fill.verification;
+        outcome = fill.result;
+        certificate.target.length = fill.covered;
+        if let Some(sp) = certificate.target.space.as_mut() {
+            sp.free_bytes = fill.covered;
+            sp.free_ranges = fill.files;
+        }
+    } else {
+        let spans = SpanMap::new(&desc.spans());
+        let total = spans.total();
+        let sector = u64::from(desc.sector_size.max(1));
+        let mut writer = crate::platform::open_writer(&desc)?;
+        let mut buf = vec![0u8; CHUNK_BYTES];
+        let mut filled: Option<(usize, u64)> = None;
+        'passes: for (pass_index, pass) in passes.iter().enumerate().skip(start_pass) {
+            let label = pass.pattern.label();
+            sink(EraseEvent::Pass {
+                pass: pass_index + 1,
+                passes: passes.len(),
+                pattern: label.clone(),
+            });
+            tracing::info!(pass = pass_index + 1, pattern = %label, "pass starting");
+            let mut rel: u64 = if pass_index == start_pass {
+                start_offset
+            } else {
+                0
+            };
+            let mut last_tick = Instant::now();
+            let mut tick_bytes: u64 = 0;
+            let mut last_save = Instant::now();
+            let mut rate: u64 = 0;
+            let point_at = |pass: usize,
+                            offset: u64,
+                            bytes_written: u64,
+                            unwritable: &[ByteRange]| ResumePoint {
+                key: key.clone(),
+                method: request.method.id(),
+                pass,
+                offset,
+                seed: seed.to_hex(),
+                bytes_written,
+                unwritable: unwritable.to_vec(),
+            };
+            while rel < total {
+                if cancel.load(Ordering::Relaxed) {
+                    let point = point_at(pass_index, rel, bytes_written, &unwritable);
+                    save_resume(request.state_dir.as_ref(), &point);
+                    resume_point = Some(point);
+                    outcome = Err(EraseError::Cancelled);
+                    break 'passes;
+                }
+                let (abs, span_left) = spans.locate(rel);
+                let chunk = rel / CHUNK_BYTES as u64;
+                let within = usize::try_from(rel % CHUNK_BYTES as u64).unwrap_or(0);
+                if filled != Some((pass_index, chunk)) {
+                    fill_chunk(&pass.pattern, &seed, pass_index, chunk, &mut buf);
+                    filled = Some((pass_index, chunk));
+                }
+                let want = usize::try_from((CHUNK_BYTES - within) as u64)
+                    .unwrap_or(CHUNK_BYTES)
+                    .min(usize::try_from(span_left).unwrap_or(CHUNK_BYTES))
+                    .min(usize::try_from(total - rel).unwrap_or(CHUNK_BYTES));
+                let piece = buf.get(within..within + want).unwrap_or(&[]);
+                if let Err(e) = write_aligned(&mut *writer, abs, piece, sector, &mut unwritable) {
+                    outcome = Err(EraseError::io(desc.target.path(), e));
+                    let point = point_at(pass_index, rel, bytes_written, &unwritable);
+                    save_resume(request.state_dir.as_ref(), &point);
+                    resume_point = Some(point);
+                    break 'passes;
+                }
+                rel += want as u64;
+                bytes_written += want as u64;
+                tick_bytes += want as u64;
+                // Progress every 250 ms, every 16 MiB, and at the end.
+                if last_tick.elapsed() >= Duration::from_millis(250)
+                    || rel >= total
+                    || tick_bytes >= 16 * 1024 * 1024
+                {
+                    let millis = u64::try_from(last_tick.elapsed().as_millis())
+                        .unwrap_or(u64::MAX)
+                        .max(1);
+                    rate = tick_bytes.saturating_mul(1000) / millis;
+                    sink(EraseEvent::Progress {
+                        pass: pass_index + 1,
+                        passes: passes.len(),
+                        done: rel,
+                        total,
+                        bytes_per_sec: rate,
+                        unwritable: unwritable.iter().map(|r| r.length).sum(),
+                    });
+                    last_tick = Instant::now();
+                    tick_bytes = 0;
+                }
+                if last_save.elapsed() >= Duration::from_secs(5) {
+                    save_resume(
+                        request.state_dir.as_ref(),
+                        &point_at(pass_index, rel, bytes_written, &unwritable),
+                    );
+                    last_save = Instant::now();
+                }
             }
-            let chunk = rel / CHUNK_BYTES as u64;
-            let want =
-                usize::try_from((desc.length - rel).min(CHUNK_BYTES as u64)).unwrap_or(CHUNK_BYTES);
-            let slot = buf.get_mut(..want).unwrap_or(&mut []);
-            fill_chunk(&pass.pattern, &seed, pass_index, chunk, slot);
-            if let Err(e) = write_tolerant(&mut *writer, desc.offset + rel, slot, &mut unwritable) {
+            if let Err(e) = writer.flush() {
                 outcome = Err(EraseError::io(desc.target.path(), e));
-                let point = ResumePoint {
-                    key: key.clone(),
-                    method: request.method.id(),
-                    pass: pass_index,
-                    offset: rel,
-                    seed: seed.to_hex(),
-                    bytes_written,
-                    unwritable: unwritable.clone(),
-                };
-                save_resume(request.state_dir.as_ref(), &point);
-                resume_point = Some(point);
-                break 'passes;
+                break;
             }
-            rel += want as u64;
-            bytes_written += want as u64;
-            tick_bytes += want as u64;
-            // Progress at least every 16 MiB, every 250 ms, and at the end.
-            if last_tick.elapsed() >= Duration::from_millis(250)
-                || rel >= desc.length
-                || chunk % 4 == 3
-            {
-                let millis = u64::try_from(last_tick.elapsed().as_millis())
-                    .unwrap_or(u64::MAX)
-                    .max(1);
-                rate = tick_bytes.saturating_mul(1000) / millis;
-                sink(EraseEvent::Progress {
-                    pass: pass_index + 1,
-                    passes: passes.len(),
-                    done: rel,
-                    total: desc.length,
-                    bytes_per_sec: rate,
-                    unwritable: unwritable.iter().map(|r| r.length).sum(),
-                });
-                last_tick = Instant::now();
-                tick_bytes = 0;
-            }
-            if last_save.elapsed() >= Duration::from_secs(5) {
-                save_resume(
-                    request.state_dir.as_ref(),
-                    &ResumePoint {
-                        key: key.clone(),
-                        method: request.method.id(),
-                        pass: pass_index,
-                        offset: rel,
-                        seed: seed.to_hex(),
-                        bytes_written,
-                        unwritable: unwritable.clone(),
-                    },
-                );
-                last_save = Instant::now();
-            }
+            passes_completed = pass_index + 1;
+            tracing::info!(pass = pass_index + 1, bytes_per_sec = rate, "pass finished");
         }
-        if let Err(e) = writer.flush() {
-            outcome = Err(EraseError::io(desc.target.path(), e));
-            break;
-        }
-        passes_completed = pass_index + 1;
-        tracing::info!(pass = pass_index + 1, bytes_per_sec = rate, "pass finished");
+        drop(writer);
     }
-    drop(writer);
 
     certificate.passes_completed = passes_completed;
     certificate.bytes_written = bytes_written;
     certificate.unwritable = unwritable.clone();
 
-    let mut verification = None;
-    if outcome.is_ok() {
+    if outcome.is_ok() && mounted_reserve.is_none() {
         let mode = if request.method.implies_verification() && request.verify == VerifyMode::None {
             VerifyMode::Sample
         } else {
@@ -463,8 +528,36 @@ pub fn run_erase_with_guards(
                 }
             }
         }
+    }
+    if outcome.is_ok() {
         clear_resume(request.state_dir.as_ref(), &key);
     }
+    let mut scan: Option<ScanRecord> = None;
+    if outcome.is_ok() && request.post_scan != PostScan::None {
+        scan = Some(match scanner {
+            Some(s) => {
+                tracing::info!(mode = request.post_scan.id(), "post-erase scan starting");
+                let mut progress = |p: crate::scan::ScanProgress| {
+                    sink(EraseEvent::Scanning {
+                        mode: request.post_scan,
+                        phase: p.phase,
+                        done: p.done,
+                        total: p.total,
+                        candidates: p.candidates,
+                    });
+                };
+                s.scan(&desc, request.post_scan, &mut progress, cancel)
+            }
+            None => ScanRecord::not_run(
+                request.post_scan,
+                "this front-end provides no recovery scanner",
+            ),
+        });
+        if let Some(r) = &scan {
+            tracing::info!(summary = %r.summary(), "post-erase scan finished");
+        }
+    }
+    certificate.scan = scan.clone();
     certificate.verification = verification.clone();
     certificate.finish(match &outcome {
         Ok(()) => CertificateStatus::Completed,
@@ -481,6 +574,7 @@ pub fn run_erase_with_guards(
         bytes_written,
         &unwritable,
         verification,
+        scan,
         &certificate,
     );
     tracing::info!(verdict = %summary.verdict, seconds = summary.seconds, "erase finished");
@@ -488,7 +582,7 @@ pub fn run_erase_with_guards(
         (Ok(()), _) => sink(EraseEvent::Finished {
             summary: summary.clone(),
         }),
-        (Err(EraseError::Cancelled), Some(resume)) => sink(EraseEvent::Cancelled {
+        (Err(EraseError::Cancelled), resume) => sink(EraseEvent::Cancelled {
             resume,
             summary: summary.clone(),
         }),

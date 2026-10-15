@@ -778,4 +778,52 @@ impl AllocationView for ExtUndelete {
             |b| self.block_free(b),
         )
     }
+
+    /// The slack of every live regular file: the bytes past its size in
+    /// the blocks mapped to it (the tail of the last block, and blocks
+    /// preallocated beyond the end). Inline data and files whose block map
+    /// is incomplete are skipped.
+    fn slack_ranges(&self) -> Result<Option<Vec<ByteRange>>, FsError> {
+        use phoinix_fs::space::{ContentRun, merge_ranges, tail_of_runs};
+        let bs = AllocationView::cluster_size(self);
+        let blocks_count = self.volume.superblock().blocks_count;
+        let mut out = Vec::new();
+        for number in self.volume.inode_numbers() {
+            let Ok(inode) = self.volume.inode(number) else {
+                continue;
+            };
+            if inode.kind() != InodeKind::Regular
+                || inode.is_deleted()
+                || inode.inline_data()
+                || inode.size == 0
+            {
+                continue;
+            }
+            let Ok(layout) = self.volume.layout_of(&inode) else {
+                continue;
+            };
+            if !self.volume.layout_complete(&layout) {
+                continue;
+            }
+            let mut runs: Vec<ContentRun> = Vec::with_capacity(layout.runs.len());
+            let mut sound = true;
+            for r in &layout.runs {
+                let Some(p) = r.physical else { continue };
+                if p.saturating_add(r.count) > blocks_count {
+                    sound = false;
+                    break;
+                }
+                runs.push(ContentRun {
+                    logical: r.logical.saturating_mul(bs),
+                    physical: p.saturating_mul(bs),
+                    length: r.count.saturating_mul(bs),
+                });
+            }
+            if !sound {
+                continue;
+            }
+            out.extend(tail_of_runs(&runs, inode.size));
+        }
+        Ok(Some(merge_ranges(out)))
+    }
 }

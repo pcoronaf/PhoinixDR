@@ -30,7 +30,7 @@ pub mod session;
 pub mod source;
 mod workspace;
 
-pub use erase::{EraseHandle, EraseTargetInfo};
+pub use erase::{EraseHandle, EraseTargetInfo, SessionScanner};
 pub use error::SessionError;
 pub use scan::ScanOutcome;
 pub use session::ScanSession;

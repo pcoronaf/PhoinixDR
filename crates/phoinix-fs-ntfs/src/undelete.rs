@@ -674,4 +674,74 @@ impl AllocationView for NtfsUndelete {
             state,
         )
     }
+
+    /// The slack of every in-use file's plain non-resident `$DATA`
+    /// streams (named streams included). System records (0–23),
+    /// directories, resident, compressed, sparse and encrypted streams and
+    /// streams whose run list is incomplete are skipped.
+    fn slack_ranges(&self) -> Result<Option<Vec<ByteRange>>, FsError> {
+        use phoinix_fs::space::{ContentRun, merge_ranges, tail_of_runs};
+        let cs = AllocationView::cluster_size(self);
+        let total = self.volume.total_clusters();
+        let mut out = Vec::new();
+        for (number, file) in self.volume.files() {
+            if number < FIRST_USER_RECORD {
+                continue;
+            }
+            let Ok(file) = file else { continue };
+            if !file.in_use || file.directory || !file.is_base {
+                continue;
+            }
+            for stream in &file.streams {
+                if stream.flags
+                    & (crate::attribute::FLAG_COMPRESSION_MASK
+                        | crate::attribute::FLAG_ENCRYPTED
+                        | crate::attribute::FLAG_SPARSE)
+                    != 0
+                    || stream.has_sparse_runs()
+                {
+                    continue;
+                }
+                let DataStorage::NonResident {
+                    runs,
+                    real_size,
+                    allocated_size,
+                    complete,
+                    ..
+                } = &stream.storage
+                else {
+                    continue;
+                };
+                if !complete || *allocated_size <= *real_size {
+                    continue;
+                }
+                let mut content: Vec<ContentRun> = Vec::with_capacity(runs.len());
+                let mut sound = true;
+                for run in runs {
+                    let NtfsRun::Data { vcn, lcn, clusters } = run else {
+                        sound = false;
+                        break;
+                    };
+                    if lcn.saturating_add(*clusters) > total {
+                        sound = false;
+                        break;
+                    }
+                    content.push(ContentRun {
+                        logical: vcn.saturating_mul(cs),
+                        physical: lcn.saturating_mul(cs),
+                        length: clusters.saturating_mul(cs),
+                    });
+                }
+                if !sound {
+                    continue;
+                }
+                out.extend(tail_of_runs(&content, *real_size));
+            }
+        }
+        Ok(Some(merge_ranges(out)))
+    }
 }
+
+/// First MFT record that can hold a user file; the ones before it are the
+/// system files and the reserved records.
+const FIRST_USER_RECORD: u64 = 24;

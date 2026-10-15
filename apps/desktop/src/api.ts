@@ -12,6 +12,7 @@ import type {
   EraseRequest,
   EraseTarget,
   EraseTargetInfo,
+  MountedVolumeInfo,
   HashVerification,
   PartitionCandidate,
   Preview,
@@ -65,6 +66,7 @@ export interface Api {
   /** Secure erase (M12). */
   eraseCatalogue(): Promise<EraseCatalogue>;
   eraseTargets(): Promise<EraseTargetInfo[]>;
+  eraseVolumes(): Promise<MountedVolumeInfo[]>;
   describeEraseTarget(target: EraseTarget): Promise<TargetDescription>;
   startErase(request: EraseRequest): Promise<void>;
   cancelErase(): Promise<boolean>;
@@ -140,6 +142,7 @@ async function tauriApi(): Promise<Api> {
     },
     eraseCatalogue: () => invoke<EraseCatalogue>("erase_catalogue"),
     eraseTargets: () => invoke<EraseTargetInfo[]>("erase_targets"),
+    eraseVolumes: () => invoke<MountedVolumeInfo[]>("erase_volumes"),
     describeEraseTarget: (target) => invoke<TargetDescription>("describe_erase_target", { target }),
     startErase: (request) => invoke<void>("start_erase", { request }),
     cancelErase: () => invoke<boolean>("cancel_erase"),
@@ -268,6 +271,7 @@ function demoApi(): Api {
     pickReportFile: async () => window.prompt("Report file", "D:\\recovered\\report.html"),
     eraseCatalogue: async () => demo.demoEraseCatalogue,
     eraseTargets: async () => demo.demoEraseTargets(),
+    eraseVolumes: async () => demo.demoEraseVolumes(),
     describeEraseTarget: async (target) => demo.demoDescribe(target),
     startErase: async (request) => {
       eraseCancel = false;

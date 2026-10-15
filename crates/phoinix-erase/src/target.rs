@@ -1,13 +1,17 @@
 //! Targets, their description and the refusal rules.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use phoinix_block::BlockReader;
+use phoinix_core::ByteRange;
 use phoinix_device::{DeviceInfo, DevicePath, platform_enumerator};
 use phoinix_volume::read_partition_table;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{EraseError, Refusal};
 use crate::platform;
+use crate::space::SpaceDescription;
 
 /// What to erase.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,6 +44,33 @@ pub enum EraseTarget {
         /// File path.
         path: PathBuf,
     },
+    /// The free space of a volume (and optionally the slack of its files),
+    /// found through the read-only filesystem engines and written raw.
+    /// The volume must not be mounted (Windows dismounts it; on Linux the
+    /// user unmounts it first).
+    FreeSpace {
+        /// Device or image path.
+        path: PathBuf,
+        /// Partition index (1-based), or `None` for a bare volume or the
+        /// only partition.
+        #[serde(default)]
+        partition: Option<u32>,
+        /// Also overwrite the slack of the allocated files.
+        #[serde(default)]
+        slack: bool,
+    },
+    /// The free space of a mounted volume, through the filesystem: files
+    /// are written until the volume is full, rewritten for every further
+    /// pass, read back and deleted. Needs no administrator rights and
+    /// leaves the volume in use. What it cannot reach is stated in
+    /// [`crate::MOUNTED_NOTE`].
+    MountedFreeSpace {
+        /// Mount point or drive (`E:\`, `/media/user/stick`).
+        mount: PathBuf,
+        /// Bytes to leave free (0: fill the volume completely).
+        #[serde(default)]
+        reserve: u64,
+    },
 }
 
 impl EraseTarget {
@@ -50,8 +81,17 @@ impl EraseTarget {
             Self::WholeDevice { path }
             | Self::Partition { path, .. }
             | Self::Range { path, .. }
-            | Self::File { path } => path,
+            | Self::File { path }
+            | Self::FreeSpace { path, .. } => path,
+            Self::MountedFreeSpace { mount, .. } => mount,
         }
+    }
+
+    /// Whether the target is a mounted volume written through the
+    /// filesystem rather than a raw range.
+    #[must_use]
+    pub const fn is_mounted(&self) -> bool {
+        matches!(self, Self::MountedFreeSpace { .. })
     }
 
     /// Short kind name.
@@ -62,6 +102,8 @@ impl EraseTarget {
             Self::Partition { .. } => "partition",
             Self::Range { .. } => "range",
             Self::File { .. } => "file",
+            Self::FreeSpace { .. } => "free-space",
+            Self::MountedFreeSpace { .. } => "mounted",
         }
     }
 }
@@ -124,9 +166,32 @@ pub struct TargetDescription {
     pub confirmation: String,
     /// A shorter accepted form (the last six characters of the serial).
     pub confirmation_short: Option<String>,
+    /// The ranges to write, as absolute offsets on the path, sorted and
+    /// merged. Empty for a single contiguous target (`offset`/`length`).
+    #[serde(default)]
+    pub ranges: Vec<ByteRange>,
+    /// The volume behind a free-space target.
+    #[serde(default)]
+    pub space: Option<SpaceDescription>,
+    /// Things the user should know that are not refusals.
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 impl TargetDescription {
+    /// The byte ranges to write, absolute on the path, in order.
+    #[must_use]
+    pub fn spans(&self) -> Vec<ByteRange> {
+        if self.ranges.is_empty() {
+            vec![ByteRange {
+                offset: self.offset,
+                length: self.length,
+            }]
+        } else {
+            self.ranges.clone()
+        }
+    }
+
     /// Whether `text` confirms this target.
     #[must_use]
     pub fn confirms(&self, text: &str) -> bool {
@@ -156,6 +221,13 @@ impl TargetDescription {
         parts.push(phoinix_core::fmt::bytes_si(self.length));
         if let Some(p) = &self.partition {
             parts.push(format!("partition {} ({})", p.index, p.type_name));
+        }
+        if let Some(sp) = &self.space {
+            parts.push(format!(
+                "{} free space{}",
+                sp.filesystem,
+                if sp.slack { " + slack" } else { "" }
+            ));
         }
         if !self.volumes.is_empty() {
             parts.push(format!("{} mounted volume(s)", self.volumes.len()));
@@ -217,7 +289,13 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
     if guards.open_sources.iter().any(|s| same_path(s, &path)) {
         refusals.push(Refusal::OpenSource);
     }
-    if let EraseTarget::File { .. } = target {
+    if let EraseTarget::MountedFreeSpace { mount, reserve } = target {
+        return describe_mounted(target, mount, *reserve, guards, refusals);
+    }
+    let is_file = matches!(target, EraseTarget::File { .. })
+        || (matches!(target, EraseTarget::FreeSpace { .. })
+            && std::fs::metadata(&path).is_ok_and(|m| m.is_file()));
+    if is_file {
         let meta = std::fs::metadata(&path).map_err(|e| EraseError::io(&path, e))?;
         if !meta.is_file() {
             return Err(EraseError::Invalid(format!(
@@ -226,7 +304,7 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
             )));
         }
         let (confirmation, confirmation_short) = confirmation_for(None, &path);
-        return Ok(TargetDescription {
+        let mut desc = TargetDescription {
             target: target.clone(),
             path: path.display().to_string(),
             disk: None,
@@ -241,7 +319,33 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
             refusals,
             confirmation,
             confirmation_short,
-        });
+            ranges: Vec::new(),
+            space: None,
+            warnings: Vec::new(),
+        };
+        if let EraseTarget::FreeSpace {
+            partition, slack, ..
+        } = target
+        {
+            let reader = phoinix_device::open_source(&path)?;
+            let table = read_partition_table(&*reader).ok();
+            desc.partitions = table
+                .as_ref()
+                .map(|t| {
+                    t.partitions
+                        .iter()
+                        .map(|p| PartitionDescription {
+                            index: p.index,
+                            offset: p.start_offset,
+                            length: p.length,
+                            type_name: p.partition_type.description(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            describe_free_space(&mut desc, reader, *partition, *slack)?;
+        }
+        return Ok(desc);
     }
 
     let enumerator = platform_enumerator();
@@ -290,8 +394,22 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
             }
         },
         EraseTarget::Range { offset, length, .. } => (*offset, *length, None),
-        // Files are described above; keep the match exhaustive.
-        EraseTarget::File { .. } => (0, 0, None),
+        // The free space is resolved below once the guards are known; a
+        // partition index is checked here.
+        EraseTarget::FreeSpace {
+            partition: Some(index),
+            ..
+        } => match partitions.iter().find(|p| p.index == *index) {
+            Some(p) => (p.offset, p.length, Some(p.clone())),
+            None => {
+                refusals.push(Refusal::NoSuchPartition { index: *index });
+                (0, 0, None)
+            }
+        },
+        EraseTarget::FreeSpace { .. } => (0, device_len, None),
+        // Files and mounted volumes are described above; keep the match
+        // exhaustive.
+        EraseTarget::File { .. } | EraseTarget::MountedFreeSpace { .. } => (0, 0, None),
     };
     if (offset.saturating_add(length) > device_len || length == 0 && partition.is_none())
         && !refusals
@@ -349,7 +467,7 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
     }
 
     let (confirmation, confirmation_short) = confirmation_for(device, &path);
-    Ok(TargetDescription {
+    let mut desc = TargetDescription {
         target: target.clone(),
         path: path_text,
         disk,
@@ -364,6 +482,187 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
         refusals,
         confirmation,
         confirmation_short,
+        ranges: Vec::new(),
+        space: None,
+        warnings: Vec::new(),
+    };
+    if let EraseTarget::FreeSpace {
+        partition, slack, ..
+    } = target
+        && !desc
+            .refusals
+            .iter()
+            .any(|r| matches!(r, Refusal::NoSuchPartition { .. }))
+    {
+        describe_free_space(&mut desc, reader, *partition, *slack)?;
+    }
+    Ok(desc)
+}
+
+/// Resolves the free space of the chosen volume into `desc.ranges`.
+fn describe_free_space(
+    desc: &mut TargetDescription,
+    reader: Arc<dyn BlockReader>,
+    partition: Option<u32>,
+    slack: bool,
+) -> Result<(), EraseError> {
+    let chosen = match partition {
+        Some(index) => match desc.partitions.iter().find(|p| p.index == index).cloned() {
+            Some(p) => Some(p),
+            None => {
+                desc.refusals.push(Refusal::NoSuchPartition { index });
+                desc.length = 0;
+                return Ok(());
+            }
+        },
+        None => match desc.partitions.len() {
+            0 => None,
+            1 => desc.partitions.first().cloned(),
+            n => {
+                return Err(EraseError::Invalid(format!(
+                    "the source has {n} partitions; say which one (--partition)"
+                )));
+            }
+        },
+    };
+    let (volume_offset, volume_reader): (u64, Arc<dyn BlockReader>) = match &chosen {
+        Some(p) => (
+            p.offset,
+            Arc::new(
+                phoinix_block::SubrangeReader::with_bounds(reader, p.offset, p.length)
+                    .map_err(|e| EraseError::Invalid(e.to_string()))?,
+            ),
+        ),
+        None => (0, reader),
+    };
+    let (space, ranges) = crate::space::free_space(volume_reader, volume_offset, slack)?;
+    if !space.map_available {
+        desc.refusals.push(Refusal::Unsupported {
+            reason: format!(
+                "the {} volume has no readable allocation map, so its free space cannot be told from its files",
+                space.filesystem
+            ),
+        });
+    }
+    desc.partition = chosen;
+    desc.offset = volume_offset;
+    desc.length = ranges.iter().map(|r| r.length).sum();
+    desc.ranges = ranges;
+    desc.warnings.push(crate::FREE_SPACE_NOTE.to_owned());
+    if slack && space.slack_ranges == 0 {
+        desc.warnings.push(
+            "No file slack was found (or the engine cannot list the allocated files).".into(),
+        );
+    }
+    desc.space = Some(space);
+    Ok(())
+}
+
+/// Describes a mounted volume for the filesystem-level free-space wipe.
+fn describe_mounted(
+    target: &EraseTarget,
+    mount: &Path,
+    reserve: u64,
+    guards: &Guards,
+    mut refusals: Vec<Refusal>,
+) -> Result<TargetDescription, EraseError> {
+    let canonical = std::fs::canonicalize(mount).unwrap_or_else(|_| mount.to_path_buf());
+    if !canonical.is_dir() {
+        return Err(EraseError::Invalid(format!(
+            "{} is not a directory; pass the drive (E:\\), the mount point or a folder on the volume",
+            mount.display()
+        )));
+    }
+    // The volume holding the directory: the mount with the longest prefix.
+    let found = platform::mounted_volumes()
+        .into_iter()
+        .filter(|v| {
+            let root = std::fs::canonicalize(&v.mount).unwrap_or_else(|_| PathBuf::from(&v.mount));
+            canonical.starts_with(&root)
+        })
+        .max_by_key(|v| v.mount.len());
+    let Some(v) = found else {
+        return Err(EraseError::Invalid(format!(
+            "{} is not on a mounted volume this process can see",
+            mount.display()
+        )));
+    };
+    if v.read_only {
+        refusals.push(Refusal::Unsupported {
+            reason: format!("{} is mounted read-only", v.mount),
+        });
+    }
+    let disk = v.disk.clone().or_else(|| platform::disk_of_path(mount));
+    if let Some(d) = &disk
+        && guards
+            .open_sources
+            .iter()
+            .any(|s| platform::disk_of_path(s).is_some_and(|sd| platform::same_disk(&sd, d)))
+    {
+        refusals.push(Refusal::OpenSource);
+    }
+    let device = disk.as_deref().and_then(|d| {
+        platform_enumerator()
+            .enumerate()
+            .ok()?
+            .into_iter()
+            .find(|x| platform::same_disk(x.path.as_str(), d))
+    });
+    let mut warnings = vec![crate::MOUNTED_NOTE.to_owned()];
+    if platform::system_disk()
+        .is_some_and(|s| disk.as_deref().is_some_and(|d| platform::same_disk(&s, d)))
+        || v.system
+    {
+        warnings.push("This volume belongs to the system disk. While it is full the system and other programs may misbehave; close them first, and let the wipe finish (the files are removed at the end).".into());
+    }
+    let last_component = |text: &str| -> Option<String> {
+        let t = text.trim_end_matches(['\\', '/']);
+        t.rsplit(['\\', '/'])
+            .next()
+            .filter(|s| !s.trim().is_empty())
+            .map(str::to_owned)
+    };
+    let confirmation = v
+        .label
+        .clone()
+        .filter(|l| l.trim().len() >= 2)
+        .or_else(|| last_component(&v.mount))
+        .or_else(|| last_component(&v.node))
+        .unwrap_or_else(|| "root".to_owned());
+    let free = v.free.saturating_sub(reserve);
+    Ok(TargetDescription {
+        target: target.clone(),
+        path: canonical.display().to_string(),
+        disk,
+        solid_state: device.as_ref().and_then(|d| d.rotational.map(|r| !r)),
+        device,
+        offset: 0,
+        length: free,
+        sector_size: 1,
+        partition: None,
+        partitions: Vec::new(),
+        volumes: Vec::new(),
+        refusals,
+        confirmation,
+        confirmation_short: None,
+        ranges: Vec::new(),
+        space: Some(SpaceDescription {
+            filesystem: v.filesystem.clone(),
+            volume_offset: 0,
+            volume_length: v.total,
+            cluster_size: 0,
+            map_available: true,
+            free_bytes: free,
+            free_ranges: 0,
+            slack: false,
+            slack_bytes: 0,
+            slack_ranges: 0,
+            mount: Some(v.mount.clone()),
+            node: Some(v.node.clone()),
+            label: v.label.clone(),
+            total_bytes: Some(v.total),
+        }),
+        warnings,
     })
 }
 

@@ -71,6 +71,7 @@ anyhow = "1"
 tempfile = "3"
 hex = "0.4"
 rand = "0.9"
+libc = "0.2"
 
 [workspace.lints.rust]
 missing_docs = "warn"

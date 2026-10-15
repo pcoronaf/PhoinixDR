@@ -140,6 +140,22 @@ methods because some policies still require them, and shows a warning
 that links [El mito de Gutmann](https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html)
 when you choose one.
 
+### Can PhoinixDR wipe the free space of a disk without erasing it?
+
+Yes, since M12.2. Deleting a file frees its clusters and leaves the data
+there, which is what recovery relies on; a free-space wipe overwrites
+those clusters and nothing else. From a disk's erase page choose *Only
+the free space of partition N* (the volume is read with the recovery
+engine's allocation map, needs administrator rights and must not be in
+use), optionally with the slack at the end of every file; or pick a
+volume in use from the second list on the erase page, and PhoinixDR fills
+it through the filesystem with no administrator rights and removes the
+fill files at the end. Either way an optional post-erase scan looks at the
+result with the recovery engines and the certificate records what it
+found. What is not reached (small files kept inside NTFS MFT records,
+journal copies, shadow copies, remapped flash cells) is stated on the
+page and in the certificate.
+
 ### Can PhoinixDR securely erase an SSD?
 
 Only at the software level. An overwrite reaches an SSD's logical blocks,

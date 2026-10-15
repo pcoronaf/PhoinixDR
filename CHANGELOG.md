@@ -4,6 +4,31 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- M12.2 Free space and verification scans. Secure erase gains two
+  free-space targets: the raw one reads an NTFS, FAT, exFAT or ext volume
+  with the recovery engine, takes the free ranges from its allocation map
+  and overwrites them (with `--slack`, also the bytes between the end of
+  each live file and the end of its last cluster, taken only from plain,
+  complete layouts); the filesystem-level one fills a mounted volume with
+  files until it is full, rewrites them for every further pass, reads
+  them back and removes them, needing no administrator rights. An optional
+  post-erase scan runs the recovery engines over the target (quick:
+  metadata; deep: metadata and carving) and the certificate records the
+  filesystem found, the deleted records with content, the carved files and
+  the resident records a free-space wipe cannot reach. Raw targets are
+  written as lists of ranges with read-modify-write of partial sectors.
+  Desktop: the free space of a partition on the disk's page (with the
+  slack option and the post-erase scan choice), a list of volumes in use
+  on the erase page, and the *Restart as administrator* notice when a disk
+  is not accessible. Command line: `phoinix erase free-space`,
+  `phoinix erase mounted`, `--scan`, `--slack`, `--reserve`, and
+  `describe --free-space`. Engines: `AllocationView::slack_ranges` on the
+  four filesystems.
+- Documentation: the desktop and command-line guides and the FAQ in
+  English and Spanish, the M12 plan status.
+
 ## 0.1.5
 
 - M12.1 Secure erase: a new crate, `phoinix-erase`, the only one that

@@ -217,6 +217,12 @@ impl Workspace {
         crate::erase::targets(&self.erase_guards())
     }
 
+    /// Mounted volumes as targets of the filesystem-level free-space wipe.
+    #[must_use]
+    pub fn erase_volumes(&self) -> Vec<phoinix_erase::MountedVolumeInfo> {
+        crate::erase::volumes()
+    }
+
     /// Describes an erase target with this workspace's guards.
     ///
     /// # Errors

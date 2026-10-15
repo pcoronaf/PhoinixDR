@@ -1,27 +1,45 @@
-import type { EraseCatalogue, EraseTargetInfo } from "../types";
+import type { Api } from "../api";
+import type { AppInfo, EraseCatalogue, EraseTargetInfo, MountedVolumeInfo } from "../types";
 import { formatBytesSi } from "../lib/format";
 import { refusalText } from "../lib/erase";
+import { ElevateNotice } from "./ElevateNotice";
 
 interface Props {
+  api: Api;
+  info: AppInfo | null;
   catalogue: EraseCatalogue | null;
   targets: EraseTargetInfo[];
+  volumes: MountedVolumeInfo[];
   loading: boolean;
   error: string | null;
   onChoose: (t: EraseTargetInfo) => void;
+  onChooseVolume: (v: MountedVolumeInfo) => void;
   onBack: () => void;
   onRefresh: () => void;
 }
 
-/** The disks that can be erased, with the reasons the others cannot. */
+/** Whether a listing error means the device needs administrator rights. */
+function needsElevation(t: EraseTargetInfo): boolean {
+  return t.error !== null && /permission|elevated|denied|access/i.test(t.error);
+}
+
+/** The disks that can be erased, with the reasons the others cannot, and
+ *  the mounted volumes whose free space can be wiped through the
+ *  filesystem. */
 export function EraseTargets({
+  api,
+  info,
   catalogue,
   targets,
+  volumes,
   loading,
   error,
   onChoose,
+  onChooseVolume,
   onBack,
   onRefresh,
 }: Props) {
+  const blocked = targets.some(needsElevation);
   return (
     <div className="panel erase">
       <div className="row-between">
@@ -40,19 +58,20 @@ export function EraseTargets({
       </p>
       {loading && <p className="muted">Enumerating disks…</p>}
       {error && <p className="error">{error}</p>}
-      {!loading && targets.length === 0 && (
+      {!loading && targets.length === 0 && volumes.length === 0 && (
         <p className="muted">
           No disks found. Device access needs administrator rights.
         </p>
       )}
+      {blocked && <ElevateNotice api={api} info={info} context="devices" />}
       <div className="cards">
         {targets.map((t) => {
-          const blocked = t.refusals.length > 0 || t.error !== null;
+          const blockedTarget = t.refusals.length > 0 || t.error !== null;
           return (
             <button
               key={t.device.id}
-              className={`card ${blocked ? "" : "erase-ok"}`}
-              disabled={blocked}
+              className={`card ${blockedTarget ? "" : "erase-ok"}`}
+              disabled={blockedTarget}
               onClick={() => onChoose(t)}
             >
               <strong>{t.device.display_name}</strong>
@@ -86,9 +105,45 @@ export function EraseTargets({
         })}
       </div>
       <p className="muted">
-        Partitions, free space and files are erased from a disk's page. Disk
-        images: use the file target on the command line for now.
+        A disk's page offers the whole disk, one partition, or the free
+        space of a partition (with the slack of its files if you wish). Disk
+        images: use the file or free-space target on the command line.
       </p>
+
+      <h2>Wipe the free space of a volume in use</h2>
+      <p className="muted">
+        Fills the free space of a mounted volume through the filesystem,
+        then removes the fill files. Needs no administrator rights and the
+        volume stays usable; live files are never touched.
+      </p>
+      {!loading && volumes.length === 0 && (
+        <p className="muted">No writable volumes found.</p>
+      )}
+      <div className="cards">
+        {volumes.map((v) => (
+          <button
+            key={v.node}
+            className={`card ${v.read_only ? "" : "erase-ok"}`}
+            disabled={v.read_only}
+            onClick={() => onChooseVolume(v)}
+          >
+            <strong>
+              {v.mount}
+              {v.label ? ` ${v.label}` : ""}
+            </strong>
+            <span>
+              {v.filesystem} · {formatBytesSi(v.free)} free of{" "}
+              {formatBytesSi(v.total)}
+              {v.system ? " · system volume" : ""}
+              {v.read_only ? " · read-only" : ""}
+            </span>
+            <span className="mono muted">
+              {v.node}
+              {v.disk ? ` on ${v.disk}` : ""}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
