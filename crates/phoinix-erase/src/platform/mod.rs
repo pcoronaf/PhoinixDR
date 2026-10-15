@@ -90,6 +90,17 @@ pub fn allocation_unit(path: &Path) -> Option<u64> {
     imp::allocation_unit(path)
 }
 
+/// Opens the firmware pass-through of a whole device. `None` when the
+/// platform has none for this device (image files, USB bridges that do
+/// not forward commands, unsupported platforms).
+#[must_use]
+pub fn open_firmware(
+    path: &Path,
+    bus: Option<phoinix_device::DeviceBus>,
+) -> Option<Box<dyn crate::firmware::Backend>> {
+    imp::open_firmware(path, bus)
+}
+
 /// The whole-disk device path that `path` (a file or directory) lives on.
 #[must_use]
 pub fn disk_of_path(path: &Path) -> Option<String> {

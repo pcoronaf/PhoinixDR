@@ -120,9 +120,14 @@ pub struct PartitionArgs {
 /// Options shared by the erase commands.
 #[derive(Debug, clap::Args)]
 pub struct Options {
-    /// Method: zero, random, nist, dod-3, dod-7, schneier, vsitr, gutmann, custom.
+    /// Method: zero, random, nist, dod-3, dod-7, schneier, vsitr, gutmann,
+    /// custom, or firmware (the device's own sanitize; whole devices only).
     #[arg(long, default_value = "zero")]
     pub method: String,
+    /// For `--method firmware`: crypto, block, overwrite, security, enhanced,
+    /// format, format-crypto (default: the best the device supports).
+    #[arg(long)]
+    pub action: Option<String>,
     /// For `--method custom`: number of passes (random data).
     #[arg(long, default_value_t = 1)]
     pub passes: usize,
@@ -182,7 +187,40 @@ fn sessions_dir() -> PathBuf {
         .unwrap_or_else(|| std::env::temp_dir().join("phoinixdr-sessions"))
 }
 
-fn parse_method(options: &Options) -> anyhow::Result<EraseMethod> {
+fn parse_method(
+    options: &Options,
+    firmware: Option<&phoinix_erase::FirmwareInfo>,
+) -> anyhow::Result<EraseMethod> {
+    if options.method.eq_ignore_ascii_case("firmware") {
+        let fw = firmware.ok_or_else(|| {
+            anyhow::anyhow!(
+                "the device offers no firmware sanitize through this platform (whole devices only; USB bridges rarely forward the commands)"
+            )
+        })?;
+        let action = match &options.action {
+            Some(text) => phoinix_erase::FirmwareAction::parse(text).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "unknown --action {text:?}; one of {}",
+                    phoinix_erase::FirmwareAction::ALL
+                        .iter()
+                        .map(|a| a.id())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })?,
+            None => fw.best().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "the device offers no firmware action right now{}",
+                    fw.note
+                        .as_deref()
+                        .map(|n| format!(": {n}"))
+                        .unwrap_or_default()
+                )
+            })?,
+        };
+        fw.can_run(action).map_err(|e| anyhow::anyhow!("{e}"))?;
+        return Ok(EraseMethod::Firmware { action });
+    }
     if options.method.eq_ignore_ascii_case("custom") {
         let pattern = match &options.pattern {
             Some(hex_text) => {
@@ -548,16 +586,58 @@ fn print_description(desc: &phoinix_erase::TargetDescription) {
     for w in &desc.warnings {
         outln!("Note: {w}");
     }
+    if let Some(fw) = &desc.firmware {
+        outln!(
+            "Firmware: {}{}{}",
+            fw.transport
+                .map_or("no answer".to_owned(), |t| format!("{t:?}")),
+            fw.model
+                .as_deref()
+                .map(|m| format!(" · {m}"))
+                .unwrap_or_default(),
+            fw.serial
+                .as_deref()
+                .map(|s| format!(" · S/N {s}"))
+                .unwrap_or_default()
+        );
+        if fw.supports.is_empty() {
+            outln!("  no firmware sanitize offered");
+        } else {
+            outln!("  {}", phoinix_erase::FIRMWARE_NOTE);
+            outln!(
+                "  actions: {} (--method firmware --action <id>)",
+                fw.supports
+                    .iter()
+                    .map(|a| format!("{} ({})", a.id(), a.label()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        if fw.frozen {
+            outln!("  security frozen: {}", phoinix_erase::FROZEN_ADVICE);
+        }
+        if fw.locked {
+            outln!("  security locked");
+        }
+        if let Some(n) = &fw.note {
+            outln!("  {n}");
+        }
+    }
     if desc.solid_state == Some(true) {
         outln!("{FLASH_WARNING}");
+        if desc.firmware.as_ref().is_some_and(|f| f.best().is_some()) {
+            outln!(
+                "Prefer --method firmware on this device: it reaches the remapped cells an overwrite cannot."
+            );
+        }
     }
 }
 
 fn erase(workspace: &Workspace, target: EraseTarget, options: Options) -> anyhow::Result<()> {
-    let method = parse_method(&options)?;
     let verify = parse_verify(&options.verify)?;
     let post_scan = parse_scan(&options.scan)?;
     let desc = workspace.describe_erase_target(&target)?;
+    let method = parse_method(&options, desc.firmware.as_ref())?;
     let json = options.json;
     if !json {
         print_description(&desc);

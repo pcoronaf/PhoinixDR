@@ -302,8 +302,26 @@ pub fn run_erase_with(
         }));
     }
     let passes = request.method.passes();
-    if passes.is_empty() {
+    let firmware_action = match &request.method {
+        EraseMethod::Firmware { action } => Some(*action),
+        _ => None,
+    };
+    if passes.is_empty() && firmware_action.is_none() {
         return Err(EraseError::Invalid("the method has no passes".into()));
+    }
+    if let Some(action) = firmware_action {
+        if !matches!(desc.target, EraseTarget::WholeDevice { .. }) {
+            return Err(EraseError::Invalid(
+                "a firmware sanitize applies to a whole device only".into(),
+            ));
+        }
+        let fw = desc.firmware.as_ref().ok_or_else(|| {
+            EraseError::Refused(Refusal::Unsupported {
+                reason: "the device offers no firmware sanitize through this platform".into(),
+            })
+        })?;
+        fw.can_run(action)
+            .map_err(|reason| EraseError::Refused(Refusal::Unsupported { reason }))?;
     }
     let key = target_key(&desc);
     if desc.length == 0 && !desc.target.is_mounted() {
@@ -355,7 +373,7 @@ pub fn run_erase_with(
     sink(EraseEvent::Started {
         description: Box::new(desc.clone()),
         method: request.method.label(),
-        passes: passes.len(),
+        passes: passes.len().max(usize::from(firmware_action.is_some())),
         resumed_from: resumed.clone(),
     });
 
@@ -375,7 +393,7 @@ pub fn run_erase_with(
                       scan: Option<ScanRecord>,
                       certificate: &Certificate| EraseSummary {
         passes_completed,
-        passes: passes.len(),
+        passes: passes.len().max(usize::from(firmware_action.is_some())),
         bytes_written,
         unwritable_bytes: unwritable.iter().map(|r| r.length).sum(),
         unwritable_ranges: unwritable.len(),
@@ -391,7 +409,13 @@ pub fn run_erase_with(
     // The description the post-erase scan sees (files targets add the
     // random names the files were given).
     let mut scan_desc = desc.clone();
-    if let (EraseTarget::Files { .. }, Some(files)) = (&desc.target, desc.files.as_ref()) {
+    if let (Some(action), Some(fw)) = (firmware_action, desc.firmware.as_ref()) {
+        // The device's own sanitize: one "pass", a sample before and after.
+        let done = crate::firmware::run(&desc, fw, action, request.verify, sink, cancel);
+        passes_completed = usize::from(done.result.is_ok());
+        verification = done.verification;
+        outcome = done.result;
+    } else if let (EraseTarget::Files { .. }, Some(files)) = (&desc.target, desc.files.as_ref()) {
         // Files: overwrite through the filesystem, no resume, own read-back.
         let done = crate::files::run(&desc, files, &passes, &seed, request.verify, sink, cancel);
         bytes_written = done.bytes_written;
@@ -527,7 +551,7 @@ pub fn run_erase_with(
     certificate.bytes_written = bytes_written;
     certificate.unwritable = unwritable.clone();
 
-    if outcome.is_ok() && !desc.target.is_mounted() {
+    if outcome.is_ok() && !desc.target.is_mounted() && firmware_action.is_none() {
         let mode = if request.method.implies_verification() && request.verify == VerifyMode::None {
             VerifyMode::Sample
         } else {

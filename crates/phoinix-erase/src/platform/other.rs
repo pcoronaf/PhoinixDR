@@ -27,6 +27,13 @@ pub fn mounted_volumes() -> Vec<MountedVolumeInfo> {
     Vec::new()
 }
 
+pub fn open_firmware(
+    _path: &Path,
+    _bus: Option<phoinix_device::DeviceBus>,
+) -> Option<Box<dyn crate::firmware::Backend>> {
+    None
+}
+
 pub fn file_streams(_path: &Path) -> Vec<crate::files::StreamEntry> {
     Vec::new()
 }

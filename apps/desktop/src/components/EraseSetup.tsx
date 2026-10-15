@@ -4,6 +4,7 @@ import type {
   EraseCatalogue,
   EraseRequest,
   EraseTarget,
+  FirmwareAction,
   PostScan,
   TargetDescription,
   VerifyMode,
@@ -59,7 +60,8 @@ export function EraseSetup({
   const [scope, setScope] = useState<Scope>(scopeOf(initial));
   const [slack, setSlack] = useState(false);
   const [reserveGb, setReserveGb] = useState("0");
-  const [method, setMethod] = useState("zero");
+  const firmwareDefault = initial.firmware && initial.firmware.supports.length > 0 && initial.solid_state ? `firmware:${initial.firmware.supports[0]}` : null;
+  const [method, setMethod] = useState(firmwareDefault ?? "zero");
   const [verify, setVerify] = useState<VerifyMode>("sample");
   const [postScan, setPostScan] = useState<PostScan>("none");
   const [certificate, setCertificate] = useState("");
@@ -71,8 +73,17 @@ export function EraseSetup({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [describing, setDescribing] = useState(false);
+  const firmwareAction = method.startsWith("firmware:") ? method.slice("firmware:".length) : null;
   const chosen =
-    catalogue.methods.find((m) => m.id === method) ?? catalogue.methods[0]!;
+    (firmwareAction ? catalogue.firmware_actions.find((m) => m.id === firmwareAction) : catalogue.methods.find((m) => m.id === method)) ?? catalogue.methods[0]!;
+  const fw = desc.firmware;
+  const firmwareOffered = !mounted && !filesTarget && scope.kind === "whole_device" && fw !== null && fw.supports.length > 0;
+  const firmwareBlocked = (a: string): string | null => {
+    if (!fw) return "not offered";
+    if (fw.locked) return "the device is security-locked";
+    if (fw.frozen && (a === "security" || a === "enhanced")) return "security frozen";
+    return null;
+  };
   const confirmed =
     typed.trim().length > 0 &&
     (typed.trim().toLowerCase() === desc.confirmation.toLowerCase() ||
@@ -119,7 +130,7 @@ export function EraseSetup({
     if (countdown === 0) {
       const request: EraseRequest = {
         target: desc.target,
-        method: { id: method },
+        method: firmwareAction ? { id: "firmware", action: firmwareAction as FirmwareAction } : { id: method },
         verify,
         operator: {
           name: text(name),
@@ -144,6 +155,7 @@ export function EraseSetup({
     countdown,
     desc.target,
     method,
+    firmwareAction,
     verify,
     postScan,
     name,
@@ -154,6 +166,10 @@ export function EraseSetup({
     typed,
     onStart,
   ]);
+
+  useEffect(() => {
+    if (firmwareAction && !firmwareOffered) setMethod("zero");
+  }, [firmwareAction, firmwareOffered]);
 
   const pick = async (): Promise<void> => {
     const p = await api.pickCertificateFile();
@@ -333,13 +349,41 @@ export function EraseSetup({
       <fieldset>
         <legend>Method</legend>
         <select value={method} onChange={(e) => setMethod(e.target.value)}>
-          {catalogue.methods.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
+          {firmwareOffered && fw && (
+            <optgroup label="The device's own sanitize (reaches remapped cells)">
+              {fw.supports.map((a) => {
+                const info = catalogue.firmware_actions.find((m) => m.id === a);
+                const blocked = firmwareBlocked(a);
+                return (
+                  <option key={`firmware:${a}`} value={`firmware:${a}`} disabled={blocked !== null}>
+                    {info?.label ?? a}
+                    {blocked ? ` (${blocked})` : ""}
+                  </option>
+                );
+              })}
+            </optgroup>
+          )}
+          <optgroup label="Software overwrite">
+            {catalogue.methods.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </optgroup>
         </select>
         <p className="muted">{chosen.note}</p>
+        {firmwareAction && (
+          <p className="warn">{catalogue.firmware_note}</p>
+        )}
+        {firmwareOffered && fw?.frozen && (
+          <p className="warn">Security frozen: {catalogue.frozen_advice}.</p>
+        )}
+        {firmwareOffered && fw?.note && !fw.frozen && <p className="muted">{fw.note}</p>}
+        {!mounted && !filesTarget && scope.kind === "whole_device" && desc.solid_state && !firmwareOffered && (
+          <p className="muted">
+            {fw?.note ?? "The device's firmware sanitize is not reachable through this platform (USB bridges rarely forward the commands); a software overwrite is a Clear, not a Purge."}
+          </p>
+        )}
         {chosen.multi_pass && (
           <p className="warn">
             {catalogue.multi_pass_warning} Read{" "}

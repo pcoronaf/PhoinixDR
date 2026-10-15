@@ -323,6 +323,17 @@ export const demoEraseCatalogue: EraseCatalogue = {
   article_gutmann: "https://www.pcoronaf.com/2014/07/el-mito-de-gutmann.html",
   article_files: "https://www.pcoronaf.com/2020/12/borrado-seguro-de-archivos.html",
   free_space_note: "A free-space wipe overwrites every cluster the filesystem marks as free, and the slack at the end of each file when asked. It does not reach the content of small deleted files kept inside NTFS MFT records or ext inodes, copies in the journal, volume shadow copies or previous versions, nor the physical cells a solid-state drive has remapped. Deleted names, sizes and dates remain visible in the metadata.",
+  firmware_note: "A firmware sanitize is run by the drive itself and reaches every cell, remapped and over-provisioned ones included; it is NIST SP 800-88 Purge where a software overwrite is only Clear. PhoinixDR can only ask the drive and read back a sample afterwards: it cannot see what the controller did inside, and a drive with buggy firmware may report success without erasing. The command cannot be cancelled once issued, and interrupting the power during it may leave the drive unusable. Verify with the post-erase deep scan, and keep the drive under your control until it is.",
+  frozen_advice: "the device is security-frozen: the BIOS or the operating system froze the ATA security feature set at boot. Put the computer to sleep and wake it up again, or unplug the drive's SATA power cable and plug it back in with the system running, then retry; a live Linux system is the usual way around a BIOS that always freezes",
+  firmware_actions: [
+    { id: "crypto", label: "Firmware: cryptographic erase", note: "The device replaces its media encryption key, so every sector, remapped cells included, reads as random data. Takes seconds. NIST 800-88 Purge for self-encrypting drives.", passes: 1, multi_pass: false },
+    { id: "block", label: "Firmware: block erase", note: "The device erases every NAND block, remapped and over-provisioned ones included. Takes minutes. NIST 800-88 Purge.", passes: 1, multi_pass: false },
+    { id: "format-crypto", label: "Firmware: NVMe format with cryptographic erase", note: "NVMe Format NVM with the cryptographic erase setting: the namespace key is replaced. Takes seconds.", passes: 1, multi_pass: false },
+    { id: "enhanced", label: "Firmware: ATA enhanced security erase", note: "ATA SECURITY ERASE UNIT, enhanced: reallocated sectors included; on most SSDs a key change that takes seconds. A temporary password is set and removed again.", passes: 1, multi_pass: false },
+    { id: "security", label: "Firmware: ATA security erase", note: "ATA SECURITY ERASE UNIT: the device erases its user area. The older command, for drives without the SANITIZE feature set; a temporary password is set and removed again.", passes: 1, multi_pass: false },
+    { id: "format", label: "Firmware: NVMe format with user-data erase", note: "NVMe Format NVM with the user-data erase setting: the namespace is reformatted and its data erased by the controller.", passes: 1, multi_pass: false },
+    { id: "overwrite", label: "Firmware: overwrite by the device", note: "The device overwrites its own media, remapped cells included. Takes as long as a software overwrite or longer.", passes: 1, multi_pass: false },
+  ],
   files_note: "Erasing files overwrites their current content through the filesystem (every named stream on NTFS, and the slack up to the end of the last cluster), then truncates, renames and deletes them. It cannot reach the copies the system keeps elsewhere: earlier versions in the journal, volume shadow copies and previous versions, temporary files, the swap or page file, backups and cloud copies, the old resident bytes an NTFS record may keep until it is reused, nor the physical cells a solid-state drive has remapped. The deleted name may survive in directory metadata. Follow with a free-space wipe of the volume to cover what the filesystem left behind.",
   mounted_note: "Writing through the filesystem fills the space the volume reports as free; the filesystem keeps some clusters back, and small deleted files kept inside NTFS MFT records or ext inodes, journal copies, shadow copies, previous versions and remapped flash cells are not reached. The volume stays in use while it fills; it is full for a moment, then the fill files are removed.",
 };
@@ -365,6 +376,7 @@ function demoDescription(device: DeviceInfo, target: EraseTarget): TargetDescrip
     space,
     warnings: space ? [demoEraseCatalogue.free_space_note] : [],
     files: null,
+    firmware: null,
   };
 }
 
@@ -410,6 +422,7 @@ function demoFilesDescription(target: Extract<EraseTarget, { kind: "files" }>): 
       skipped: [],
       renamed: [],
     },
+    firmware: null,
   };
 }
 
@@ -438,27 +451,41 @@ function demoMountedDescription(target: Extract<EraseTarget, { kind: "mounted_fr
     space: { filesystem: v.filesystem, volume_offset: 0, volume_length: v.total, cluster_size: 0, map_available: true, free_bytes: free, free_ranges: 0, slack: false, slack_bytes: 0, slack_ranges: 0, mount: v.mount, node: v.node, label: v.label, total_bytes: v.total },
     warnings,
     files: null,
+    firmware: null,
   };
 }
 
+const demoNvme: DeviceInfo = { ...demoDevices[0]!, id: "demo-nvme1", path: "\\\\.\\PhysicalDrive3", display_name: "Samsung SSD 980 PRO 1TB", size: 1_000_204_886_016, removable: false, rotational: false, bus: "nvme", serial: "S5GXNX0T123456A", model: "Samsung SSD 980 PRO 1TB", accessible: true };
+
 export function demoEraseTargets(): EraseTargetInfo[] {
-  return demoDevices.map((device) => {
+  const list = demoDevices.map((device) => {
     const d = { ...device, accessible: true, serial: device.serial === "?8" ? "0781C3A9D2F1" : device.serial };
     const description = demoDescription(d, { kind: "whole_device", path: d.path });
     return { device: d, description, refusals: description.refusals, error: null };
   });
+  const nvme = demoDescription(demoNvme, { kind: "whole_device", path: demoNvme.path });
+  nvme.refusals = [];
+  nvme.volumes = [{ node: "\\\\?\\Volume{data}", mount: "D:\\", can_dismount: true }];
+  nvme.firmware = { transport: "nvme", model: "Samsung SSD 980 PRO 1TB", serial: "S5GXNX0T123456A", supports: ["crypto", "block", "format-crypto", "format"], frozen: false, security_enabled: false, locked: false, solid_state: true, security_erase_minutes: null, enhanced_erase_minutes: null, note: null };
+  list.push({ device: demoNvme, description: nvme, refusals: [], error: null });
+  return list;
 }
 
 export function demoDescribe(target: EraseTarget): TargetDescription {
   if (target.kind === "mounted_free_space") return demoMountedDescription(target);
   if (target.kind === "files") return demoFilesDescription(target);
-  const device = demoEraseTargets().find((t) => t.device.path === target.path)?.device ?? demoEraseTargets()[1]!.device;
-  return demoDescription(device, target);
+  const known = demoEraseTargets().find((t) => t.device.path === target.path);
+  if (known && target.kind === "whole_device" && known.description) return known.description;
+  const device = known?.device ?? demoEraseTargets()[1]!.device;
+  const d = demoDescription(device, target);
+  if (device.id === "demo-nvme1") d.refusals = [];
+  return d;
 }
 
 export function demoErase(request: EraseRequest, emit: (e: EraseEvent) => void, cancelled: () => boolean): void {
   const description = demoDescribe(request.target);
-  const method = demoEraseCatalogue.methods.find((m) => m.id === request.method.id) ?? demoEraseCatalogue.methods[0]!;
+  const firmware = request.method.id === "firmware" && "action" in request.method ? demoEraseCatalogue.firmware_actions.find((a) => a.id === (request.method as { action: string }).action) ?? null : null;
+  const method = firmware ?? demoEraseCatalogue.methods.find((m) => m.id === request.method.id) ?? demoEraseCatalogue.methods[0]!;
   const passes = request.method.id === "custom" && "passes" in request.method ? request.method.passes.length : method.passes;
   const labels = ["0x00", "0xFF", "random"];
   const total = description.length;
@@ -486,9 +513,9 @@ export function demoErase(request: EraseRequest, emit: (e: EraseEvent) => void, 
       emit({ kind: "cancelled", resume: request.target.kind === "mounted_free_space" || request.target.kind === "files" ? null : { key: "demo", method: method.id, pass: pass - 1, offset: done, seed: "demo", bytes_written: (pass - 1) * total + done }, summary: summary(pass - 1, false) });
       return;
     }
-    if (done === 0) emit({ kind: "pass", pass, passes, pattern: labels[(pass - 1) % labels.length]! });
+    if (done === 0) emit({ kind: "pass", pass, passes, pattern: firmware ? firmware.label : labels[(pass - 1) % labels.length]! });
     done = Math.min(total, done + total / 12);
-    emit({ kind: "progress", pass, passes, done, total, bytes_per_sec: 180_000_000, unwritable: 0 });
+    emit(firmware ? { kind: "progress", pass, passes, done: Math.round((done / total) * 100), total: 100, bytes_per_sec: 0, unwritable: 0 } : { kind: "progress", pass, passes, done, total, bytes_per_sec: 180_000_000, unwritable: 0 });
     if (done >= total) {
       if (pass >= passes) {
         let v = 0;

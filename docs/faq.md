@@ -172,13 +172,17 @@ then wipe the free space of their volume.
 
 ### Can PhoinixDR securely erase an SSD?
 
-Only at the software level. An overwrite reaches an SSD's logical blocks,
-not its physical cells: the controller remaps writes, and over-provisioned
-or retired cells are never touched. That is enough against recovery
-software (NIST 800-88 *Clear*). A real purge needs the device's own
-sanitize command (ATA Secure Erase, NVMe Sanitize), planned for M12.4, or
-physical destruction. The erase page says so whenever the target is
-solid-state.
+Yes, since M12.4, with the drive's own sanitize command. An overwrite
+reaches an SSD's logical blocks, not its physical cells: the controller
+remaps writes, and over-provisioned or retired cells are never touched,
+so an overwrite is NIST 800-88 *Clear*. A *Purge* is the command the
+drive runs itself: ATA SANITIZE (crypto scramble, block erase) or
+SECURITY ERASE, NVMe Sanitize or Format with a secure-erase setting.
+PhoinixDR asks the drive what it offers, preselects it on a solid-state
+drive, samples blocks before and after to check that they changed, and
+says when the command is not reachable (USB bridges, the Windows inbox
+NVMe driver) or the drive is frozen (sleep and wake the computer, or
+replug the drive's power). Otherwise, physical destruction.
 
 ### How was PhoinixDR built?
 

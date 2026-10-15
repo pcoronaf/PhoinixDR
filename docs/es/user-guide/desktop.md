@@ -436,8 +436,63 @@ tanto: borrar los archivos y después borrar el espacio libre de su
 volumen. El escaneo posterior opcional cuenta solo los nombres borrados
 (necesita derechos de administrador para leer el volumen).
 
-Los comandos de sanitización del firmware para SSD son la última parte
-del plan ([M12](../../erase/plan.md), en inglés).
+### La sanitización del propio disco (SSD)
+
+Una sobreescritura por software llega a los bloques lógicos de un SSD, no
+a sus celdas: el controlador reasigna las escrituras, y las celdas de
+sobreaprovisionamiento o retiradas conservan su contenido anterior. El
+borrado honesto de un disco de estado sólido es el que ejecuta el propio
+disco, el *Purge* de NIST SP 800-88. Al elegir un disco completo,
+PhoinixDR pregunta al disco qué ofrece (ATA IDENTIFY DEVICE, NVMe
+Identify Controller) y lista las respuestas al principio del selector de
+método, preseleccionadas en un disco de estado sólido:
+
+- **Borrado criptográfico** (ATA CRYPTO SCRAMBLE EXT, NVMe Sanitize con
+  crypto erase, NVMe Format con crypto erase, y en la mayoría de los SSD
+  el borrado de seguridad mejorado de ATA): se sustituye la clave de
+  cifrado del medio y cada sector se lee como datos aleatorios. Segundos.
+- **Borrado de bloques** (ATA BLOCK ERASE EXT, NVMe Sanitize block erase):
+  se borra cada bloque NAND, reasignados incluidos. Minutos.
+- **Sobreescritura por el dispositivo**, y el **borrado de seguridad** ATA
+  (normal y mejorado) para discos sin el conjunto SANITIZE. El borrado de
+  seguridad fija una contraseña temporal, `PhoinixDR`, y la retira
+  después; si un disco quedara bloqueado tras un fallo, esa es la
+  contraseña para desbloquearlo.
+
+<figure>
+  <img src="../../user-guide/images/20-erase-firmware.png" alt="Configuración del borrado de un disco NVMe con el borrado criptográfico del firmware preseleccionado y su aviso" width="960">
+  <figcaption>Un disco NVMe: los comandos de sanitización del propio disco al principio del selector de método, el borrado criptográfico preseleccionado, y lo que una sanitización del firmware es y no es.</figcaption>
+</figure>
+
+Antes del comando PhoinixDR lee una muestra de 256 bloques repartidos por
+el disco y guarda sus resúmenes; después vuelve a leer los mismos
+bloques: un bloque que contenía datos y se lee igual es una discrepancia,
+y el certificado lo dice. El comando no puede cancelarse una vez emitido,
+y cortar la alimentación mientras el disco trabaja puede dejarlo
+inutilizable. Ejecute también el escaneo profundo posterior: PhoinixDR
+solo puede pedírselo al disco y mirar el resultado, nunca ver lo que hizo
+el controlador por dentro, y hay firmware con errores que informa de
+éxito sin borrar.
+
+Dos cosas se interponen, y la página dice cuál:
+
+- **Congelado (frozen).** Muchas BIOS congelan el conjunto de seguridad
+  ATA al arrancar, así que el borrado de seguridad se rechaza. Suspenda
+  el equipo y reanúdelo, o desconecte y reconecte la alimentación SATA
+  del disco con el sistema en marcha, y pulse *Refresh*; un Linux en vivo
+  es la forma habitual de sortear una BIOS que siempre congela. Los
+  comandos SANITIZE no se ven afectados por el estado congelado.
+- **No alcanzable.** Los puentes USB rara vez reenvían comandos ATA o
+  NVMe, y el controlador NVMe integrado de Windows solo reenvía los
+  específicos del fabricante, así que en Windows un disco NVMe
+  normalmente no ofrece nada; un Linux en vivo con
+  `phoinix erase device /dev/nvme0n1 --method firmware` sí. La página
+  recurre entonces a la sobreescritura por software y dice que es un
+  *Clear*, no un *Purge*.
+
+Esta parte de PhoinixDR se escribió contra las especificaciones ATA y
+NVMe y se probó contra discos simulados, no contra cada disco real: trate
+el primer uso en un modelo como una prueba en un disco desechable.
 
 ## Sesiones
 

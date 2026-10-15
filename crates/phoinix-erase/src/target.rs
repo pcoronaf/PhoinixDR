@@ -191,6 +191,9 @@ pub struct TargetDescription {
     /// The files and folders of a files target.
     #[serde(default)]
     pub files: Option<FilesDescription>,
+    /// What the device's firmware offers (whole devices), when it answered.
+    #[serde(default)]
+    pub firmware: Option<crate::firmware::FirmwareInfo>,
 }
 
 impl TargetDescription {
@@ -341,6 +344,7 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
             space: None,
             warnings: Vec::new(),
             files: None,
+            firmware: None,
         };
         if let EraseTarget::FreeSpace {
             partition, slack, ..
@@ -507,6 +511,7 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
         space: None,
         warnings: Vec::new(),
         files: None,
+        firmware: None,
     };
     if let EraseTarget::FreeSpace {
         partition, slack, ..
@@ -516,7 +521,12 @@ pub fn describe(target: &EraseTarget, guards: &Guards) -> Result<TargetDescripti
             .iter()
             .any(|r| matches!(r, Refusal::NoSuchPartition { .. }))
     {
-        describe_free_space(&mut desc, reader, *partition, *slack)?;
+        describe_free_space(&mut desc, reader.clone(), *partition, *slack)?;
+    }
+    if let EraseTarget::WholeDevice { .. } = target {
+        drop(reader);
+        desc.firmware = platform::open_firmware(&path, device.and_then(|d| d.bus))
+            .map(|mut b| crate::firmware::probe(&mut *b));
     }
     Ok(desc)
 }
@@ -696,6 +706,7 @@ fn describe_files(
         }),
         warnings,
         files: Some(files),
+        firmware: None,
     })
 }
 
@@ -805,6 +816,7 @@ fn describe_mounted(
         }),
         warnings,
         files: None,
+        firmware: None,
     })
 }
 

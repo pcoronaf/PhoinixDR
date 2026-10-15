@@ -109,7 +109,9 @@ export function EraseProgress({
             ? `${state.scanning.candidates} candidate(s) so far${state.scanning.total ? ` · ${percent(state.scanning.done, state.scanning.total)}` : ""}`
             : state.verifying
             ? `${state.verifying.done} of ${state.verifying.total} blocks read back`
-            : state.total
+            : state.total === 100 && state.bytesPerSec === 0 && state.pattern.startsWith("Firmware")
+              ? `The device is working: ${state.done}% reported`
+              : state.total
               ? `${formatBytes(state.done)} of ${formatBytes(state.total)} (${percent(state.done, state.total)}) at ${formatBytes(state.bytesPerSec)}/s · ${etaText(state.total - state.done + (state.passes - state.pass) * state.total, state.bytesPerSec)}`
               : ""}
           {state.unwritable > 0
@@ -136,7 +138,7 @@ export function EraseProgress({
           </p>
           <p className="muted">
             {state.summary.passes_completed} of {state.summary.passes} pass(es)
-            · {formatBytes(state.summary.bytes_written)} written ·{" "}
+            {state.summary.bytes_written > 0 ? ` · ${formatBytes(state.summary.bytes_written)} written` : ""} ·{" "}
             {Math.round(state.summary.seconds / 60)} min
             {state.summary.certificate
               ? ` · certificate: ${state.summary.certificate}`

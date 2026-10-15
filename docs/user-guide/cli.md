@@ -204,7 +204,22 @@ phoinix erase free-space stick.img --scan quick      # an image's only volume, t
 phoinix erase mounted E:\ --reserve 2G              # fill a volume in use through the filesystem; no administrator rights
 phoinix erase mounted /media/user/stick --method random
 phoinix erase files ~/cases/2024-031 draft.docx --method random --certificate files.html   # files and folders by name
+phoinix erase describe /dev/nvme0n1                  # also what the drive's firmware offers (crypto, block, …) and whether it is frozen
+phoinix erase device /dev/nvme0n1 --method firmware --scan deep        # the drive's own sanitize, best action it supports
+phoinix erase device /dev/sdb --method firmware --action enhanced     # ATA enhanced security erase
 ```
+
+`--method firmware` runs the drive's own sanitize command on a whole
+device (NIST 800-88 *Purge*: ATA SANITIZE DEVICE or SECURITY ERASE UNIT,
+NVMe Sanitize or Format NVM); `--action` picks `crypto`, `block`,
+`overwrite`, `security`, `enhanced`, `format` or `format-crypto`, and
+without it the best action the drive supports is used. `describe` shows
+what the drive offers and whether its ATA security is frozen (sleep and
+wake the computer, or replug the drive's power, then retry). A sample of
+256 blocks is read before and after and compared; the certificate records
+the mismatches. USB bridges rarely forward the commands and the Windows
+inbox NVMe driver forwards only vendor-specific ones, so a live Linux
+system is the usual place to run this on an NVMe drive.
 
 `free-space` reads the volume with the NTFS, FAT, exFAT or ext engine,
 takes the free ranges from its allocation map (and the slack of the live

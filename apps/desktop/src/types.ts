@@ -495,6 +495,7 @@ export interface TargetDescription {
   space: SpaceDescription | null;
   warnings: string[];
   files: FilesDescription | null;
+  firmware: FirmwareInfo | null;
 }
 
 export interface EraseTargetInfo {
@@ -522,6 +523,10 @@ export interface EraseCatalogue {
   free_space_note: string;
   mounted_note: string;
   files_note: string;
+  firmware_note: string;
+  frozen_advice: string;
+  /** Firmware actions with their labels and notes, by id. */
+  firmware_actions: EraseMethodInfo[];
 }
 
 export type VerifyMode = "none" | "sample" | "full";
@@ -551,7 +556,27 @@ export interface Operator {
 }
 
 /** The method as the engine expects it (`{ id }`, or custom passes). */
-export type EraseMethodSpec = { id: string } | { id: "custom"; passes: { pattern: { kind: "fixed"; byte: number } | { kind: "random" } }[] };
+export type EraseMethodSpec =
+  | { id: string }
+  | { id: "custom"; passes: { pattern: { kind: "fixed"; byte: number } | { kind: "random" } }[] }
+  | { id: "firmware"; action: FirmwareAction };
+
+export type FirmwareAction = "crypto" | "block" | "overwrite" | "security" | "enhanced" | "format" | "format-crypto";
+
+/** What the device's firmware offers. */
+export interface FirmwareInfo {
+  transport: "ata" | "nvme" | null;
+  model: string | null;
+  serial: string | null;
+  supports: FirmwareAction[];
+  frozen: boolean;
+  security_enabled: boolean;
+  locked: boolean;
+  solid_state: boolean | null;
+  security_erase_minutes: number | null;
+  enhanced_erase_minutes: number | null;
+  note: string | null;
+}
 
 export interface EraseRequest {
   target: EraseTarget;

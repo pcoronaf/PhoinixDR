@@ -24,6 +24,7 @@ pub mod certificate;
 pub mod engine;
 mod error;
 pub mod files;
+pub mod firmware;
 pub mod method;
 pub mod mounted;
 pub mod pattern;
@@ -41,6 +42,7 @@ pub use engine::{
 };
 pub use error::{EraseError, Refusal};
 pub use files::{FileEntry, FileFailure, FilesDescription, StreamEntry};
+pub use firmware::{FIRMWARE_NOTE, FROZEN_ADVICE, FirmwareAction, FirmwareInfo, Transport};
 pub use method::{EraseMethod, Pass, PassPattern, VerifyMode};
 pub use platform::MountedVolumeInfo;
 pub use scan::{PostScan, PostScanner, ScanProgress, ScanRecord};

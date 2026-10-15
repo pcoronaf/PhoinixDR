@@ -379,6 +379,13 @@ pub struct EraseCatalogue {
     pub mounted_note: String,
     /// What erasing files by name cannot reach.
     pub files_note: String,
+    /// What a firmware sanitize is and is not.
+    pub firmware_note: String,
+    /// What to do about a frozen ATA security feature set.
+    pub frozen_advice: String,
+    /// Every firmware action with its label and note (the device says
+    /// which it supports).
+    pub firmware_actions: Vec<EraseMethodInfo>,
 }
 
 /// The method catalogue and warning texts.
@@ -403,6 +410,18 @@ pub fn erase_catalogue() -> EraseCatalogue {
         free_space_note: phoinix_erase::FREE_SPACE_NOTE.to_owned(),
         mounted_note: phoinix_erase::MOUNTED_NOTE.to_owned(),
         files_note: phoinix_erase::FILES_NOTE.to_owned(),
+        firmware_note: phoinix_erase::FIRMWARE_NOTE.to_owned(),
+        frozen_advice: phoinix_erase::FROZEN_ADVICE.to_owned(),
+        firmware_actions: phoinix_erase::FirmwareAction::ALL
+            .iter()
+            .map(|a| EraseMethodInfo {
+                id: a.id().to_owned(),
+                label: a.label().to_owned(),
+                note: a.note().to_owned(),
+                passes: 1,
+                multi_pass: false,
+            })
+            .collect(),
     }
 }
 

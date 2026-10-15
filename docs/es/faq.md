@@ -189,13 +189,19 @@ volumen.
 
 ### ¿Puede PhoinixDR borrar de forma segura un SSD?
 
-Solo a nivel de software. Una sobreescritura llega a los bloques lógicos
-del SSD, no a sus celdas físicas: el controlador reasigna las escrituras y
-las celdas de sobreaprovisionamiento o retiradas nunca se tocan. Eso basta
-contra el software de recuperación (*Clear* de NIST 800-88). Un *purge*
-real necesita el comando de sanitización del propio dispositivo (ATA Secure
-Erase, NVMe Sanitize), previsto para M12.4, o la destrucción física. La
-página de borrado lo advierte siempre que el objetivo es de estado sólido.
+Sí, desde M12.4, con el comando de sanitización del propio disco. Una
+sobreescritura llega a los bloques lógicos del SSD, no a sus celdas
+físicas: el controlador reasigna las escrituras y las celdas de
+sobreaprovisionamiento o retiradas nunca se tocan, así que una
+sobreescritura es un *Clear* de NIST 800-88. Un *Purge* es el comando que
+ejecuta el propio disco: ATA SANITIZE (crypto scramble, block erase) o
+SECURITY ERASE, NVMe Sanitize o Format con borrado seguro. PhoinixDR
+pregunta al disco qué ofrece, lo preselecciona en un disco de estado
+sólido, muestrea bloques antes y después para comprobar que cambiaron, y
+avisa cuando el comando no es alcanzable (puentes USB, el controlador NVMe
+integrado de Windows) o el disco está congelado (suspenda y reanude el
+equipo, o reconecte la alimentación del disco). En otro caso, la
+destrucción física.
 
 ### ¿Cómo se construyó PhoinixDR?
 

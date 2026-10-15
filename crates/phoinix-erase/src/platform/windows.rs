@@ -22,12 +22,20 @@ use windows_sys::Win32::Storage::FileSystem::{
     GetDiskFreeSpaceW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, GetVolumePathNameW,
     GetVolumePathNamesForVolumeNameW, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, WIN32_FIND_STREAM_DATA,
 };
+use windows_sys::Win32::Storage::IscsiDisc::{
+    ATA_FLAGS_48BIT_COMMAND, ATA_FLAGS_DATA_IN, ATA_FLAGS_DATA_OUT, ATA_FLAGS_DRDY_REQUIRED,
+    ATA_PASS_THROUGH_EX, IOCTL_ATA_PASS_THROUGH,
+};
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Ioctl::{
     FSCTL_DISMOUNT_VOLUME, FSCTL_LOCK_VOLUME, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+    IOCTL_STORAGE_PROTOCOL_COMMAND, ProtocolTypeNvme, STORAGE_PROTOCOL_COMMAND,
+    STORAGE_PROTOCOL_COMMAND_FLAG_ADAPTER_REQUEST, STORAGE_PROTOCOL_COMMAND_LENGTH_NVME,
+    STORAGE_PROTOCOL_SPECIFIC_NVME_ADMIN_COMMAND, STORAGE_PROTOCOL_STRUCTURE_VERSION,
 };
 
 use crate::error::{EraseError, Refusal};
+use crate::firmware::{AtaCommand, AtaResult, Backend, DataDir, NvmeCommand, Transport};
 use crate::platform::{MountedVolumeInfo, VolumeOnDisk};
 use crate::target::{EraseTarget, TargetDescription};
 use crate::writer::{FileWriter, RangeWriter};
@@ -413,4 +421,240 @@ pub fn open_writer(desc: &TargetDescription) -> Result<Box<dyn RangeWriter>, Era
         .open(path)
         .map_err(|e| EraseError::io(path, e))?;
     Ok(Box::new(FileWriter::new(file, path, locks)))
+}
+
+// ---------------------------------------------------------------------------
+// Firmware pass-through: IOCTL_ATA_PASS_THROUGH and
+// IOCTL_STORAGE_PROTOCOL_COMMAND (NVMe admin commands).
+
+/// The pass-through over an open device handle.
+pub struct WindowsBackend {
+    file: File,
+    transport: Transport,
+}
+
+/// A DeviceIoControl with one buffer used for input and output.
+fn ioctl_inout(file: &File, code: u32, buf: &mut [u8]) -> std::io::Result<usize> {
+    let len = u32::try_from(buf.len()).map_err(|_| std::io::Error::other("buffer too large"))?;
+    let mut returned: u32 = 0;
+    // SAFETY: `file` owns a valid handle; `buf` is a live buffer used as
+    // both input and output for the synchronous call.
+    let ok = unsafe {
+        DeviceIoControl(
+            file.as_raw_handle(),
+            code,
+            buf.as_mut_ptr().cast(),
+            len,
+            buf.as_mut_ptr().cast(),
+            len,
+            &mut returned,
+            ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(usize::try_from(returned).unwrap_or(0).min(buf.len()))
+}
+
+impl Backend for WindowsBackend {
+    fn transport(&self) -> Transport {
+        self.transport
+    }
+
+    fn ata(
+        &mut self,
+        cmd: &AtaCommand,
+        data: &mut [u8],
+        timeout: std::time::Duration,
+    ) -> std::io::Result<AtaResult> {
+        let header = size_of::<ATA_PASS_THROUGH_EX>();
+        let data_len = match cmd.dir {
+            DataDir::None => 0,
+            _ => data.len(),
+        };
+        let mut buf = vec![0u8; header + data_len];
+        let mut apt = ATA_PASS_THROUGH_EX::default();
+        apt.Length = u16::try_from(header).unwrap_or(0);
+        apt.AtaFlags = u16::try_from(
+            ATA_FLAGS_DRDY_REQUIRED
+                | match cmd.dir {
+                    DataDir::None => 0,
+                    DataDir::In => ATA_FLAGS_DATA_IN,
+                    DataDir::Out => ATA_FLAGS_DATA_OUT,
+                }
+                | if cmd.ext { ATA_FLAGS_48BIT_COMMAND } else { 0 },
+        )
+        .unwrap_or(0);
+        apt.DataTransferLength = u32::try_from(data_len).unwrap_or(0);
+        apt.TimeOutValue = u32::try_from(timeout.as_secs()).unwrap_or(u32::MAX).max(1);
+        apt.DataBufferOffset = header;
+        // CurrentTaskFile: features, count, lba low, mid, high, device,
+        // command; PreviousTaskFile: the high bytes of the 48-bit form.
+        let lba = cmd.lba.to_le_bytes();
+        let block_count = u16::try_from(data_len.div_ceil(512)).unwrap_or(u16::MAX);
+        let count = if cmd.dir == DataDir::None {
+            cmd.count
+        } else {
+            block_count
+        };
+        apt.CurrentTaskFile = [
+            (cmd.feature & 0xFF) as u8,
+            (count & 0xFF) as u8,
+            lba[0],
+            lba[1],
+            lba[2],
+            cmd.device,
+            cmd.command,
+            0,
+        ];
+        apt.PreviousTaskFile = [
+            (cmd.feature >> 8) as u8,
+            (count >> 8) as u8,
+            lba[3],
+            lba[4],
+            lba[5],
+            0,
+            0,
+            0,
+        ];
+        // SAFETY: `ATA_PASS_THROUGH_EX` is a plain C struct; copying its
+        // bytes into the buffer head is how the ioctl expects it.
+        let apt_bytes =
+            unsafe { std::slice::from_raw_parts((&raw const apt).cast::<u8>(), header) };
+        buf[..header].copy_from_slice(apt_bytes);
+        if cmd.dir == DataDir::Out {
+            buf[header..].copy_from_slice(data);
+        }
+        ioctl_inout(&self.file, IOCTL_ATA_PASS_THROUGH, &mut buf)?;
+        if cmd.dir == DataDir::In {
+            data.copy_from_slice(&buf[header..header + data_len]);
+        }
+        // SAFETY: reading the struct back from the buffer head, which the
+        // driver filled with the same layout.
+        let back: ATA_PASS_THROUGH_EX = unsafe { ptr::read_unaligned(buf.as_ptr().cast()) };
+        let c = back.CurrentTaskFile;
+        let p = back.PreviousTaskFile;
+        Ok(crate::firmware::ata::result_from_taskfile(
+            c[6],
+            c[0],
+            c[1],
+            p[1],
+            [c[2], c[3], c[4], p[2], p[3], p[4]],
+        ))
+    }
+
+    fn nvme_admin(
+        &mut self,
+        cmd: &NvmeCommand,
+        dir: DataDir,
+        data: &mut [u8],
+        timeout: std::time::Duration,
+    ) -> std::io::Result<(u16, u32)> {
+        let header = size_of::<STORAGE_PROTOCOL_COMMAND>();
+        let command_len = usize::try_from(STORAGE_PROTOCOL_COMMAND_LENGTH_NVME).unwrap_or(64);
+        let error_len = 64usize;
+        let data_len = match dir {
+            DataDir::None => 0,
+            _ => data.len(),
+        };
+        let total = header + command_len + error_len + data_len;
+        let mut buf = vec![0u8; total];
+        let mut spc = STORAGE_PROTOCOL_COMMAND {
+            Version: STORAGE_PROTOCOL_STRUCTURE_VERSION,
+            Length: u32::try_from(header).unwrap_or(0),
+            ProtocolType: ProtocolTypeNvme,
+            Flags: STORAGE_PROTOCOL_COMMAND_FLAG_ADAPTER_REQUEST,
+            ReturnStatus: 0,
+            ErrorCode: 0,
+            CommandLength: STORAGE_PROTOCOL_COMMAND_LENGTH_NVME,
+            ErrorInfoLength: u32::try_from(error_len).unwrap_or(0),
+            DataToDeviceTransferLength: if dir == DataDir::Out {
+                u32::try_from(data_len).unwrap_or(0)
+            } else {
+                0
+            },
+            DataFromDeviceTransferLength: if dir == DataDir::In {
+                u32::try_from(data_len).unwrap_or(0)
+            } else {
+                0
+            },
+            TimeOutValue: u32::try_from(timeout.as_secs()).unwrap_or(u32::MAX).max(1),
+            ErrorInfoOffset: u32::try_from(header + command_len).unwrap_or(0),
+            DataToDeviceBufferOffset: if dir == DataDir::Out {
+                u32::try_from(header + command_len + error_len).unwrap_or(0)
+            } else {
+                0
+            },
+            DataFromDeviceBufferOffset: if dir == DataDir::In {
+                u32::try_from(header + command_len + error_len).unwrap_or(0)
+            } else {
+                0
+            },
+            CommandSpecific: STORAGE_PROTOCOL_SPECIFIC_NVME_ADMIN_COMMAND,
+            Reserved0: 0,
+            FixedProtocolReturnData: 0,
+            Reserved1: [0; 3],
+            Command: [0; 1],
+        };
+        let _ = &mut spc;
+        // SAFETY: plain C struct copied into the buffer head.
+        let spc_bytes =
+            unsafe { std::slice::from_raw_parts((&raw const spc).cast::<u8>(), header) };
+        buf[..header].copy_from_slice(spc_bytes);
+        // The 64-byte NVMe submission queue entry: dword 0 = opcode (and
+        // CID 0), dword 1 = NSID, dwords 10–15 as given.
+        let sqe = &mut buf[header..header + command_len];
+        sqe[0..4].copy_from_slice(&u32::from(cmd.opcode).to_le_bytes());
+        sqe[4..8].copy_from_slice(&cmd.nsid.to_le_bytes());
+        sqe[40..44].copy_from_slice(&cmd.cdw10.to_le_bytes());
+        sqe[44..48].copy_from_slice(&cmd.cdw11.to_le_bytes());
+        sqe[48..52].copy_from_slice(&cmd.cdw12.to_le_bytes());
+        sqe[52..56].copy_from_slice(&cmd.cdw13.to_le_bytes());
+        sqe[56..60].copy_from_slice(&cmd.cdw14.to_le_bytes());
+        sqe[60..64].copy_from_slice(&cmd.cdw15.to_le_bytes());
+        let data_offset = header + command_len + error_len;
+        if dir == DataDir::Out {
+            buf[data_offset..].copy_from_slice(data);
+        }
+        ioctl_inout(&self.file, IOCTL_STORAGE_PROTOCOL_COMMAND, &mut buf)?;
+        if dir == DataDir::In {
+            data.copy_from_slice(&buf[data_offset..data_offset + data_len]);
+        }
+        // SAFETY: the driver filled the struct at the buffer head.
+        let back: STORAGE_PROTOCOL_COMMAND = unsafe { ptr::read_unaligned(buf.as_ptr().cast()) };
+        // ReturnStatus 0 = success; ErrorCode carries the NVMe completion
+        // status (status field in bits 16:1 of DW3 for the inbox driver).
+        let status = if back.ReturnStatus == 0 {
+            0
+        } else {
+            u16::try_from((back.ErrorCode >> 1) & 0x7FF)
+                .unwrap_or(u16::MAX)
+                .max(1)
+        };
+        Ok((status, back.FixedProtocolReturnData))
+    }
+}
+
+pub fn open_firmware(
+    path: &Path,
+    bus: Option<phoinix_device::DeviceBus>,
+) -> Option<Box<dyn Backend>> {
+    let text = path.to_string_lossy();
+    if disk_number_of(&text).is_none() {
+        return None;
+    }
+    let transport = match bus {
+        Some(phoinix_device::DeviceBus::Nvme) => Transport::Nvme,
+        Some(phoinix_device::DeviceBus::Sata) => Transport::Ata,
+        Some(phoinix_device::DeviceBus::Virtual | phoinix_device::DeviceBus::Sd) => return None,
+        _ => Transport::Ata,
+    };
+    let file = File::options()
+        .read(true)
+        .write(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .open(&*text)
+        .ok()?;
+    Some(Box::new(WindowsBackend { file, transport }))
 }

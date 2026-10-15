@@ -164,7 +164,7 @@ impl Certificate {
             finished_at: None,
             target: target.clone(),
             method: method.clone(),
-            passes: method.passes().iter().map(|p| p.pattern.label()).collect(),
+            passes: method.pass_labels(),
             passes_completed: 0,
             seed: seed_hex.to_owned(),
             bytes_written: 0,
@@ -373,7 +373,24 @@ impl Certificate {
         }
         rows.push(("Method", self.method.label()));
         rows.push(("Passes", self.passes.join(", ")));
-        rows.push(("Bytes written", bytes_si(self.bytes_written)));
+        if let Some(fw) = &t.firmware
+            && self.method.is_firmware()
+        {
+            rows.push((
+                "Firmware",
+                format!(
+                    "{} · {} · S/N {}",
+                    fw.transport.map_or("unknown transport", |t| match t {
+                        crate::firmware::Transport::Ata => "ATA",
+                        crate::firmware::Transport::Nvme => "NVMe",
+                    }),
+                    fw.model.as_deref().unwrap_or("model unknown"),
+                    fw.serial.as_deref().unwrap_or("unknown")
+                ),
+            ));
+        } else {
+            rows.push(("Bytes written", bytes_si(self.bytes_written)));
+        }
         rows.push(("Random seed", self.seed.clone()));
         if let Some(v) = &self.verification {
             rows.push((

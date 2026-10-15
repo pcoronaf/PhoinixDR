@@ -4,6 +4,26 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- M12.4 Firmware sanitize. Whole-device targets now ask the drive what it
+  offers and can run it: ATA SANITIZE DEVICE (crypto scramble, block
+  erase, overwrite) and SECURITY ERASE UNIT (normal and enhanced, with a
+  temporary password removed even on failure), NVMe Sanitize (crypto,
+  block, overwrite, status log polled) and Format NVM with a secure-erase
+  setting. Linux through `SG_IO` and the NVMe admin ioctl, Windows
+  through the ATA and storage-protocol pass-through IOCTLs. The ATA
+  frozen state is detected and the sleep-or-replug advice shown; the
+  firmware action is preselected on solid-state drives; a sample of 256
+  blocks is hashed before and compared after, and the mismatches go into
+  the certificate. `phoinix erase describe` prints the drive's answer;
+  `phoinix erase device --method firmware [--action …]` runs it. The
+  logic is tested against simulated ATA and NVMe drives; the platform
+  calls are type-checked, not exercised, in continuous integration, so
+  the first use on a model is a test on a disposable drive.
+- Documentation: the guides and the FAQ in English and Spanish, the M12
+  plan marked complete.
+
 ## 0.1.7
 
 - M12.3 Files and folders. `phoinix erase files` and the *Erase files and

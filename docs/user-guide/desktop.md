@@ -402,8 +402,61 @@ erase the files, then wipe the free space of their volume. The optional
 post-erase scan counts only the erased names (it needs administrator
 rights to read the volume).
 
-The firmware sanitize commands for SSDs are the last part of the plan
-([M12](../erase/plan.md)).
+### The drive's own sanitize (SSDs)
+
+A software overwrite reaches an SSD's logical blocks, not its cells: the
+controller remaps writes, and over-provisioned or retired cells keep
+their old content. The honest erase of a solid-state drive is the one
+the drive runs itself, NIST SP 800-88 *Purge*. When a whole disk is
+chosen, PhoinixDR asks the drive what it offers (ATA IDENTIFY DEVICE,
+NVMe Identify Controller) and lists the answers at the top of the method
+picker, preselected on a solid-state drive:
+
+- **Cryptographic erase** (ATA CRYPTO SCRAMBLE EXT, NVMe Sanitize crypto
+  erase, NVMe Format with crypto erase, and on most SSDs the ATA enhanced
+  security erase): the media encryption key is replaced and every sector
+  reads as random data. Seconds.
+- **Block erase** (ATA BLOCK ERASE EXT, NVMe Sanitize block erase): every
+  NAND block is erased, remapped ones included. Minutes.
+- **Overwrite by the device**, and the ATA **security erase** (normal and
+  enhanced) for drives without the SANITIZE feature set. The security
+  erase sets a temporary password, `PhoinixDR`, and removes it again; if a
+  drive ever stays locked after a failure, that is the password to unlock
+  it with.
+
+<figure>
+  <img src="images/20-erase-firmware.png" alt="Erase setup for an NVMe drive with the firmware cryptographic erase preselected and its warning" width="960">
+  <figcaption>An NVMe drive: the drive's own sanitize commands at the top of the method picker, the cryptographic erase preselected, and what a firmware sanitize is and is not.</figcaption>
+</figure>
+
+Before the command PhoinixDR reads a sample of 256 blocks spread over the
+drive and keeps their hashes; afterwards it reads the same blocks again:
+a block that held data and reads the same is a mismatch, and the
+certificate says so. The command cannot be cancelled once issued, and
+cutting the power while the drive works may leave it unusable. Run the
+post-erase deep scan too: PhoinixDR can only ask the drive and look at
+the result, never see what the controller did inside, and firmware with
+bugs has been known to report success without erasing.
+
+Two things get in the way, and the page says which:
+
+- **Frozen.** Many BIOSes freeze the ATA security feature set at boot, so
+  the security erase is refused. Put the computer to sleep and wake it
+  up, or unplug and replug the drive's SATA power with the system
+  running, then press *Refresh*; a live Linux system is the usual way
+  around a BIOS that always freezes. The SANITIZE commands are not
+  affected by the frozen state.
+- **Not reachable.** USB bridges rarely forward ATA or NVMe commands, and
+  the Windows inbox NVMe driver forwards only vendor-specific ones, so on
+  Windows an NVMe drive usually offers nothing; a live Linux system with
+  `phoinix erase device /dev/nvme0n1 --method firmware` does. The page
+  then falls back to the software overwrite and says it is a *Clear*, not
+  a *Purge*.
+
+This part of PhoinixDR was written against the ATA and NVMe
+specifications and tested against simulated drives, not against every
+real one: treat the first use on a model as a test on a disposable
+drive.
 
 ## Sessions
 

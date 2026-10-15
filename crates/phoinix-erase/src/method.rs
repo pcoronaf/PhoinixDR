@@ -103,6 +103,11 @@ pub enum EraseMethod {
         /// The passes.
         passes: Vec<Pass>,
     },
+    /// The device's own sanitize command (whole devices only).
+    Firmware {
+        /// The action.
+        action: crate::firmware::FirmwareAction,
+    },
 }
 
 /// Gutmann's 27 fixed patterns (passes 5 to 31), as 3-byte sequences.
@@ -173,6 +178,22 @@ impl EraseMethod {
             Self::Vsitr => "vsitr".into(),
             Self::Gutmann => "gutmann".into(),
             Self::Custom { .. } => "custom".into(),
+            Self::Firmware { .. } => "firmware".into(),
+        }
+    }
+
+    /// Whether the method is the device's own sanitize command.
+    #[must_use]
+    pub const fn is_firmware(&self) -> bool {
+        matches!(self, Self::Firmware { .. })
+    }
+
+    /// The pass labels the certificate lists.
+    #[must_use]
+    pub fn pass_labels(&self) -> Vec<String> {
+        match self {
+            Self::Firmware { action } => vec![action.label().to_owned()],
+            _ => self.passes().iter().map(|p| p.pattern.label()).collect(),
         }
     }
 
@@ -189,6 +210,7 @@ impl EraseMethod {
             Self::Vsitr => "VSITR (BSI), 7 passes".into(),
             Self::Gutmann => "Gutmann, 35 passes".into(),
             Self::Custom { passes } => format!("Custom, {} pass(es)", passes.len()),
+            Self::Firmware { action } => action.label().to_owned(),
         }
     }
 
@@ -221,6 +243,7 @@ impl EraseMethod {
                 "Peter Gutmann's 1996 sequence for MFM/RLL encodings. The author's epilogue: \u{201c}performing the full 35-pass overwrite is pointless for any drive\u{201d}."
             }
             Self::Custom { .. } => "A user-defined sequence of passes.",
+            Self::Firmware { action } => action.note(),
         }
     }
 
@@ -261,6 +284,7 @@ impl EraseMethod {
                 v
             }
             Self::Custom { passes } => passes.clone(),
+            Self::Firmware { .. } => Vec::new(),
         }
     }
 

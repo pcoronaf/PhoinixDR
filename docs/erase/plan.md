@@ -1,6 +1,6 @@
 # M12: Secure erase
 
-Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 delivered (free space of NTFS/FAT/exFAT/ext volumes from the engines' allocation maps, file slack, the filesystem-level wipe of a mounted volume, post-erase quick and deep scans in the certificate). M12.3 delivered (files and folders through the filesystem: named streams, slack padding, read-back, truncate, rename, delete; the post-erase scan counts the erased names). M12.4 planned. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
+Status: M12.1 delivered (devices, partitions and files; every method; refusal rules; read-back verification; certificate; CLI and desktop). M12.2 delivered (free space of NTFS/FAT/exFAT/ext volumes from the engines' allocation maps, file slack, the filesystem-level wipe of a mounted volume, post-erase quick and deep scans in the certificate). M12.3 delivered (files and folders through the filesystem: named streams, slack padding, read-back, truncate, rename, delete; the post-erase scan counts the erased names). M12.4 delivered (ATA SANITIZE and SECURITY ERASE, NVMe Sanitize and Format NVM through SG_IO, the NVMe ioctl and the Windows pass-through IOCTLs; frozen-state detection and advice; the firmware action preselected on solid-state drives; before-and-after sample comparison). M12 complete. Decision record: [ADR-0014](../decisions/ADR-0014-secure-erase-as-a-separate-write-crate.md).
 
 PhoinixDR gains an erase mode: overwrite a whole device, a partition, the
 free space of a volume, or individual files and folders, with a chosen
@@ -173,9 +173,19 @@ IOCTLs go through the `windows-sys` crate like the readers do.
    truncate, random rename and delete; folders removed deepest first;
    read-back before deletion; symbolic links skipped and the running
    executable refused.
-4. **M12.4 Firmware sanitize.** ATA/NVMe commands on both platforms,
-   frozen-state detection with the usual workaround advice, and the
-   solid-state default switched to this method.
+4. **M12.4 Firmware sanitize** (delivered). ATA IDENTIFY DEVICE, SANITIZE
+   DEVICE (crypto scramble, block erase, overwrite) and the SECURITY ERASE
+   UNIT sequence with a temporary password that is removed even on
+   failure; NVMe Identify Controller, Sanitize (crypto, block, overwrite)
+   with the status log polled, and Format NVM with a secure-erase setting
+   keeping the namespace's LBA format. Linux through `SG_IO` (ATA
+   PASS-THROUGH 16) and `NVME_IOCTL_ADMIN_CMD`, Windows through
+   `IOCTL_ATA_PASS_THROUGH` and `IOCTL_STORAGE_PROTOCOL_COMMAND`.
+   Frozen-state detection with the sleep/replug advice; the action
+   preselected on solid-state drives; a sample of blocks hashed before
+   and compared after. The logic is tested against simulated drives; the
+   platform calls are type-checked on both targets and not exercised in
+   continuous integration.
 
 Each part ships behind the same safety rules; none is released without
 its tests, its documentation in English and Spanish, and a changelog

@@ -40,7 +40,7 @@
 
 ## Secure erase
 
-- [M12 plan and status](erase/plan.md): the write-capable crate, methods and what they guarantee, safety rules, verification, certificate; M12.1 (devices and partitions), M12.2 (free space, slack, post-erase scans) and M12.3 (files and folders) delivered
+- [M12 plan and status](erase/plan.md): the write-capable crate, methods and what they guarantee, safety rules, verification, certificate; M12.1 to M12.4 delivered (devices and partitions; free space, slack and post-erase scans; files and folders; the drive's own sanitize commands)
 - User guides: [desktop](user-guide/desktop.md#secure-erase), [command line](user-guide/cli.md#secure-erase)
 
 ## Testing

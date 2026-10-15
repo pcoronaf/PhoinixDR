@@ -218,7 +218,23 @@ phoinix erase free-space memoria.img --scan quick    # el único volumen de una 
 phoinix erase mounted E:\ --reserve 2G              # llena un volumen en uso a través del sistema de archivos; sin derechos de administrador
 phoinix erase mounted /media/usuario/memoria --method random
 phoinix erase files ~/casos/2024-031 borrador.docx --method random --certificate archivos.html   # archivos y carpetas por nombre
+phoinix erase describe /dev/nvme0n1                  # también lo que ofrece el firmware del disco (crypto, block, …) y si está congelado
+phoinix erase device /dev/nvme0n1 --method firmware --scan deep        # la sanitización del propio disco, la mejor acción que admita
+phoinix erase device /dev/sdb --method firmware --action enhanced     # borrado de seguridad mejorado ATA
 ```
+
+`--method firmware` ejecuta el comando de sanitización del propio disco
+sobre un dispositivo completo (*Purge* de NIST 800-88: ATA SANITIZE
+DEVICE o SECURITY ERASE UNIT, NVMe Sanitize o Format NVM); `--action`
+elige `crypto`, `block`, `overwrite`, `security`, `enhanced`, `format` o
+`format-crypto`, y sin ella se usa la mejor acción que admita el disco.
+`describe` muestra lo que ofrece el disco y si su seguridad ATA está
+congelada (suspenda y reanude el equipo, o reconecte la alimentación del
+disco, y reintente). Se lee una muestra de 256 bloques antes y después y
+se compara; el certificado anota las discrepancias. Los puentes USB rara
+vez reenvían los comandos y el controlador NVMe integrado de Windows solo
+reenvía los específicos del fabricante, así que un Linux en vivo es el
+lugar habitual para ejecutar esto en un disco NVMe.
 
 `free-space` lee el volumen con el motor NTFS, FAT, exFAT o ext, toma los
 rangos libres de su mapa de asignación (y el slack de los archivos vivos
