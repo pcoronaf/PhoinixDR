@@ -4,7 +4,7 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.5
 
 - M12.1 Secure erase: a new crate, `phoinix-erase`, the only one that
   writes to a medium (ADR-0014). Erases a whole device, one partition or a
