@@ -72,9 +72,18 @@ comandos la imprime con `phoinix --version`.
 
 ### SmartScreen o un antivirus avisan sobre el ejecutable.
 
-Los ejecutables leen discos en bruto, algo que algunas heurísticas
-señalan, y el editor es nuevo. Compare el SHA-256 con el `SHA256SUMS.txt`
-de la versión publicada, o compile desde el código fuente.
+SmartScreen es un sistema de reputación: avisa sobre cualquier ejecutable
+cuyo editor tenga poco historial de descargas limpias, que es el caso de
+un proyecto nuevo. Pulse *Más información → Ejecutar de todas formas* y
+compare el SHA-256 con el `SHA256SUMS.txt` de la versión publicada (o
+compile desde el código fuente). El flujo de publicación firma los
+ejecutables en cuanto se configura un certificado de firma de código, y
+la reputación se acumula entonces en esa identidad versión tras versión;
+ningún certificado quita el aviso al instante, ni siquiera uno EV, como
+afirma ahora la propia guía de Microsoft. Véase
+[Firma de código y SmartScreen](release/code-signing.md). Las
+heurísticas antivirus también pueden señalar a un programa que lee discos
+en bruto; la misma suma de comprobación responde a eso.
 
 ### ¿Puedo recuperar desde un SSD?
 

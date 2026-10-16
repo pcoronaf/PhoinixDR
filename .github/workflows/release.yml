@@ -74,8 +74,15 @@ jobs:
     name: Windows portable
     needs: version
     runs-on: windows-latest
+    outputs:
+      signing: ${{ steps.signing.outputs.signing }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      # Code signing (docs/release/code-signing.md). Either set of secrets
+      # signs both Windows executables; with neither, the release is
+      # published unsigned and the notes say so.
+      SIGN_AZURE: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.TRUSTED_SIGNING_ENDPOINT != '' }}
+      SIGN_PFX: ${{ secrets.CODE_SIGNING_PFX_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -129,6 +136,58 @@ jobs:
           $gz.CopyTo($out); $out.Close(); $gz.Close(); $in.Close()
           & $cli inspect $raw | Select-String "FAT12"
           Remove-Item $raw
+      - name: Sign with Azure Artifact Signing (Trusted Signing)
+        if: env.SIGN_AZURE == 'true'
+        uses: azure/trusted-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: PhoinixDR
+          description-url: https://pcoronaf.github.io/PhoinixDR/
+      - name: Sign with a PFX certificate (signtool)
+        if: env.SIGN_AZURE != 'true' && env.SIGN_PFX == 'true'
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.CODE_SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.CODE_SIGNING_PFX_PASSWORD }}
+          TIMESTAMP_URL: ${{ secrets.CODE_SIGNING_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [System.IO.File]::WriteAllBytes($pfx, [System.Convert]::FromBase64String($env:PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -like '*\x64\*' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { Write-Error "signtool.exe not found in the Windows SDK" }
+          foreach ($exe in Get-ChildItem dist -Filter *.exe) {
+            & $signtool.FullName sign /fd SHA256 /td SHA256 /tr $env:TIMESTAMP_URL /f $pfx /p $env:PFX_PASSWORD /d PhoinixDR /du https://pcoronaf.github.io/PhoinixDR/ $exe.FullName
+            if ($LASTEXITCODE -ne 0) { Write-Error "signing $($exe.Name) failed" }
+          }
+          Remove-Item $pfx
+      - name: Check the signatures
+        id: signing
+        shell: pwsh
+        run: |
+          $signed = 0
+          foreach ($exe in Get-ChildItem dist -Filter *.exe) {
+            $sig = Get-AuthenticodeSignature $exe.FullName
+            Write-Host "$($exe.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -eq 'Valid') { $signed++ }
+            elseif ($env:SIGN_AZURE -eq 'true' -or $env:SIGN_PFX -eq 'true') { Write-Error "$($exe.Name) is not validly signed although signing was configured" }
+          }
+          if ($signed -gt 0) {
+            $subject = (Get-AuthenticodeSignature (Get-ChildItem dist -Filter *.exe | Select-Object -First 1).FullName).SignerCertificate.Subject
+            "signing=The Windows executables are Authenticode-signed by $subject (SHA-256, RFC 3161 timestamp)." >> $env:GITHUB_OUTPUT
+          } else {
+            "signing=The Windows executables are not code-signed yet, so SmartScreen may warn on first run (More info → Run anyway); verify the SHA-256 instead. See docs/release/code-signing.md." >> $env:GITHUB_OUTPUT
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -184,6 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      SIGNING: ${{ needs.windows.outputs.signing }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -207,6 +267,8 @@ jobs:
             echo
             echo "The desktop executable also carries the version in its file properties (Details tab)."
             echo "Verify a download on Windows with \`Get-FileHash <file> -Algorithm SHA256\`."
+            echo
+            echo "${SIGNING}"
             echo
             echo "See CHANGELOG.md for what changed."
           } > notes.md

@@ -40,6 +40,7 @@ el sitio muestra la versión en inglés.
 
 - [Requisito de la versión portable para Windows](release/windows-portable.md)
 - [Proceso de publicación](../release/process.md) (en inglés): cómo se compila, etiqueta y publica una versión
+- [Firma de código y SmartScreen](release/code-signing.md): por qué aparece el aviso, qué lo quita, cómo firma el flujo
 
 ## Pruebas (en inglés)
 

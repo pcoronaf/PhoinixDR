@@ -67,9 +67,17 @@ command line prints it with `phoinix --version`.
 
 ### SmartScreen or an antivirus warns about the executable.
 
-The executables read raw disks, which some heuristics flag, and the
-publisher is new. Compare the SHA-256 with `SHA256SUMS.txt` from the
-release, or build from source.
+SmartScreen is a reputation system: it warns about any executable whose
+publisher has little history of clean downloads, which is the case for a
+new project. Press *More info → Run anyway*, and compare the SHA-256
+with `SHA256SUMS.txt` from the release (or build from source). The
+release workflow signs the executables as soon as a code-signing
+certificate is configured, and reputation then accrues to that identity
+release after release; no certificate removes the warning instantly, not
+even an EV one, as Microsoft's own guidance now states. See
+[Code signing and SmartScreen](release/code-signing.md). Antivirus
+heuristics may also flag a program that reads raw disks; the same
+checksum answers that.
 
 ### Can I recover from an SSD?
 

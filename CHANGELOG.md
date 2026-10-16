@@ -4,6 +4,17 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
+## Unreleased
+
+- Release workflow: the Windows executables are Authenticode-signed when
+  the repository holds the secrets of Azure Artifact Signing (Trusted
+  Signing) or a `.pfx` certificate, with SHA-256 digests and an RFC 3161
+  timestamp; every signature is verified before publishing and the release
+  notes state whether the executables are signed. New page
+  `docs/release/code-signing.md` (English and Spanish) on SmartScreen,
+  what removes its warning and what does not, and the certificate
+  options; the FAQ entry updated.
+
 ## 0.1.8
 
 - M12.4 Firmware sanitize. Whole-device targets now ask the drive what it

@@ -46,6 +46,14 @@ tag; the release assets are replaced.
 2. Add a `## <version>` section to `CHANGELOG.md`.
 3. Make sure CI is green on the commit, then start the release as above.
 
+## Code signing
+
+The Windows job signs both executables when the repository holds the
+secrets of a signing service, verifies the signatures and states the
+outcome in the release notes; see
+[Code signing and SmartScreen](code-signing.md) for the options and the
+secrets.
+
 ## Published files
 
 | file | content |

@@ -37,6 +37,7 @@
 
 - [Windows portable release requirement](release/windows-portable.md)
 - [Release process](release/process.md): how a version is built, tagged and published
+- [Code signing and SmartScreen](release/code-signing.md): why the warning appears, what removes it, how the workflow signs
 
 ## Secure erase
 
