@@ -4,7 +4,7 @@ All notable changes to PhoinixDR. The project follows the milestones of
 its technical specification; versions are tagged `vX.Y.Z` and published as
 GitHub Releases.
 
-## Unreleased
+## 0.1.8
 
 - M12.4 Firmware sanitize. Whole-device targets now ask the drive what it
   offers and can run it: ATA SANITIZE DEVICE (crypto scramble, block
